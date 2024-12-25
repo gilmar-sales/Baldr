@@ -18,6 +18,7 @@ add_executable(Server main.cpp
         CookieOptions.hpp
         IMiddleware.hpp
         PathMatcher.cpp
-        PathMatcher.hpp)
+        PathMatcher.hpp
+        Tuple.hpp)
 
 target_link_libraries(Server mswsock ws2_32 asio::asio skirnir::skirnir)
