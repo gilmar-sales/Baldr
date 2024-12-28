@@ -1,11 +1,19 @@
 #pragma once
 
+#include <functional>
+#include <memory>
+#include <ServiceProvider.hpp>
 #include <unordered_map>
-#include <vector>
 #include <string>
+
+#include "HttpRequest.hpp"
+#include "HttpResponse.hpp"
+
+using RouteHandler = std::function<void(HttpRequest&, HttpResponse&, std::shared_ptr<ServiceProvider>)>;
 
 struct TrieNode {
     std::unordered_map<std::string, TrieNode *> children;
+    std::optional<RouteHandler> routeHandler;
     bool isEndOfPath = false;
 };
 
@@ -15,9 +23,9 @@ public:
         mRoot = new TrieNode();
     }
 
-    void insert(const std::vector<std::string> &pathSegments) const;
+    void insert(std::string path, const RouteHandler &routeHandler) const;
 
-    [[nodiscard]] bool match(const std::vector<std::string> &pathSegments) const;
+    [[nodiscard]] std::optional<RouteHandler> match(std::string path) const ;
 
 private:
     TrieNode *mRoot;

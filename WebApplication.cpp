@@ -7,7 +7,7 @@
 
 void WebApplication::Run() const {
     try {
-        auto server = HttpServer(8080, mServiceCollection, mMiddlewareFactories);
+        auto server = HttpServer(8080, mServiceCollection, mMiddlewareFactories, mPathMatcher);
 
         server.Run();
     } catch (const std::exception& e) {

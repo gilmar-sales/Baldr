@@ -6,6 +6,7 @@
 #include <asio/ip/tcp.hpp>
 
 #include "HttpResponse.hpp"
+#include "PathMatcher.hpp"
 
 
 inline std::string trim(const std::string &str) {
@@ -24,10 +25,12 @@ class HttpSession : public std::enable_shared_from_this<HttpSession> {
 public:
     explicit HttpSession(asio::ip::tcp::socket socket,
                          const std::shared_ptr<ServiceProvider> &serviceProvider,
-                         const std::shared_ptr<MiddlewareFactoryList> &middlewareFactories)
+                         const std::shared_ptr<MiddlewareFactoryList> &middlewareFactories,
+                         const std::shared_ptr<PathMatcher> &pathMatcher)
         : mSocket(std::move(socket)),
           mServiceProvider(serviceProvider),
-          mMiddlewareFactories(middlewareFactories) {
+          mMiddlewareFactories(middlewareFactories),
+          mPathMatcher(pathMatcher) {
     }
 
     void start() {
@@ -62,7 +65,7 @@ private:
 
         while (std::getline(request_stream, line) && request_stream.good()) {
             if (auto colon = line.find(':'); colon != std::string::npos) {
-                auto key = trim(line.substr( 0, colon));
+                auto key = trim(line.substr(0, colon));
                 auto value = trim(line.substr(colon + 1));
                 httpRequest.headers[key] = value;
             }
@@ -79,10 +82,10 @@ private:
             middlewareFactory(mServiceProvider)->Handle(httpRequest, httpResponse);
         }
 
-        if (httpRequest.path == "/") {
-            httpResponse.body = "<html><h1>Welcome to the Asio HTTP Server</h1></html>";
-        } else if (httpRequest.path == "/hello") {
-            httpResponse.body = "<html><h1>Hello, World!</h1></html>";
+        const auto handler = mPathMatcher->match(httpRequest.path);
+
+        if (handler.has_value()) {
+            handler.value()(httpRequest, httpResponse, mServiceProvider);
         } else {
             httpResponse.body = "<html><h1>404 Not Found</h1></html>";
         }
@@ -162,4 +165,5 @@ private:
     std::string mResponse;
     std::shared_ptr<ServiceProvider> mServiceProvider;
     std::shared_ptr<MiddlewareFactoryList> mMiddlewareFactories;
+    std::shared_ptr<PathMatcher> mPathMatcher;
 };

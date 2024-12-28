@@ -13,11 +13,13 @@ class HttpServer {
 public:
     HttpServer(const short port,
                const std::shared_ptr<ServiceCollection> &serviceCollection,
-               const std::shared_ptr<MiddlewareFactoryList> &middlewareFactories)
+               const std::shared_ptr<MiddlewareFactoryList> &middlewareFactories,
+               const std::shared_ptr<PathMatcher> &pathMatcher)
         : mIoContext({}),
           mAcceptor(mIoContext, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port)),
           mServiceProvider(serviceCollection->CreateServiceProvider()),
-          mMiddlewareFactories(middlewareFactories) {
+          mMiddlewareFactories(middlewareFactories),
+          mPathMatcher(pathMatcher) {
         acceptConnection();
         std::cout << "HttpServer running on http://localhost:" << port << std::endl;
     }
@@ -33,7 +35,8 @@ private:
                 if (!ec) {
                     const auto scope = mServiceProvider->CreateServiceScope();
 
-                    std::make_shared<HttpSession>(std::move(socket), scope->GetServiceProvider(), mMiddlewareFactories)->start();
+                    std::make_shared<HttpSession>(std::move(socket), scope->GetServiceProvider(), mMiddlewareFactories,
+                                                  mPathMatcher)->start();
                 } else {
                     std::cerr << "Error accepting connection: " << ec.message() << std::endl;
                 }
@@ -46,4 +49,5 @@ private:
     asio::ip::tcp::acceptor mAcceptor;
     std::shared_ptr<ServiceProvider> mServiceProvider;
     std::shared_ptr<MiddlewareFactoryList> mMiddlewareFactories;
+    std::shared_ptr<PathMatcher> mPathMatcher;
 };
