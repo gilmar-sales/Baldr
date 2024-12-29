@@ -6,7 +6,7 @@ class WebApplication;
 
 class WebApplicationBuilder {
 public:
-    [[nodiscard]] const ServiceCollection &GetServiceCollection() const { return *mServiceCollection; }
+    [[nodiscard]]  ServiceCollection &GetServiceCollection() const { return *mServiceCollection; }
 
     [[nodiscard]] WebApplication Build() const;
 

@@ -19,6 +19,7 @@ add_executable(Server main.cpp
         IMiddleware.hpp
         PathMatcher.cpp
         PathMatcher.hpp
-        Tuple.hpp)
+        Tuple.hpp
+        RateLimitMiddleware.h)
 
 target_link_libraries(Server mswsock ws2_32 asio::asio skirnir::skirnir)
