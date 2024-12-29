@@ -47,7 +47,7 @@ int main()
 
     auto app = builder.Build();
 
-    app.MapGet("/", [](const HttpRequest& request, HttpResponse& response,
+    app.MapPost("/", [](const HttpRequest& request, HttpResponse& response,
                        std::shared_ptr<RateLimiter> rate_limiter) {
         std::cout << rate_limiter->isAllowed("/") << std::endl;
 

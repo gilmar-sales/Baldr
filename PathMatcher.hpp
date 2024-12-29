@@ -20,13 +20,23 @@ struct TrieNode {
 class PathMatcher {
 public:
     PathMatcher() {
-        mRoot = new TrieNode();
+        mMethodsMap = {
+            {"GET", new TrieNode()},
+            {"POST", new TrieNode()},
+            {"PUT", new TrieNode()},
+            {"DELETE", new TrieNode()},
+            {"PATCH", new TrieNode()},
+            {"OPTIONS", new TrieNode()},
+            {"HEAD", new TrieNode()},
+            {"TRACE", new TrieNode()},
+            {"CONNECT", new TrieNode()},
+        };
     }
 
-    void insert(std::string path, const RouteHandler &routeHandler) const;
+    void insert(const std::string& method, std::string path, const RouteHandler &routeHandler) const;
 
-    [[nodiscard]] std::optional<RouteHandler> match(std::string path) const ;
+    [[nodiscard]] std::optional<RouteHandler> match(const std::string& method, std::string path) const ;
 
 private:
-    TrieNode *mRoot;
+    std::unordered_map<std::string, TrieNode *> mMethodsMap;
 };

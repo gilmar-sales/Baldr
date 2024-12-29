@@ -115,7 +115,7 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
 
         if (callNext)
         {
-            const auto& handler = mPathMatcher->match(httpRequest.path);
+            const auto& handler = mPathMatcher->match(httpRequest.method, httpRequest.path);
 
             if (handler.has_value())
             {

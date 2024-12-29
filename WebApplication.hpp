@@ -26,7 +26,34 @@ class WebApplication
 
     void MapGet(const std::string& route, auto&& handler)
     {
-        mPathMatcher->insert(
+        MapRoute("GET", route, handler);
+    }
+
+    void MapPost(const std::string& route, auto&& handler)
+    {
+        MapRoute("POST", route, handler);
+    }
+
+    template <typename TMiddleware>
+    void Use()
+    {
+        mServiceCollection->AddScoped<TMiddleware>();
+
+        mMiddlewareFactories->push_back(
+            [](const std::shared_ptr<ServiceProvider>& serviceProvider) {
+                return serviceProvider->GetService<TMiddleware>();
+            });
+    }
+
+    void Run() const;
+
+    static WebApplicationBuilder CreateBuilder();
+
+private:
+
+    void MapRoute(const std::string& method,const std::string& route, auto&& handler)
+    {
+        mPathMatcher->insert(method,
             route, [&](HttpRequest& request, HttpResponse& response,
                        std::shared_ptr<ServiceProvider> serviceProvider) {
                 using HandlerArgsTuple = typename LambdaTraits<
@@ -70,21 +97,6 @@ class WebApplication
                 }
             });
     }
-
-    template <typename TMiddleware>
-    void Use()
-    {
-        mServiceCollection->AddScoped<TMiddleware>();
-
-        mMiddlewareFactories->push_back(
-            [](const std::shared_ptr<ServiceProvider>& serviceProvider) {
-                return serviceProvider->GetService<TMiddleware>();
-            });
-    }
-
-    void Run() const;
-
-    static WebApplicationBuilder CreateBuilder();
 
     std::shared_ptr<ServiceCollection>     mServiceCollection;
     std::shared_ptr<MiddlewareFactoryList> mMiddlewareFactories;

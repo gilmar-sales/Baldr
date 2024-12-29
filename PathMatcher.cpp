@@ -3,8 +3,8 @@
 #include <stack>
 #include <ranges>
 
-void PathMatcher::insert(std::string path, const RouteHandler &routeHandler) const {
-    TrieNode *current = mRoot;
+void PathMatcher::insert(const std::string& method, std::string path, const RouteHandler &routeHandler) const {
+    TrieNode *current = mMethodsMap.at(method);
 
     auto pathSegments = path
                         | std::views::split('/')
@@ -37,7 +37,7 @@ void PathMatcher::insert(std::string path, const RouteHandler &routeHandler) con
     current->isEndOfPath = true;
 }
 
-std::optional<RouteHandler> PathMatcher::match(std::string path) const {
+std::optional<RouteHandler> PathMatcher::match(const std::string& method, std::string path) const {
 
     auto  pathSegments  = path
                         | std::views::split('/')
@@ -45,15 +45,17 @@ std::optional<RouteHandler> PathMatcher::match(std::string path) const {
                             return s.size() > 0;
                         });
 
+    auto root = mMethodsMap.at(method);
+
     if (pathSegments.empty()) {
-        if (mRoot->children.contains("/") && mRoot->children["/"]->isEndOfPath) {
-            return mRoot->children["/"]->routeHandler;
+        if (root->children.contains("/") && root->children["/"]->isEndOfPath) {
+            return root->children["/"]->routeHandler;
         }
 
         return {};
     }
 
-    auto stack = std::stack<std::pair<TrieNode *, decltype(pathSegments.begin())> >({{mRoot, pathSegments.begin()}});
+    auto stack = std::stack<std::pair<TrieNode *, decltype(pathSegments.begin())> >({{root, pathSegments.begin()}});
 
     while (!stack.empty()) {
         auto [node, index] = stack.top();
