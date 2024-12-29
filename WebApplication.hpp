@@ -4,6 +4,8 @@
 #include <ServiceProvider.hpp>
 #include <iostream>
 
+#include <nlohmann/json.hpp>
+
 #include "IMiddleware.hpp"
 #include "PathMatcher.hpp"
 #include "Tuple.hpp"
@@ -52,7 +54,20 @@ class WebApplication
                 auto args =
                     transformTuple<HandlerArgsTuple>(refFactory, ptrFactory, TupleOfPtr((HandlerArgsTuple*) nullptr));
 
-                std::apply(handler, args);
+                if constexpr (!std::is_same_v<LambdaResult<decltype(handler)>, void>)
+                {
+                    auto result = std::apply(handler, args);
+
+                    nlohmann::json json_result = result;
+
+                    response.body = json_result.dump();
+                    response.headers["Content-Type"] = "application/json";
+                    response.statusCode = StatusCode::OK;
+                }
+                else
+                {
+                    std::apply(handler, args);
+                }
             });
     }
 

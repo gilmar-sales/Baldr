@@ -126,16 +126,9 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
                 httpResponse.statusCode = StatusCode::NotFound;
             }
 
-            httpResponse.headers["Content-Type"] = "text/html";
-            httpResponse.headers["Content-Length"] =
-                std::to_string(httpResponse.body.size());
-
-            httpResponse.cookies["XSRF-TOKEN"] = {
-                .value    = "Lorem ipsum",
-                .sameSite = SameSite::Lax,
-                .httpOnly = false,
-                .secure   = true,
-            };
+            if (!httpResponse.body.empty())
+                httpResponse.headers["Content-Length"] =
+                    std::to_string(httpResponse.body.size());
         }
 
         // Create the HTTP response

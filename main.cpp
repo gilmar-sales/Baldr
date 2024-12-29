@@ -23,6 +23,21 @@ class LoggingMiddleware final : public IMiddleware
     }
 };
 
+struct Person
+{
+    std::string name;
+    int age;
+};
+
+void to_json(nlohmann::json& j, const Person& p) {
+    j = nlohmann::json{{"name", p.name}, {"age", p.age}};
+}
+
+void from_json(const nlohmann::json& j, Person& p) {
+    j.at("name").get_to(p.name);
+    j.at("age").get_to(p.age);
+}
+
 int main()
 {
     auto builder = WebApplication::CreateBuilder();
@@ -38,6 +53,8 @@ int main()
 
         response.body = "<html><h1>Welcome to the Asio HTTP Server</h1></html>";
         response.statusCode = StatusCode::OK;
+
+        return Person{.name = "Gilmar", .age = 25};
     });
 
     app.Use<LoggingMiddleware>();

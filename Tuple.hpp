@@ -18,6 +18,7 @@ struct LambdaTraits;
 template <typename Ret, typename... Args>
 struct LambdaTraits<Ret(Args...)> {
     using ArgsTuple = std::tuple<Args...>;
+    using RetType = Ret;
 };
 
 // Specialization for function pointers
@@ -31,6 +32,14 @@ struct LambdaTraits : LambdaTraits<decltype(&T::operator())> {};
 // Specialization for member function pointers
 template <typename T, typename Ret, typename... Args>
 struct LambdaTraits<Ret(T::*)(Args...) const> : LambdaTraits<Ret(Args...)> {};
+
+template<typename TLambda>
+using LambdaArgs = typename LambdaTraits<
+    std::remove_reference_t<TLambda>>::ArgsTuple;
+
+template<typename TLambda>
+using LambdaResult = typename LambdaTraits<
+    std::remove_reference_t<TLambda>>::RetType;
 
 template <typename TElement>
 requires (std::is_same_v<TElement*, HttpRequest*> || std::is_same_v<TElement*, HttpResponse*>)
