@@ -30,7 +30,6 @@ class WebApplication
                 using HandlerArgsTuple = typename LambdaTraits<
                     std::remove_reference_t<decltype(handler)>>::ArgsTuple;
 
-                // TODO: support std::shared_ptr for services
                 auto refFactory = [&]<typename TArg>(TArg* x) -> TArg& {
                     if constexpr (std::is_same_v<HttpRequest, TArg>)
                     {
