@@ -29,15 +29,6 @@ struct Person
     int age;
 };
 
-void to_json(nlohmann::json& j, const Person& p) {
-    j = nlohmann::json{{"name", p.name}, {"age", p.age}};
-}
-
-void from_json(const nlohmann::json& j, Person& p) {
-    j.at("name").get_to(p.name);
-    j.at("age").get_to(p.age);
-}
-
 int main()
 {
     auto builder = WebApplication::CreateBuilder();
@@ -47,7 +38,7 @@ int main()
 
     auto app = builder.Build();
 
-    app.MapPost("/", [](const HttpRequest& request, HttpResponse& response,
+    app.MapGet("/", [](const HttpRequest& request, HttpResponse& response,
                        std::shared_ptr<RateLimiter> rate_limiter) {
         std::cout << rate_limiter->isAllowed("/") << std::endl;
 

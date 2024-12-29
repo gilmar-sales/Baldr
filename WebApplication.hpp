@@ -2,9 +2,9 @@
 
 #include <ServiceCollection.hpp>
 #include <ServiceProvider.hpp>
-#include <iostream>
 
-#include <nlohmann/json.hpp>
+#include <rfl/json.hpp>
+#include <rfl.hpp>
 
 #include "IMiddleware.hpp"
 #include "PathMatcher.hpp"
@@ -85,9 +85,7 @@ private:
                 {
                     auto result = std::apply(handler, args);
 
-                    nlohmann::json json_result = result;
-
-                    response.body = json_result.dump();
+                    response.body = rfl::json::write(result);
                     response.headers["Content-Type"] = "application/json";
                     response.statusCode = StatusCode::OK;
                 }

@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.30)
 project(Server)
 
+set(CMAKE_CXX_STANDARD 23)
+
 find_package(asio)
 find_package(skirnir)
-find_package(nlohmann_json)
-
-set(CMAKE_CXX_STANDARD 23)
+find_package(reflectcpp)
 
 add_executable(Server main.cpp
         WebApplication.cpp
@@ -24,4 +24,4 @@ add_executable(Server main.cpp
         RateLimitMiddleware.h
         StatusCode.hpp)
 
-target_link_libraries(Server asio::asio skirnir::skirnir nlohmann_json::nlohmann_json)
+target_link_libraries(Server asio::asio skirnir::skirnir reflectcpp::reflectcpp)
