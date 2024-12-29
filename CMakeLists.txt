@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.30)
 project(Server)
 
 find_package(asio)
-find_package(Skirnir)
+find_package(skirnir)
 
 set(CMAKE_CXX_STANDARD 23)
 
@@ -20,6 +20,7 @@ add_executable(Server main.cpp
         PathMatcher.cpp
         PathMatcher.hpp
         Tuple.hpp
-        RateLimitMiddleware.h)
+        RateLimitMiddleware.h
+        StatusCode.hpp)
 
-target_link_libraries(Server mswsock ws2_32 asio::asio skirnir::skirnir)
+target_link_libraries(Server asio::asio skirnir::skirnir)

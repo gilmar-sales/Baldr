@@ -1,5 +1,9 @@
 #pragma once
 
+#include <functional>
+
+#include <ServiceProvider.hpp>
+
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
 

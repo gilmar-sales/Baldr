@@ -1,8 +1,6 @@
 #include <chrono>
 #include <iostream>
-#include <ranges>
 
-#include "PathMatcher.hpp"
 #include "RateLimitMiddleware.h"
 #include "WebApplication.hpp"
 #include "WebApplicationBuilder.hpp"
@@ -36,6 +34,7 @@ int main()
 
     app.MapGet("/", [](const HttpRequest& request, HttpResponse& response) {
         response.body = "<html><h1>Welcome to the Asio HTTP Server</h1></html>";
+        response.statusCode = StatusCode::OK;
     });
 
     app.Use<LoggingMiddleware>();

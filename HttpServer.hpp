@@ -6,7 +6,6 @@
 #include <utility>
 
 #include <ServiceScope.hpp>
-#include <asio.hpp>
 
 #include "HttpSession.hpp"
 
@@ -18,7 +17,7 @@ class HttpServer
         const std::shared_ptr<ServiceCollection>&     serviceCollection,
         const std::shared_ptr<MiddlewareFactoryList>& middlewareFactories,
         const std::shared_ptr<PathMatcher>&           pathMatcher) :
-        mIoContext(std::thread::hardware_concurrency()),
+        mIoContext(static_cast<int>(std::thread::hardware_concurrency())),
         mAcceptor(mIoContext,
                   asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port)),
         mServiceProvider(serviceCollection->CreateServiceProvider()),
@@ -70,8 +69,6 @@ class HttpServer
                         std::move(socket), scope->GetServiceProvider(),
                         mMiddlewareFactories, mPathMatcher)
                         ->start();
-
-                    socket.release();
                 }
                 else
                 {

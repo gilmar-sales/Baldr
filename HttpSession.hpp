@@ -1,7 +1,8 @@
 #pragma once
 
-#include <asio/ip/tcp.hpp>
-#include <asio/read_until.hpp>
+#define ASIOP_STANDALONE
+#include <asio.hpp>
+
 #include <iostream>
 #include <memory>
 
@@ -122,7 +123,7 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
             }
             else
             {
-                httpResponse.body = "<html><h1>404 Not Found</h1></html>";
+                httpResponse.statusCode = StatusCode::NotFound;
             }
 
             httpResponse.headers["Content-Type"] = "text/html";
