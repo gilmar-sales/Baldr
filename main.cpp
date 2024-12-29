@@ -32,7 +32,10 @@ int main()
 
     auto app = builder.Build();
 
-    app.MapGet("/", [](HttpResponse& response) {
+    app.MapGet("/", [](const HttpRequest& request, HttpResponse& response,
+                       std::shared_ptr<RateLimiter> rate_limiter) {
+        std::cout << rate_limiter->isAllowed("/") << std::endl;
+
         response.body = "<html><h1>Welcome to the Asio HTTP Server</h1></html>";
         response.statusCode = StatusCode::OK;
     });
