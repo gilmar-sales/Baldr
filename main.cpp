@@ -32,7 +32,7 @@ int main()
 
     auto app = builder.Build();
 
-    app.MapGet("/", [](const HttpRequest& request, HttpResponse& response) {
+    app.MapGet("/", [](HttpResponse& response) {
         response.body = "<html><h1>Welcome to the Asio HTTP Server</h1></html>";
         response.statusCode = StatusCode::OK;
     });

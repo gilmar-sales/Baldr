@@ -5,7 +5,9 @@
 #include "StatusCode.hpp"
 
 struct HttpResponse {
-    explicit HttpResponse(const HttpRequest &request) {
+    HttpResponse() = default;
+
+     HttpResponse(const HttpRequest &request) {
         version = request.version;
         statusCode = StatusCode::NotFound;
         headers = {};
