@@ -3,8 +3,8 @@
 #include <ServiceCollection.hpp>
 #include <ServiceProvider.hpp>
 
-#include <rfl/json.hpp>
 #include <rfl.hpp>
+#include <rfl/json.hpp>
 
 #include "IMiddleware.hpp"
 #include "PathMatcher.hpp"
@@ -35,7 +35,7 @@ class WebApplication
     }
 
     template <typename TMiddleware>
-    void Use()
+    const WebApplication& Use()
     {
         mServiceCollection->AddScoped<TMiddleware>();
 
@@ -43,19 +43,23 @@ class WebApplication
             [](const std::shared_ptr<ServiceProvider>& serviceProvider) {
                 return serviceProvider->GetService<TMiddleware>();
             });
+
+        return *this;
     }
 
     void Run() const;
 
     static WebApplicationBuilder CreateBuilder();
 
-private:
-
-    void MapRoute(const std::string& method,const std::string& route, auto&& handler)
+  private:
+    void MapRoute(const std::string& method, const std::string& route,
+                  auto&& handler)
     {
-        mPathMatcher->insert(method,
-            route, [&](HttpRequest& request, HttpResponse& response,
-                       std::shared_ptr<ServiceProvider> serviceProvider) {
+        mPathMatcher->insert(
+            method,
+            route,
+            [&](HttpRequest& request, HttpResponse& response,
+                std::shared_ptr<ServiceProvider> serviceProvider) {
                 using HandlerArgsTuple = typename LambdaTraits<
                     std::remove_reference_t<decltype(handler)>>::ArgsTuple;
 
@@ -73,21 +77,24 @@ private:
                     return *serviceProvider->GetService<TArg>();
                 };
 
-                auto ptrFactory =
-                    [&]<typename TArg>(std::shared_ptr<TArg>* x) -> std::shared_ptr<TArg> {
-                    return serviceProvider->GetService<std::remove_pointer_t<TArg>>();
+                auto ptrFactory = [&]<typename TArg>(std::shared_ptr<TArg>* x)
+                    -> std::shared_ptr<TArg> {
+                    return serviceProvider
+                        ->GetService<std::remove_pointer_t<TArg>>();
                 };
 
-                auto args =
-                    transformTuple<HandlerArgsTuple>(refFactory, ptrFactory, TupleOfPtr((HandlerArgsTuple*) nullptr));
+                auto args = transformTuple<HandlerArgsTuple>(
+                    refFactory, ptrFactory,
+                    TupleOfPtr((HandlerArgsTuple*) nullptr));
 
-                if constexpr (!std::is_same_v<LambdaResult<decltype(handler)>, void>)
+                if constexpr (!std::is_same_v<LambdaResult<decltype(handler)>,
+                                              void>)
                 {
                     auto result = std::apply(handler, args);
 
                     response.body = rfl::json::write(result);
                     response.headers["Content-Type"] = "application/json";
-                    response.statusCode = StatusCode::OK;
+                    response.statusCode              = StatusCode::OK;
                 }
                 else
                 {

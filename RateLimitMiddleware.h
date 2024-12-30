@@ -83,7 +83,8 @@ class RateLimitMiddleware : public IMiddleware
         if (!mRateLimiter->isAllowed(request.path))
         {
             response.statusCode = StatusCode::TooManyRequests;
-            response.body = R"({ "status": 429, "message": "Too Many Requests" })";
+            response.body =
+                R"({ "status": 429, "message": "Too Many Requests" })";
             response.headers["Content-Type"] = "application/json";
             response.headers["Content-Length"] =
                 std::to_string(response.body.size());

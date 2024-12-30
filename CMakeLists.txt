@@ -22,6 +22,7 @@ add_executable(Server main.cpp
         PathMatcher.hpp
         Tuple.hpp
         RateLimitMiddleware.h
-        StatusCode.hpp)
+        StatusCode.hpp
+        LoggingMiddleware.hpp)
 
 target_link_libraries(Server asio::asio skirnir::skirnir reflectcpp::reflectcpp)

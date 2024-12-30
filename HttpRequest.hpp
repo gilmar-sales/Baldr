@@ -3,12 +3,14 @@
 #include <string>
 #include <unordered_map>
 
-struct HttpRequest {
-    std::string method;
-    std::string path;
-    std::string version;
+struct HttpRequest
+{
+    std::string                                  method;
+    std::string                                  path;
+    std::string                                  version;
     std::unordered_map<std::string, std::string> headers;
-    std::string body;
+    std::unordered_map<std::string, std::string> params;
+    std::string                                  body;
 
     HttpRequest() = default;
 };

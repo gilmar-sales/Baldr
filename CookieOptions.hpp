@@ -3,17 +3,19 @@
 #include <optional>
 #include <string>
 
-enum class SameSite {
+enum class SameSite
+{
     None,
     Lax,
     Strict
 };
 
-struct CookieOptions {
-    std::string value;
+struct CookieOptions
+{
+    std::string                value;
     std::optional<std::string> domain;
-    std::optional<SameSite> sameSite;
-    long maxAge{};
-    bool httpOnly{};
-    bool secure{};
+    std::optional<SameSite>    sameSite;
+    long                       maxAge {};
+    bool                       httpOnly {};
+    bool                       secure {};
 };

@@ -10,6 +10,8 @@
 #include "IMiddleware.hpp"
 #include "PathMatcher.hpp"
 
+#include <ranges>
+
 inline std::string trim(const std::string& str)
 {
     const size_t start =
@@ -48,20 +50,19 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
     void readRequest()
     {
         auto self = shared_from_this();
-        async_read_until(
-            mSocket, asio::dynamic_buffer(mData), "\r\n\r\n",
-            [this, self](const std::error_code ec,
-                         const std::size_t     bytes_transferred) {
-                if (!ec)
-                {
-                    processRequest(bytes_transferred);
-                }
-                else
-                {
-                    std::cerr << "Error reading request: " << ec.message()
-                              << std::endl;
-                }
-            });
+        async_read_until(mSocket, asio::dynamic_buffer(mData), "\r\n\r\n",
+                         [self](const std::error_code ec,
+                                const std::size_t     bytes_transferred) {
+                             if (!ec)
+                             {
+                                 self->processRequest(bytes_transferred);
+                             }
+                             else
+                             {
+                                 std::cerr << "Error reading request: "
+                                           << ec.message() << std::endl;
+                             }
+                         });
     }
 
     void processRequest(std::size_t bytes_transferred)
@@ -74,6 +75,31 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
         std::istringstream request_stream(request);
         request_stream >> httpRequest.method >> httpRequest.path >>
             httpRequest.version;
+
+        auto queryIndex = httpRequest.path.find('?');
+
+        if (queryIndex != std::string::npos)
+        {
+            auto params = std::string_view(
+                httpRequest.path.begin() + queryIndex, httpRequest.path.end());
+
+            for (const auto& part : params | std::views::split('&'))
+            {
+                std::string pair(part.begin(), part.end());
+                auto        eq_pos = pair.find('=');
+                if (eq_pos != std::string::npos)
+                {
+                    httpRequest.params[pair.substr(0, eq_pos)] =
+                        pair.substr(eq_pos + 1);
+                }
+                else
+                {
+                    httpRequest.params[pair] = "";
+                }
+            }
+
+            httpRequest.path.resize(queryIndex);
+        }
 
         std::string line;
 
@@ -97,17 +123,18 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
 
         auto callNext = false;
 
-        for (auto it = mMiddlewareFactories->begin(); it != mMiddlewareFactories->end(); ++it)
+        for (auto it = mMiddlewareFactories->begin();
+             it != mMiddlewareFactories->end();
+             ++it)
         {
             auto next = NextMiddleware { [&callNext] { callNext = true; } };
 
-            (*it)(mServiceProvider)
-                ->Handle(httpRequest, httpResponse, next);
+            (*it)(mServiceProvider)->Handle(httpRequest, httpResponse, next);
 
             if (!callNext)
                 break;
 
-            if (it+1 != mMiddlewareFactories->end())
+            if (it + 1 != mMiddlewareFactories->end())
                 callNext = false;
         }
 
@@ -115,7 +142,8 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
 
         if (callNext)
         {
-            const auto& handler = mPathMatcher->match(httpRequest.method, httpRequest.path);
+            const auto& handler =
+                mPathMatcher->match(httpRequest.method, httpRequest.path);
 
             if (handler.has_value())
             {
@@ -186,11 +214,15 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
         auto self = shared_from_this();
         async_write(
             mSocket, asio::buffer(mResponse),
-            [self](const std::error_code ec,
-                         std::size_t /*bytes_transferred*/) {
-                if (ec)
+            [self](const std::error_code ec, std::size_t bytes_transferred) {
+                if (!ec)
                 {
-                    std::cerr << "Error sending response: " << ec.message() << std::endl;
+                    std::cout
+                        << "Message sent: " << bytes_transferred << " bytes\n";
+                }
+                else
+                {
+                    std::cerr << "Error writing: " << ec.message() << '\n';
                 }
             });
     }
