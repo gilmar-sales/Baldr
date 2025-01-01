@@ -12,7 +12,12 @@ class WebApplicationBuilder
         return *mServiceCollection;
     }
 
-    [[nodiscard]] WebApplication Build() const;
+  [[nodiscard]] WebApplication Build() const;
+
+  template <typename Callable>
+  WebApplicationBuilder& operator|(Callable callable) {
+    return callable(*this);
+  }
 
   protected:
     WebApplicationBuilder() :

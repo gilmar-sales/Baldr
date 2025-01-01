@@ -1,8 +1,10 @@
 #pragma once
 
-#include <iostream>
 #include <tuple>
 #include <utility>
+
+#include <HttpRequest.hpp>
+#include <HttpResponse.hpp>
 
 template <typename... Ts>
 auto TupleOfPtr(std::tuple<Ts...>*)

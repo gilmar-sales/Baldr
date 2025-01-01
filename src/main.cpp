@@ -1,6 +1,6 @@
 #include <chrono>
 
-#include "RateLimitMiddleware.h"
+#include "RateLimitMiddleware.hpp"
 #include "WebApplication.hpp"
 #include "WebApplicationBuilder.hpp"
 
@@ -12,10 +12,7 @@ struct Person
 
 int main()
 {
-    auto builder = WebApplication::CreateBuilder();
-
-    builder.GetServiceCollection().AddSingleton(
-        std::make_shared<RateLimiter>(10, std::chrono::seconds(10)));
+    auto builder = WebApplication::CreateBuilder() | AddRateLimit();
 
     auto app = builder.Build();
 
@@ -23,9 +20,9 @@ int main()
         response.body       = "Hello, World!";
         response.statusCode = StatusCode::OK;
 
-        return std::vector { Person { .name = "Gilmar", .age = 25 },
-                             Person { .name = "Rayssa", .age = 19 } };
+        return Person { .name = "Gilmar", .age = 25 };
     });
+    app.Use<RateLimitMiddleware>();
 
     app.Run();
 

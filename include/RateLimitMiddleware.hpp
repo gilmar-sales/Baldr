@@ -1,8 +1,10 @@
 #pragma once
-#include "IMiddleware.hpp"
-
 #include <chrono>
+#include <iostream>
 #include <mutex>
+
+#include "IMiddleware.hpp"
+#include "WebApplicationBuilder.hpp"
 
 class RateLimiter
 {
@@ -66,6 +68,16 @@ class RateLimiter
     std::unordered_map<std::string, ClientData>
                mClientsData; // Client state storage
     std::mutex mutex_ {}; // Protect shared state in multithreaded environments
+};
+
+struct AddRateLimit
+{
+    WebApplicationBuilder& operator()(WebApplicationBuilder& builder)
+    {
+        builder.GetServiceCollection().AddSingleton(
+            std::make_shared<RateLimiter>(10, std::chrono::seconds(10)));
+        return builder;
+    }
 };
 
 class RateLimitMiddleware : public IMiddleware
