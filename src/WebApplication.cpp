@@ -1,9 +1,9 @@
-#include "WebApplication.hpp"
+#include "Baldr/WebApplication.hpp"
 
 #include <iostream>
 
-#include "HttpServer.hpp"
-#include "WebApplicationBuilder.hpp"
+#include "Baldr/HttpServer.hpp"
+#include "Baldr/WebApplicationBuilder.hpp"
 
 void WebApplication::Run() const
 {
