@@ -36,7 +36,7 @@ class HttpServer
         std::vector<std::thread> threads;
         for (std::size_t i = 0; i < std::thread::hardware_concurrency(); ++i)
         {
-            threads.emplace_back([this]() {
+            std::function<void()> worker = [&] {
                 try
                 {
                     mIoContext.run();
@@ -44,8 +44,10 @@ class HttpServer
                 catch (const std::exception& e)
                 {
                     std::cerr << "Thread exception: " << e.what() << "\n";
+                    worker();
                 }
-            });
+            };
+            threads.emplace_back(worker);
         }
 
         // Join threads

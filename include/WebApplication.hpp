@@ -90,7 +90,7 @@ class WebApplication
                 if constexpr (!std::is_same_v<LambdaResult<decltype(handler)>,
                                               void>)
                 {
-                    auto result = std::apply(handler, args);
+                    auto result = std::move(std::apply(handler, args));
 
                     response.body = rfl::json::write(result);
                     response.headers["Content-Type"] = "application/json";
