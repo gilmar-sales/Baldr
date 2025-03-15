@@ -1,9 +1,6 @@
 #pragma once
 #include "IMiddleware.hpp"
 
-#include <iostream>
-#include <print>
-
 class LoggingMiddleware final : public IMiddleware
 {
   public:
