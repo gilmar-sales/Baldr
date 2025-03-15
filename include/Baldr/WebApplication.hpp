@@ -6,7 +6,7 @@
 #include <rfl.hpp>
 #include <rfl/json.hpp>
 
-#include "IMiddleware.hpp"
+#include "MiddlewareProvider.hpp"
 #include "PathMatcher.hpp"
 #include "Tuple.hpp"
 
@@ -18,10 +18,12 @@ class WebApplication
     explicit WebApplication(
         const Ref<skr::ServiceCollection>& serviceCollection) :
         mServiceCollection(serviceCollection),
-        mMiddlewareFactories(
-            std::make_shared<std::vector<MiddlewareFactory>>()),
-        mPathMatcher(std::make_shared<PathMatcher>())
+        mPathMatcher(skr::MakeRef<PathMatcher>()),
+        mMiddlewareProvider(skr::MakeRef<MiddlewareProvider>())
     {
+        mServiceCollection->AddTransient<skr::Logger<WebApplication>>();
+        mServiceCollection->AddSingleton(mMiddlewareProvider);
+        mServiceCollection->AddSingleton(mPathMatcher);
     }
 
     void MapGet(const std::string& route, auto&& handler)
@@ -39,10 +41,7 @@ class WebApplication
     {
         mServiceCollection->AddScoped<TMiddleware>();
 
-        mMiddlewareFactories->push_back(
-            [](const Ref<skr::ServiceProvider>& serviceProvider) {
-                return serviceProvider->GetService<TMiddleware>();
-            });
+        mMiddlewareProvider->AddMiddleware<TMiddleware>();
 
         return *this;
     }
@@ -113,6 +112,6 @@ class WebApplication
     }
 
     Ref<skr::ServiceCollection> mServiceCollection;
-    Ref<MiddlewareFactoryList>  mMiddlewareFactories;
     Ref<PathMatcher>            mPathMatcher;
+    Ref<MiddlewareProvider>     mMiddlewareProvider;
 };

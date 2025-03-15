@@ -2,6 +2,8 @@
 
 #include <Skirnir/Skirnir.hpp>
 
+#include "HttpServer.hpp"
+
 class WebApplication;
 
 class WebApplicationBuilder
@@ -24,6 +26,7 @@ class WebApplicationBuilder
     WebApplicationBuilder() :
         mServiceCollection(std::make_shared<skr::ServiceCollection>())
     {
+        mServiceCollection->AddSingleton<HttpServerOptions>();
     }
 
     friend class WebApplication;

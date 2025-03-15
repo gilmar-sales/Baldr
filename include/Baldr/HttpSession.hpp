@@ -7,7 +7,7 @@
 #include <memory>
 
 #include "HttpResponse.hpp"
-#include "IMiddleware.hpp"
+#include "MiddlewareProvider.hpp"
 #include "PathMatcher.hpp"
 
 #include <ranges>
@@ -34,12 +34,13 @@ inline std::string trim(const std::string& str)
 class HttpSession : public std::enable_shared_from_this<HttpSession>
 {
   public:
-    explicit HttpSession(asio::ip::tcp::socket             socket,
-                         const Ref<skr::ServiceProvider>&  serviceProvider,
-                         const Ref<MiddlewareFactoryList>& middlewareFactories,
-                         const Ref<PathMatcher>&           pathMatcher) :
-        mSocket(std::move(socket)), mServiceProvider(serviceProvider),
-        mMiddlewareFactories(middlewareFactories), mPathMatcher(pathMatcher)
+    explicit HttpSession(const Ref<skr::ServiceProvider>& serviceProvider,
+                         const Ref<MiddlewareProvider>&   middlewareProvider,
+                         const Ref<PathMatcher>&          pathMatcher,
+                         asio::ip::tcp::socket            socket) :
+        mServiceProvider(serviceProvider),
+        mMiddlewareProvider(middlewareProvider), mPathMatcher(pathMatcher),
+        mSocket(std::move(socket))
     {
         mLogger = mServiceProvider->GetService<skr::Logger<HttpSession>>();
     }
@@ -80,8 +81,9 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
 
         if (queryIndex != std::string::npos)
         {
-            auto params = std::string_view(
-                httpRequest.path.begin() + queryIndex, httpRequest.path.end());
+            auto params =
+                std::string_view(httpRequest.path.begin() + queryIndex,
+                                 httpRequest.path.end());
 
             for (const auto& part : params | std::views::split('&'))
             {
@@ -121,10 +123,10 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
         // Simple routing logic
         auto httpResponse = HttpResponse(httpRequest);
 
-        auto callNext = false;
+        auto callNext = !mMiddlewareProvider->Size();
 
-        for (auto it = mMiddlewareFactories->begin();
-             it != mMiddlewareFactories->end();
+        for (auto it = mMiddlewareProvider->begin();
+             it != mMiddlewareProvider->end();
              ++it)
         {
             auto next = NextMiddleware { [&callNext] { callNext = true; } };
@@ -134,7 +136,7 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
             if (!callNext)
                 break;
 
-            if (it + 1 != mMiddlewareFactories->end())
+            if (it + 1 != mMiddlewareProvider->end())
                 callNext = false;
         }
 
@@ -209,13 +211,14 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
     void writeResponse()
     {
         auto self = shared_from_this();
+
         async_write(
             mSocket, asio::buffer(mResponse),
             [self](const std::error_code ec, std::size_t bytes_transferred) {
                 if (!ec)
                 {
-                    self->mLogger->LogInformation(
-                        "Message sent: {} bytes", bytes_transferred);
+                    self->mLogger->LogInformation("Message sent: {} bytes",
+                                                  bytes_transferred);
                 }
                 else
                 {
@@ -230,6 +233,6 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
 
     Ref<skr::Logger<HttpSession>> mLogger;
     Ref<skr::ServiceProvider>     mServiceProvider;
-    Ref<MiddlewareFactoryList>    mMiddlewareFactories;
+    Ref<MiddlewareProvider>       mMiddlewareProvider;
     Ref<PathMatcher>              mPathMatcher;
 };

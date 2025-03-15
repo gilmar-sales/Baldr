@@ -5,5 +5,6 @@
 
 WebApplication WebApplicationBuilder::Build() const
 {
+
     return WebApplication(mServiceCollection).Use<LoggingMiddleware>();
 }

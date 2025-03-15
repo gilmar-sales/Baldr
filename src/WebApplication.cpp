@@ -7,19 +7,22 @@
 
 void WebApplication::Run() const
 {
+    mServiceCollection->AddSingleton<HttpServer>();
+    mServiceCollection->AddTransient<skr::Logger<HttpSession>>();
+
+    auto serviceProvider = mServiceCollection->CreateServiceProvider();
+
+    auto logger = serviceProvider->GetService<skr::Logger<WebApplication>>();
+
     try
     {
-        mServiceCollection->AddTransient<skr::Logger<HttpServer>>();
-        mServiceCollection->AddTransient<skr::Logger<HttpSession>>();
+        auto server = serviceProvider->GetService<HttpServer>();
 
-        auto server = HttpServer(
-            8080, mServiceCollection, mMiddlewareFactories, mPathMatcher);
-
-        server.Run();
+        server->Run();
     }
     catch (const std::exception& e)
     {
-        std::cerr << "Error: " << e.what() << std::endl;
+        logger->LogError("{}", e.what());
     }
 }
 

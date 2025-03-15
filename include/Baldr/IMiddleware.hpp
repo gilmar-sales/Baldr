@@ -1,8 +1,8 @@
 #pragma once
 
-#include <functional>
+#include <Skirnir/Skirnir.hpp>
 
-#include <Skirnir/ServiceProvider.hpp>
+#include <functional>
 
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
@@ -17,7 +17,3 @@ class IMiddleware
     virtual void Handle(const HttpRequest& request, HttpResponse& response,
                         NextMiddleware& next) = 0;
 };
-
-using MiddlewareFactory =
-    std::function<Ref<IMiddleware>(const Ref<skr::ServiceProvider>&)>;
-using MiddlewareFactoryList = std::vector<MiddlewareFactory>;
