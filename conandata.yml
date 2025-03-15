@@ -1,7 +1,0 @@
-# This file is managed by Conan, contents will be overwritten.
-# To keep your changes, remove these comment lines, but the plugin won't be able to modify your requirements
-
-requirements:
-  - "reflect-cpp/0.16.0"
-  - "asio/1.32.0"
-  - "skirnir/1.0"

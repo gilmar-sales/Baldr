@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ServiceProvider.hpp>
+#include <Skirnir/ServiceProvider.hpp>
 #include <functional>
 #include <memory>
 #include <string>
@@ -9,8 +9,8 @@
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
 
-using RouteHandler = std::function<void(
-    HttpRequest&, HttpResponse&, std::shared_ptr<ServiceProvider>)>;
+using RouteHandler =
+    std::function<void(HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>)>;
 
 struct TrieNode
 {

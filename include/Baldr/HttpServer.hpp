@@ -5,18 +5,17 @@
 #include <thread>
 #include <utility>
 
-#include <ServiceScope.hpp>
+#include <Skirnir/Skirnir.hpp>
 
 #include "HttpSession.hpp"
 
 class HttpServer
 {
   public:
-    HttpServer(
-        const short                                   port,
-        const std::shared_ptr<ServiceCollection>&     serviceCollection,
-        const std::shared_ptr<MiddlewareFactoryList>& middlewareFactories,
-        const std::shared_ptr<PathMatcher>&           pathMatcher) :
+    HttpServer(const short                        port,
+               const Ref<skr::ServiceCollection>& serviceCollection,
+               const Ref<MiddlewareFactoryList>&  middlewareFactories,
+               const Ref<PathMatcher>&            pathMatcher) :
         mIoContext(static_cast<int>(std::thread::hardware_concurrency())),
         mAcceptor(mIoContext,
                   asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port)),
@@ -81,9 +80,9 @@ class HttpServer
             });
     }
 
-    asio::io_context                       mIoContext;
-    asio::ip::tcp::acceptor                mAcceptor;
-    std::shared_ptr<ServiceProvider>       mServiceProvider;
-    std::shared_ptr<MiddlewareFactoryList> mMiddlewareFactories;
-    std::shared_ptr<PathMatcher>           mPathMatcher;
+    asio::io_context           mIoContext;
+    asio::ip::tcp::acceptor    mAcceptor;
+    Ref<skr::ServiceProvider>  mServiceProvider;
+    Ref<MiddlewareFactoryList> mMiddlewareFactories;
+    Ref<PathMatcher>           mPathMatcher;
 };

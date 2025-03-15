@@ -34,11 +34,10 @@ inline std::string trim(const std::string& str)
 class HttpSession : public std::enable_shared_from_this<HttpSession>
 {
   public:
-    explicit HttpSession(
-        asio::ip::tcp::socket                         socket,
-        const std::shared_ptr<ServiceProvider>&       serviceProvider,
-        const std::shared_ptr<MiddlewareFactoryList>& middlewareFactories,
-        const std::shared_ptr<PathMatcher>&           pathMatcher) :
+    explicit HttpSession(asio::ip::tcp::socket             socket,
+                         const Ref<skr::ServiceProvider>&  serviceProvider,
+                         const Ref<MiddlewareFactoryList>& middlewareFactories,
+                         const Ref<PathMatcher>&           pathMatcher) :
         mSocket(std::move(socket)), mServiceProvider(serviceProvider),
         mMiddlewareFactories(middlewareFactories), mPathMatcher(pathMatcher)
     {
@@ -138,8 +137,6 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
                 callNext = false;
         }
 
-        std::cout << this << std::endl;
-
         if (callNext)
         {
             const auto& handler =
@@ -174,19 +171,18 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
             response_stream
                 << "Set-Cookie: " << cookieName << "=" << cookieOptions.value;
 
-            if (cookieOptions.sameSite.has_value())
-                switch (cookieOptions.sameSite.value())
-                {
-                    case SameSite::None:
-                        response_stream << "; SameSite=None";
-                        break;
-                    case SameSite::Lax:
-                        response_stream << "; SameSite=Lax";
-                        break;
-                    case SameSite::Strict:
-                        response_stream << "; SameSite=Strict";
-                        break;
-                }
+            switch (cookieOptions.sameSite)
+            {
+                case SameSite::None:
+                    response_stream << "; SameSite=None";
+                    break;
+                case SameSite::Lax:
+                    response_stream << "; SameSite=Lax";
+                    break;
+                case SameSite::Strict:
+                    response_stream << "; SameSite=Strict";
+                    break;
+            }
 
             if (cookieOptions.domain.has_value())
                 response_stream << "; Domain=" << cookieOptions.domain.value();
@@ -227,10 +223,10 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
             });
     }
 
-    asio::ip::tcp::socket                  mSocket;
-    std::string                            mData;
-    std::string                            mResponse;
-    std::shared_ptr<ServiceProvider>       mServiceProvider;
-    std::shared_ptr<MiddlewareFactoryList> mMiddlewareFactories;
-    std::shared_ptr<PathMatcher>           mPathMatcher;
+    asio::ip::tcp::socket      mSocket;
+    std::string                mData;
+    std::string                mResponse;
+    Ref<skr::ServiceProvider>  mServiceProvider;
+    Ref<MiddlewareFactoryList> mMiddlewareFactories;
+    Ref<PathMatcher>           mPathMatcher;
 };

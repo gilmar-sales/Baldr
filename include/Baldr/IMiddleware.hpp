@@ -2,7 +2,7 @@
 
 #include <functional>
 
-#include <ServiceProvider.hpp>
+#include <Skirnir/ServiceProvider.hpp>
 
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
@@ -18,6 +18,6 @@ class IMiddleware
                         NextMiddleware& next) = 0;
 };
 
-using MiddlewareFactory     = std::function<std::shared_ptr<IMiddleware>(
-    const std::shared_ptr<ServiceProvider>&)>;
+using MiddlewareFactory =
+    std::function<Ref<IMiddleware>(const Ref<skr::ServiceProvider>&)>;
 using MiddlewareFactoryList = std::vector<MiddlewareFactory>;

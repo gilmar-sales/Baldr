@@ -1,14 +1,14 @@
 #pragma once
 
-#include <ServiceCollection.hpp>
-#include <ServiceProvider.hpp>
+#include <Skirnir/ServiceCollection.hpp>
+#include <Skirnir/ServiceProvider.hpp>
 
 #include <rfl.hpp>
 #include <rfl/json.hpp>
 
-#include "Tuple.hpp"
 #include "IMiddleware.hpp"
 #include "PathMatcher.hpp"
+#include "Tuple.hpp"
 
 class WebApplicationBuilder;
 
@@ -16,7 +16,7 @@ class WebApplication
 {
   public:
     explicit WebApplication(
-        const std::shared_ptr<ServiceCollection>& serviceCollection) :
+        const Ref<skr::ServiceCollection>& serviceCollection) :
         mServiceCollection(serviceCollection),
         mMiddlewareFactories(
             std::make_shared<std::vector<MiddlewareFactory>>()),
@@ -40,7 +40,7 @@ class WebApplication
         mServiceCollection->AddScoped<TMiddleware>();
 
         mMiddlewareFactories->push_back(
-            [](const std::shared_ptr<ServiceProvider>& serviceProvider) {
+            [](const Ref<skr::ServiceProvider>& serviceProvider) {
                 return serviceProvider->GetService<TMiddleware>();
             });
 
@@ -59,7 +59,7 @@ class WebApplication
             method,
             route,
             [&](HttpRequest& request, HttpResponse& response,
-                std::shared_ptr<ServiceProvider> serviceProvider) {
+                Ref<skr::ServiceProvider> serviceProvider) {
                 using HandlerArgsTuple = typename LambdaTraits<
                     std::remove_reference_t<decltype(handler)>>::ArgsTuple;
 
@@ -77,8 +77,8 @@ class WebApplication
                     return *serviceProvider->GetService<TArg>();
                 };
 
-                auto ptrFactory = [&]<typename TArg>(std::shared_ptr<TArg>* x)
-                    -> std::shared_ptr<TArg> {
+                auto ptrFactory =
+                    [&]<typename TArg>(Ref<TArg>* x) -> Ref<TArg> {
                     return serviceProvider
                         ->GetService<std::remove_pointer_t<TArg>>();
                 };
@@ -87,14 +87,23 @@ class WebApplication
                     refFactory, ptrFactory,
                     TupleOfPtr((HandlerArgsTuple*) nullptr));
 
-                if constexpr (!std::is_same_v<LambdaResult<decltype(handler)>,
-                                              void>)
+                using ResultType = LambdaResult<decltype(handler)>;
+                if constexpr (!std::is_same_v<ResultType, void>)
                 {
                     auto result = std::move(std::apply(handler, args));
 
-                    response.body = rfl::json::write(result);
-                    response.headers["Content-Type"] = "application/json";
-                    response.statusCode              = StatusCode::OK;
+                    if constexpr (std::is_assignable_v<std::string, ResultType>)
+                    {
+                        response.headers["Content-Type"] = "plain/text";
+                        response.body                    = result;
+                    }
+                    else
+                    {
+                        response.body = rfl::json::write(result);
+                        response.headers["Content-Type"] = "application/json";
+                    }
+
+                    response.statusCode = StatusCode::OK;
                 }
                 else
                 {
@@ -103,7 +112,7 @@ class WebApplication
             });
     }
 
-    std::shared_ptr<ServiceCollection>     mServiceCollection;
-    std::shared_ptr<MiddlewareFactoryList> mMiddlewareFactories;
-    std::shared_ptr<PathMatcher>           mPathMatcher;
+    Ref<skr::ServiceCollection> mServiceCollection;
+    Ref<MiddlewareFactoryList>  mMiddlewareFactories;
+    Ref<PathMatcher>            mPathMatcher;
 };

@@ -2,6 +2,7 @@
 #include "IMiddleware.hpp"
 
 #include <iostream>
+#include <print>
 
 class LoggingMiddleware final : public IMiddleware
 {
@@ -11,6 +12,9 @@ class LoggingMiddleware final : public IMiddleware
     {
         std::cout << "Request received: " << request.version << " "
                   << request.method << " " << request.path << std::endl;
+
+        std::print("Request received: {} {} {}\n", request.version,
+                   request.method, request.path);
 
         next();
     }
