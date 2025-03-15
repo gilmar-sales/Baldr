@@ -7,20 +7,25 @@
 class LoggingMiddleware final : public IMiddleware
 {
   public:
-    void Handle(const HttpRequest& request, HttpResponse& response,
-                NextMiddleware& next) override
+    LoggingMiddleware(Ref<skr::Logger<LoggingMiddleware>> logger) :
+        mLogger(logger)
     {
-        std::cout << "Request received: " << request.version << " "
-                  << request.method << " " << request.path << std::endl;
-
-        std::print("Request received: {} {} {}\n", request.version,
-                   request.method, request.path);
-
-        next();
     }
 
     ~LoggingMiddleware() override
     {
-        std::cout << "Logging finished" << std::endl;
+        mLogger->LogInformation("Logging finished");
     }
+
+    void Handle(const HttpRequest& request, HttpResponse& response,
+                NextMiddleware& next) override
+    {
+        mLogger->LogInformation("Request received: '{}' '{}' for path: '{}'",
+                                request.version, request.method, request.path);
+
+        next();
+    }
+
+  private:
+    Ref<skr::Logger<LoggingMiddleware>> mLogger;
 };

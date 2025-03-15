@@ -9,6 +9,9 @@ void WebApplication::Run() const
 {
     try
     {
+        mServiceCollection->AddTransient<skr::Logger<HttpServer>>();
+        mServiceCollection->AddTransient<skr::Logger<HttpSession>>();
+
         auto server = HttpServer(
             8080, mServiceCollection, mMiddlewareFactories, mPathMatcher);
 

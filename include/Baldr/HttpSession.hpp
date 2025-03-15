@@ -41,6 +41,7 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
         mSocket(std::move(socket)), mServiceProvider(serviceProvider),
         mMiddlewareFactories(middlewareFactories), mPathMatcher(pathMatcher)
     {
+        mLogger = mServiceProvider->GetService<skr::Logger<HttpSession>>();
     }
 
     void start() { readRequest(); }
@@ -58,8 +59,8 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
                              }
                              else
                              {
-                                 std::cerr << "Error reading request: "
-                                           << ec.message() << std::endl;
+                                 self->mLogger->LogError(
+                                     "Error reading request: {}", ec.message());
                              }
                          });
     }
@@ -213,20 +214,22 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
             [self](const std::error_code ec, std::size_t bytes_transferred) {
                 if (!ec)
                 {
-                    std::cout
-                        << "Message sent: " << bytes_transferred << " bytes\n";
+                    self->mLogger->LogInformation(
+                        "Message sent: {} bytes", bytes_transferred);
                 }
                 else
                 {
-                    std::cerr << "Error writing: " << ec.message() << '\n';
+                    self->mLogger->LogError("Error writing: {}", ec.message());
                 }
             });
     }
 
-    asio::ip::tcp::socket      mSocket;
-    std::string                mData;
-    std::string                mResponse;
-    Ref<skr::ServiceProvider>  mServiceProvider;
-    Ref<MiddlewareFactoryList> mMiddlewareFactories;
-    Ref<PathMatcher>           mPathMatcher;
+    asio::ip::tcp::socket mSocket;
+    std::string           mData;
+    std::string           mResponse;
+
+    Ref<skr::Logger<HttpSession>> mLogger;
+    Ref<skr::ServiceProvider>     mServiceProvider;
+    Ref<MiddlewareFactoryList>    mMiddlewareFactories;
+    Ref<PathMatcher>              mPathMatcher;
 };

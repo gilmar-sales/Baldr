@@ -23,10 +23,12 @@ class HttpServer
         mMiddlewareFactories(middlewareFactories), mPathMatcher(pathMatcher)
     {
         acceptConnection();
-        std::cout << "HttpServer running on http://localhost:" << port
-                  << std::endl;
         mAcceptor.set_option(asio::socket_base::reuse_address(true));
         mAcceptor.listen(asio::socket_base::max_listen_connections);
+
+        mLogger = mServiceProvider->GetService<skr::Logger<HttpServer>>();
+        mLogger->LogInformation("HttpServer running on http://localhost:{}",
+                                port);
     }
 
     void Run()
@@ -73,16 +75,17 @@ class HttpServer
                 }
                 else
                 {
-                    std::cerr << "Error accepting connection: " << ec.message()
-                              << std::endl;
+                    mLogger->LogError("Error accepting conenction: {}",
+                                      ec.message());
                 }
                 acceptConnection();
             });
     }
 
-    asio::io_context           mIoContext;
-    asio::ip::tcp::acceptor    mAcceptor;
-    Ref<skr::ServiceProvider>  mServiceProvider;
-    Ref<MiddlewareFactoryList> mMiddlewareFactories;
-    Ref<PathMatcher>           mPathMatcher;
+    asio::io_context             mIoContext;
+    asio::ip::tcp::acceptor      mAcceptor;
+    Ref<skr::Logger<HttpServer>> mLogger;
+    Ref<skr::ServiceProvider>    mServiceProvider;
+    Ref<MiddlewareFactoryList>   mMiddlewareFactories;
+    Ref<PathMatcher>             mPathMatcher;
 };

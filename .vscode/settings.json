@@ -1,0 +1,7 @@
+{
+  "files.associations": {
+    "*.ipp": "cpp",
+    "charconv": "cpp",
+    "system_error": "cpp"
+  }
+}
