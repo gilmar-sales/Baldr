@@ -49,4 +49,6 @@ target_include_directories(baldr PUBLIC include/)
 
 if (BALDR_BUILD_EXAMPLES)
     add_subdirectory(examples/WeatherForecast)
+    add_subdirectory(examples/HelloWorld)
+    add_subdirectory(examples/HelloService)
 endif ()
