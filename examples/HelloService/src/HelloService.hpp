@@ -14,11 +14,7 @@ class HelloService
     {
     }
 
-    Payload Hello()
-    {
-        mLogger->LogDebug("Hello");
-        return Payload { .message = "Hello, World!" };
-    }
+    Payload Hello();
 
   private:
     Ref<skr::Logger<HelloService>> mLogger;
