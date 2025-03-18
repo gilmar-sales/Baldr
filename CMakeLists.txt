@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.30)
 project(Baldr)
 
 option(BALDR_BUILD_EXAMPLES OFF)
+option(BALDR_BUILD_TESTS OFF)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -43,6 +44,8 @@ add_library(baldr
         src/PathMatcher.cpp
 )
 
+add_library(baldr::baldr ALIAS baldr)
+
 target_link_libraries(baldr asio::asio skirnir::skirnir reflectcpp)
 
 target_include_directories(baldr PUBLIC include/)
@@ -52,3 +55,8 @@ if (BALDR_BUILD_EXAMPLES)
     add_subdirectory(examples/HelloWorld)
     add_subdirectory(examples/HelloService)
 endif ()
+
+
+if (BALDR_BUILD_TESTS)
+add_subdirectory(./test)
+endif()
