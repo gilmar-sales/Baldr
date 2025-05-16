@@ -20,14 +20,15 @@ int random(const int min, const int max)
 
 int main()
 {
-    auto builder = WebApplication::CreateBuilder();
+    auto builder = skr::ApplicationBuilder().AddExtension(BaldrExtension());
 
-    auto app       = builder.Build();
+    auto app = builder.Build<WebApplication>();
+
     auto summaries = std::vector { "Freezing",   "Bracing",  "Chilly", "Cool",
                                    "Mild",       "Warm",     "Balmy",  "Hot",
                                    "Sweltering", "Scorching" };
 
-    app.MapGet("/", [&] {
+    app->MapGet("/", [&] {
         auto forecast = std::vector<WeatherForecast>(5);
 
         for (auto& item : forecast)
@@ -45,7 +46,7 @@ int main()
         return std::move(forecast);
     });
 
-    app.Run();
+    app->Run();
 
     return 0;
 }

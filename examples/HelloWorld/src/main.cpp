@@ -7,13 +7,14 @@ struct Payload
 
 int main()
 {
-    auto builder = WebApplication::CreateBuilder();
+    auto builder = skr::ApplicationBuilder().AddExtension(BaldrExtension());
 
-    auto app = builder.Build();
+    auto app = builder.Build<WebApplication>();
 
-    app.MapGet("/json", [&] { return Payload { .message = "Hello, World!" }; });
+    app->MapGet("/json",
+                [&] { return Payload { .message = "Hello, World!" }; });
 
-    app.Run();
+    app->Run();
 
     return 0;
 }

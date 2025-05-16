@@ -27,7 +27,7 @@ FetchContent_MakeAvailable(asiocmake)
 FetchContent_Declare(
   skirnir
   GIT_REPOSITORY "https://github.com/gilmar-sales/Skirnir.git"
-  GIT_TAG        "main"
+  GIT_TAG        "v0.11.0"
 )
 FetchContent_MakeAvailable(skirnir)
 
@@ -38,17 +38,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(reflect_cpp)
 
-add_library(baldr
-        src/WebApplication.cpp
-        src/WebApplicationBuilder.cpp
-        src/PathMatcher.cpp
+file(GLOB_RECURSE BALDR_SOURCES
+        src/*.cpp
 )
+
+add_library(baldr ${BALDR_SOURCES})
 
 add_library(baldr::baldr ALIAS baldr)
 
 target_link_libraries(baldr asio::asio skirnir::skirnir reflectcpp)
 
-target_include_directories(baldr PUBLIC include/)
+target_include_directories(baldr PUBLIC src/)
 
 if (BALDR_BUILD_EXAMPLES)
     add_subdirectory(examples/WeatherForecast)

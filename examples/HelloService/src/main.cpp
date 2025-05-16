@@ -4,17 +4,17 @@
 
 int main()
 {
-    auto builder = WebApplication::CreateBuilder();
+    auto builder = skr::ApplicationBuilder().AddExtension(BaldrExtension());
 
     builder.GetServiceCollection().AddTransient<HelloService>();
 
-    auto app = builder.Build();
+    auto app = builder.Build<WebApplication>();
 
-    app.MapGet("/json", [](Ref<HelloService> helloService) {
+    app->MapGet("/json", [](Ref<HelloService> helloService) {
         return helloService->Hello();
     });
 
-    app.Run();
+    app->Run();
 
     return 0;
 }

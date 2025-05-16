@@ -82,6 +82,9 @@
     "cinttypes": "cpp",
     "typeindex": "cpp",
     "typeinfo": "cpp",
-    "variant": "cpp"
+    "variant": "cpp",
+    "strstream": "cpp",
+    "queue": "cpp",
+    "stack": "cpp"
   }
 }

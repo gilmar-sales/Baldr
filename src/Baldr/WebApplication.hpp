@@ -1,7 +1,6 @@
 #pragma once
 
-#include <Skirnir/ServiceCollection.hpp>
-#include <Skirnir/ServiceProvider.hpp>
+#include <Skirnir/Skirnir.hpp>
 
 #include <rfl.hpp>
 #include <rfl/json.hpp>
@@ -10,20 +9,15 @@
 #include "PathMatcher.hpp"
 #include "Tuple.hpp"
 
-class WebApplicationBuilder;
-
-class WebApplication
+class WebApplication : public skr::IApplication
 {
   public:
-    explicit WebApplication(
-        const Ref<skr::ServiceCollection>& serviceCollection) :
-        mServiceCollection(serviceCollection),
-        mPathMatcher(skr::MakeRef<PathMatcher>()),
-        mMiddlewareProvider(skr::MakeRef<MiddlewareProvider>())
+    WebApplication(const Ref<skr::ServiceProvider>& rootServiceProvider) :
+        IApplication(rootServiceProvider),
+        mPathMatcher(rootServiceProvider->GetService<PathMatcher>()),
+        mMiddlewareProvider(
+            rootServiceProvider->GetService<MiddlewareProvider>())
     {
-        mServiceCollection->AddTransient<skr::Logger<WebApplication>>();
-        mServiceCollection->AddSingleton(mMiddlewareProvider);
-        mServiceCollection->AddSingleton(mPathMatcher);
     }
 
     void MapGet(const std::string& route, auto&& handler)
@@ -39,16 +33,12 @@ class WebApplication
     template <typename TMiddleware>
     const WebApplication& Use()
     {
-        mServiceCollection->AddScoped<TMiddleware>();
-
         mMiddlewareProvider->AddMiddleware<TMiddleware>();
 
         return *this;
     }
 
-    void Run() const;
-
-    static WebApplicationBuilder CreateBuilder();
+    void Run() override;
 
   private:
     void MapRoute(const std::string& method, const std::string& route,
@@ -111,7 +101,6 @@ class WebApplication
             });
     }
 
-    Ref<skr::ServiceCollection> mServiceCollection;
-    Ref<PathMatcher>            mPathMatcher;
-    Ref<MiddlewareProvider>     mMiddlewareProvider;
+    Ref<PathMatcher>        mPathMatcher;
+    Ref<MiddlewareProvider> mMiddlewareProvider;
 };
