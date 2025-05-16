@@ -4,7 +4,6 @@
 #include <mutex>
 
 #include "IMiddleware.hpp"
-#include "WebApplicationBuilder.hpp"
 
 class RateLimiter
 {
@@ -70,22 +69,13 @@ class RateLimiter
     std::mutex mutex_ {}; // Protect shared state in multithreaded environments
 };
 
-struct AddRateLimit
-{
-    WebApplicationBuilder& operator()(WebApplicationBuilder& builder)
-    {
-        builder.GetServiceCollection().AddSingleton(
-            std::make_shared<RateLimiter>(10, std::chrono::seconds(10)));
-        return builder;
-    }
-};
-
 class RateLimitMiddleware : public IMiddleware
 {
   public:
     explicit RateLimitMiddleware(
-        const std::shared_ptr<RateLimiter>& rateLimiter) :
-        mRateLimiter(rateLimiter)
+        const Ref<RateLimiter>&                      rateLimiter,
+        const Ref<skr::Logger<RateLimitMiddleware>>& logger) :
+        mRateLimiter(rateLimiter), mLogger(logger)
     {
     }
 
@@ -101,7 +91,7 @@ class RateLimitMiddleware : public IMiddleware
             response.headers["Content-Length"] =
                 std::to_string(response.body.size());
 
-            std::cout << request.path << " - Has Been Limited" << std::endl;
+            mLogger->LogWarning("Endpoint {} - Has been limited", request.path);
             return;
         }
 
@@ -109,5 +99,6 @@ class RateLimitMiddleware : public IMiddleware
     }
 
   private:
-    std::shared_ptr<RateLimiter> mRateLimiter;
+    Ref<RateLimiter>                      mRateLimiter;
+    Ref<skr::Logger<RateLimitMiddleware>> mLogger;
 };

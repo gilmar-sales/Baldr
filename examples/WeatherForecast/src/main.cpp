@@ -1,4 +1,5 @@
 #include <Baldr/Baldr.hpp>
+#include <Baldr/RateLimitMiddleware.hpp>
 #include <random>
 
 struct WeatherForecast
@@ -45,6 +46,8 @@ int main()
 
         return std::move(forecast);
     });
+
+    app->Use<RateLimitMiddleware>();
 
     app->Run();
 
