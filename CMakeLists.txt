@@ -27,7 +27,7 @@ FetchContent_MakeAvailable(asiocmake)
 FetchContent_Declare(
   skirnir
   GIT_REPOSITORY "https://github.com/gilmar-sales/Skirnir.git"
-  GIT_TAG        "v0.12.0"
+  GIT_TAG        "v0.12.1"
 )
 FetchContent_MakeAvailable(skirnir)
 
@@ -47,6 +47,11 @@ add_library(baldr ${BALDR_SOURCES})
 add_library(baldr::baldr ALIAS baldr)
 
 target_link_libraries(baldr asio::asio skirnir::skirnir reflectcpp)
+
+if (WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
+target_link_libraries(baldr ws2_32 wsock32 Bcrypt)
+
+endif()
 
 target_include_directories(baldr PUBLIC src/)
 
