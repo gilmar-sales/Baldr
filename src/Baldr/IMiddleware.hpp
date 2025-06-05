@@ -15,5 +15,5 @@ class IMiddleware
     virtual ~IMiddleware() = default;
 
     virtual void Handle(const HttpRequest& request, HttpResponse& response,
-                        NextMiddleware& next) = 0;
+                        const NextMiddleware& next) = 0;
 };

@@ -123,41 +123,63 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
         // Simple routing logic
         auto httpResponse = HttpResponse(httpRequest);
 
-        auto callNext = !mMiddlewareProvider->Size();
+        auto current = mMiddlewareProvider->begin();
 
-        for (auto it = mMiddlewareProvider->begin();
-             it != mMiddlewareProvider->end();
-             ++it)
-        {
-            auto next = NextMiddleware { [&callNext] { callNext = true; } };
+        NextMiddleware nextLambda = [&]() -> void {
+            auto nextIt = current + 1;
 
-            (*it)(mServiceProvider)->Handle(httpRequest, httpResponse, next);
-
-            if (!callNext)
-                break;
-
-            if (it + 1 != mMiddlewareProvider->end())
-                callNext = false;
-        }
-
-        if (callNext)
-        {
-            const auto& handler =
-                mPathMatcher->match(httpRequest.method, httpRequest.path);
-
-            if (handler.has_value())
+            if (nextIt != mMiddlewareProvider->end())
             {
-                handler.value()(httpRequest, httpResponse, mServiceProvider);
+                current += 1;
+                (*nextIt)(mServiceProvider)
+                    ->Handle(httpRequest, httpResponse, nextLambda);
             }
             else
             {
-                httpResponse.statusCode = StatusCode::NotFound;
-            }
 
-            if (!httpResponse.body.empty())
-                httpResponse.headers["Content-Length"] =
-                    std::to_string(httpResponse.body.size());
-        }
+                const auto& handler =
+                    mPathMatcher->match(httpRequest.method, httpRequest.path);
+
+                if (handler.has_value())
+                {
+                    handler.value()(httpRequest, httpResponse,
+                                    mServiceProvider);
+                }
+                else
+                {
+                    httpResponse.statusCode = StatusCode::NotFound;
+                }
+
+                if (!httpResponse.body.empty())
+                    httpResponse.headers["Content-Length"] =
+                        std::to_string(httpResponse.body.size());
+            }
+        };
+
+        auto next = NextMiddleware { nextLambda };
+
+        (*current)(mServiceProvider)->Handle(httpRequest, httpResponse, next);
+
+        // auto callNext = !mMiddlewareProvider->Size();
+
+        // for (auto it = mMiddlewareProvider->begin();
+        //      it != mMiddlewareProvider->end();
+        //      ++it)
+        // {
+        //     auto next = NextMiddleware { [&callNext] { callNext = true; } };
+
+        //     (*it)(mServiceProvider)->Handle(httpRequest, httpResponse, next);
+
+        //     if (!callNext)
+        //         break;
+
+        //     if (it + 1 != mMiddlewareProvider->end())
+        //         callNext = false;
+        // }
+
+        // if (callNext)
+        // {
+        // }
 
         // Create the HTTP response
         std::ostringstream response_stream;
