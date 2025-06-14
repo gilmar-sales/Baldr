@@ -18,7 +18,7 @@ jobs:
           with:
               username: gilmar-sales
               access_token: ${{ secrets.GITHUB_TOKEN }}
-              wiki_folder: wiki
+              wiki_folder: docs
               commit_username: 'github-actions'
               commit_email: 'github-actions@users.noreply.github.com'
               commit_message: 'action: wiki sync'
