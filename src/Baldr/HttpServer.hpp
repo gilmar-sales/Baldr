@@ -33,14 +33,14 @@ class HttpServer
 
         acceptConnection();
 
-        mLogger->LogInformation("HttpServer running on http://localhost:{}",
+        mLogger->LogInformation("🚀 Server running on http://localhost:{}",
                                 httpServerOptions->port);
     }
 
     void Run()
     {
-        // Create a thread pool
-        std::vector<std::thread> threads;
+        std::vector<std::jthread> threads;
+
         for (std::size_t i = 0; i < mHttpServerOptions->threadCount; ++i)
         {
             std::function<void()> worker = [&] {
@@ -55,12 +55,6 @@ class HttpServer
                 }
             };
             threads.emplace_back(worker);
-        }
-
-        // Join threads
-        for (auto& thread : threads)
-        {
-            thread.join();
         }
     }
 

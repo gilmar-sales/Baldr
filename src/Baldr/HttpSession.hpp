@@ -14,21 +14,16 @@
 
 inline std::string trim(const std::string& str)
 {
-    const size_t start =
-        str.find_first_not_of(" \t\n\r\f\v"); // Find first non-whitespace
-    const size_t end =
-        str.find_last_not_of(" \t\n\r\f\v"); // Find last non-whitespace
+    const size_t start = str.find_first_not_of(" \t\n\r\f\v");
 
-    // If the string is empty or contains only whitespace, return an empty
-    // string
+    const size_t end = str.find_last_not_of(" \t\n\r\f\v");
+
     if (start == std::string::npos || end == std::string::npos)
     {
         return "";
     }
 
-    return str.substr(start,
-                      end - start + 1); // Extract substring with leading and
-                                        // trailing whitespaces removed
+    return str.substr(start, end - start + 1);
 }
 
 class HttpSession : public std::enable_shared_from_this<HttpSession>
@@ -68,10 +63,11 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
 
     void processRequest(std::size_t bytes_transferred)
     {
-        // Extract the request
         std::string request(mData.substr(0, bytes_transferred));
 
-        auto httpRequest = HttpRequest();
+        auto httpRequest = HttpRequest {};
+
+        httpRequest.clientIp = mSocket.remote_endpoint().address().to_string();
 
         std::istringstream request_stream(request);
         request_stream >> httpRequest.method >> httpRequest.path >>
@@ -131,55 +127,30 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
             if (nextIt != mMiddlewareProvider->end())
             {
                 current += 1;
-                (*nextIt)(mServiceProvider)
+
+                return (*nextIt)(mServiceProvider)
                     ->Handle(httpRequest, httpResponse, nextLambda);
+            }
+
+            const auto& handler =
+                mPathMatcher->match(httpRequest.method, httpRequest.path);
+
+            if (handler.has_value())
+            {
+                handler.value()(httpRequest, httpResponse, mServiceProvider);
             }
             else
             {
-
-                const auto& handler =
-                    mPathMatcher->match(httpRequest.method, httpRequest.path);
-
-                if (handler.has_value())
-                {
-                    handler.value()(httpRequest, httpResponse,
-                                    mServiceProvider);
-                }
-                else
-                {
-                    httpResponse.statusCode = StatusCode::NotFound;
-                }
-
-                if (!httpResponse.body.empty())
-                    httpResponse.headers["Content-Length"] =
-                        std::to_string(httpResponse.body.size());
+                httpResponse.statusCode = StatusCode::NotFound;
             }
+
+            if (!httpResponse.body.empty())
+                httpResponse.headers["Content-Length"] =
+                    std::to_string(httpResponse.body.size());
         };
 
-        auto next = NextMiddleware { nextLambda };
-
-        (*current)(mServiceProvider)->Handle(httpRequest, httpResponse, next);
-
-        // auto callNext = !mMiddlewareProvider->Size();
-
-        // for (auto it = mMiddlewareProvider->begin();
-        //      it != mMiddlewareProvider->end();
-        //      ++it)
-        // {
-        //     auto next = NextMiddleware { [&callNext] { callNext = true; } };
-
-        //     (*it)(mServiceProvider)->Handle(httpRequest, httpResponse, next);
-
-        //     if (!callNext)
-        //         break;
-
-        //     if (it + 1 != mMiddlewareProvider->end())
-        //         callNext = false;
-        // }
-
-        // if (callNext)
-        // {
-        // }
+        (*current)(mServiceProvider)
+            ->Handle(httpRequest, httpResponse, nextLambda);
 
         // Create the HTTP response
         std::ostringstream response_stream;

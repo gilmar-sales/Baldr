@@ -8,6 +8,7 @@ struct HttpRequest
     std::string                                  method;
     std::string                                  path;
     std::string                                  version;
+    std::string                                  clientIp;
     std::unordered_map<std::string, std::string> headers;
     std::unordered_map<std::string, std::string> params;
     std::string                                  body;
