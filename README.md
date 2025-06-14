@@ -1,5 +1,10 @@
 # Baldr
 A C++ microframework for the web with native support for dependency injection and logging
+# Baldr
+
+[![CI](https://github.com/gilmar-sales/Baldr/actions/workflows/cmake-multi-platform.yml/badge.svg)](https://github.com/gilmar-sales/Baldr/actions/workflows/cmake-multi-platform.yml)
+[![Docs](https://img.shields.io/badge/docs-available-blue)](https://gilmar-sales.github.io/Baldr/)
+[![License](https://img.shields.io/github/license/gilmar-sales/Baldr)](LICENSE)
 
 # Usage
 
