@@ -16,7 +16,7 @@ jobs:
 
       - name: Clone the wiki repo
         run: |
-          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/gilmar-sales/${{ github.repository }}.wiki.git wiki
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki
 
       - name: Sync docs
         run: |
