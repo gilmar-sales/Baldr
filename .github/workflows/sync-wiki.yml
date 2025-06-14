@@ -7,18 +7,23 @@ on:
       - '.github/workflows/sync-wiki.yml'
     branches:
       - main
-
 jobs:
   sync-wiki:
     runs-on: ubuntu-latest
     steps:
-        - uses: actions/checkout@master
-        - name: Sync Wiki
-          uses: joeizzard/action-wiki-sync@master
-          with:
-              username: gilmar-sales
-              access_token: ${{ secrets.GITHUB_TOKEN }}
-              wiki_folder: docs
-              commit_username: 'github-actions'
-              commit_email: 'github-actions@users.noreply.github.com'
-              commit_message: 'action: wiki sync'
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Clone the wiki repo
+        run: |
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/gilmar-sales/${{ github.repository }}.wiki.git wiki
+
+      - name: Sync docs
+        run: |
+          rsync -av --delete docs/ wiki/
+          cd wiki
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add .
+          git commit -m "Sync documentation from /docs"
+          git push
