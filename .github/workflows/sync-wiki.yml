@@ -20,7 +20,7 @@ jobs:
 
       - name: Sync docs
         run: |
-          rsync -av --delete docs/ wiki/
+          rsync -av --delete docs/ wiki/ --exclude .git/
           cd wiki
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
