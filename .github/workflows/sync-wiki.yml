@@ -14,6 +14,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Ensure clean wiki directory
+        run: |
+          if [ -d "wiki" ]; then
+            rm -rf wiki
+          fi
+          
       - name: Clone the wiki repo
         run: |
           git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki
