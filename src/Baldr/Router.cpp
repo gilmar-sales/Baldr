@@ -1,10 +1,10 @@
-#include "Baldr/PathMatcher.hpp"
+#include "Baldr/Router.hpp"
 
 #include <ranges>
 #include <stack>
 
-void PathMatcher::insert(HttpMethod method, std::string path,
-                         const RouteHandler& routeHandler) const
+void Router::insert(HttpMethod method, std::string path,
+                    const RouteHandler& routeHandler) const
 {
     TrieNode* current = mMethodsMap.at(method);
 
@@ -42,8 +42,8 @@ void PathMatcher::insert(HttpMethod method, std::string path,
     current->isEndOfPath  = true;
 }
 
-std::optional<RouteHandler> PathMatcher::match(HttpMethod  method,
-                                               std::string path) const
+std::optional<RouteHandler> Router::match(HttpMethod  method,
+                                          std::string path) const
 {
 
     auto pathSegments =

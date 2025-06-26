@@ -73,7 +73,7 @@ class HttpServer
                         scope->GetServiceProvider(),
                         scope->GetServiceProvider()
                             ->GetService<MiddlewareProvider>(),
-                        scope->GetServiceProvider()->GetService<PathMatcher>(),
+                        scope->GetServiceProvider()->GetService<Router>(),
                         std::move(socket));
 
                     httpSession->start();

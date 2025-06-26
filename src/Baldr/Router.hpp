@@ -19,17 +19,21 @@ struct TrieNode
     bool                                       isEndOfPath = false;
 };
 
-class PathMatcher
+class Router
 {
   public:
-    PathMatcher()
+    Router()
     {
         mMethodsMap = {
-            { GET, new TrieNode() },     { POST, new TrieNode() },
-            { PUT, new TrieNode() },     { DELETE, new TrieNode() },
-            { PATCH, new TrieNode() },   { OPTIONS, new TrieNode() },
-            { HEAD, new TrieNode() },    { TRACE, new TrieNode() },
-            { CONNECT, new TrieNode() },
+            { HttpMethod::GET, new TrieNode() },
+            { HttpMethod::POST, new TrieNode() },
+            { HttpMethod::PUT, new TrieNode() },
+            { HttpMethod::DELETE, new TrieNode() },
+            { HttpMethod::PATCH, new TrieNode() },
+            { HttpMethod::OPTIONS, new TrieNode() },
+            { HttpMethod::HEAD, new TrieNode() },
+            { HttpMethod::TRACE, new TrieNode() },
+            { HttpMethod::CONNECT, new TrieNode() },
         };
     }
 

@@ -6,7 +6,7 @@
 #include <rfl/json.hpp>
 
 #include "MiddlewareProvider.hpp"
-#include "PathMatcher.hpp"
+#include "Router.hpp"
 #include "Tuple.hpp"
 
 class WebApplication : public skr::IApplication
@@ -14,7 +14,7 @@ class WebApplication : public skr::IApplication
   public:
     WebApplication(const Ref<skr::ServiceProvider>& rootServiceProvider) :
         IApplication(rootServiceProvider),
-        mPathMatcher(rootServiceProvider->GetService<PathMatcher>()),
+        mPathMatcher(rootServiceProvider->GetService<Router>()),
         mMiddlewareProvider(
             rootServiceProvider->GetService<MiddlewareProvider>())
     {
@@ -22,12 +22,12 @@ class WebApplication : public skr::IApplication
 
     void MapGet(const std::string& route, auto&& handler)
     {
-        MapRoute(GET, route, handler);
+        MapRoute(HttpMethod::GET, route, handler);
     }
 
     void MapPost(const std::string& route, auto&& handler)
     {
-        MapRoute(POST, route, handler);
+        MapRoute(HttpMethod::POST, route, handler);
     }
 
     template <typename TMiddleware>
@@ -100,6 +100,6 @@ class WebApplication : public skr::IApplication
             });
     }
 
-    Ref<PathMatcher>        mPathMatcher;
+    Ref<Router>             mPathMatcher;
     Ref<MiddlewareProvider> mMiddlewareProvider;
 };

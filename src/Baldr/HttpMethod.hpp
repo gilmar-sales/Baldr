@@ -1,6 +1,6 @@
 #pragma once
 
-enum HttpMethod : int
+enum class HttpMethod : int
 {
     GET,
     POST,

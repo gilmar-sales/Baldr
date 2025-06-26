@@ -8,7 +8,7 @@
 void BaldrExtension::ConfigureServices(skr::ServiceCollection& services)
 {
     services.AddSingleton<MiddlewareProvider>();
-    services.AddSingleton<PathMatcher>();
+    services.AddSingleton<Router>();
     services.AddSingleton<HttpServerOptions>();
     services.AddSingleton<HttpServer>();
 

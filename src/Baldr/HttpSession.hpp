@@ -9,7 +9,7 @@
 
 #include "HttpResponse.hpp"
 #include "MiddlewareProvider.hpp"
-#include "PathMatcher.hpp"
+#include "Router.hpp"
 
 #include <ranges>
 
@@ -32,7 +32,7 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
   public:
     explicit HttpSession(const Ref<skr::ServiceProvider>& serviceProvider,
                          const Ref<MiddlewareProvider>&   middlewareProvider,
-                         const Ref<PathMatcher>&          pathMatcher,
+                         const Ref<Router>&               pathMatcher,
                          asio::ip::tcp::socket            socket) :
         mServiceProvider(serviceProvider),
         mMiddlewareProvider(middlewareProvider), mPathMatcher(pathMatcher),
@@ -239,5 +239,5 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
     Ref<skr::Logger<HttpSession>> mLogger;
     Ref<skr::ServiceProvider>     mServiceProvider;
     Ref<MiddlewareProvider>       mMiddlewareProvider;
-    Ref<PathMatcher>              mPathMatcher;
+    Ref<Router>                   mPathMatcher;
 };
