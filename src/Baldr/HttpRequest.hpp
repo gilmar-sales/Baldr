@@ -3,9 +3,11 @@
 #include <string>
 #include <unordered_map>
 
+#include "HttpMethod.hpp"
+
 struct HttpRequest
 {
-    std::string                                  method;
+    HttpMethod                                   method;
     std::string                                  path;
     std::string                                  version;
     std::string                                  clientIp;

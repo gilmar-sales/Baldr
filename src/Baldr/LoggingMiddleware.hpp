@@ -2,6 +2,7 @@
 
 #include "IMiddleware.hpp"
 
+#include "rfl/enums.hpp"
 #include <chrono>
 
 class LoggingMiddleware final : public IMiddleware
@@ -17,15 +18,19 @@ class LoggingMiddleware final : public IMiddleware
     void Handle(const HttpRequest& request, HttpResponse& response,
                 const NextMiddleware& next) override
     {
-        mLogger->LogInformation("Request received: '{}' '{}' for path: '{}'",
-                                request.version, request.method, request.path);
+        const auto method = rfl::enum_to_string(request.method);
+
+        mLogger->LogInformation(
+            "Request - '{}' '{}' '{}'", request.version, method, request.path);
         auto begin = std::chrono::system_clock::now();
         next();
         auto end = std::chrono::system_clock::now();
 
         mLogger->LogInformation(
-            "Request finished in {}",
-            std::chrono::duration_cast<std::chrono::microseconds>(end - begin));
+            "Response - '{}' '{}' '{}' - {} - {}",
+            static_cast<int>(response.statusCode), method, request.path,
+            std::chrono::duration_cast<std::chrono::microseconds>(end - begin),
+            request.clientIp);
     }
 
   private:

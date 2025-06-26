@@ -1,5 +1,6 @@
 #pragma once
 
+#include "rfl/enums.hpp"
 #define ASIOP_STANDALONE
 #include <asio.hpp>
 
@@ -70,8 +71,18 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
         httpRequest.clientIp = mSocket.remote_endpoint().address().to_string();
 
         std::istringstream request_stream(request);
-        request_stream >> httpRequest.method >> httpRequest.path >>
-            httpRequest.version;
+
+        std::string httpMethod;
+
+        request_stream >> httpMethod;
+
+        auto parsedHttpMethod = rfl::string_to_enum<HttpMethod>(httpMethod);
+
+        mLogger->Assert(parsedHttpMethod.has_value(), "Invalid HTTP method");
+
+        httpRequest.method = parsedHttpMethod.value();
+
+        request_stream >> httpRequest.path >> httpRequest.version;
 
         auto queryIndex = httpRequest.path.find('?');
 
@@ -120,6 +131,7 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
         auto httpResponse = HttpResponse(httpRequest);
 
         auto current = mMiddlewareProvider->begin();
+        ;
 
         NextMiddleware nextLambda = [&]() -> void {
             auto nextIt = current + 1;

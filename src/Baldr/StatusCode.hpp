@@ -1,6 +1,6 @@
 #pragma once
 
-enum class StatusCode
+enum class StatusCode : int
 {
     Continue           = 100,
     SwitchingProtocols = 101,

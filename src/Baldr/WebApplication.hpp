@@ -22,12 +22,12 @@ class WebApplication : public skr::IApplication
 
     void MapGet(const std::string& route, auto&& handler)
     {
-        MapRoute("GET", route, handler);
+        MapRoute(GET, route, handler);
     }
 
     void MapPost(const std::string& route, auto&& handler)
     {
-        MapRoute("POST", route, handler);
+        MapRoute(POST, route, handler);
     }
 
     template <typename TMiddleware>
@@ -41,8 +41,7 @@ class WebApplication : public skr::IApplication
     void Run() override;
 
   private:
-    void MapRoute(const std::string& method, const std::string& route,
-                  auto&& handler)
+    void MapRoute(HttpMethod method, const std::string& route, auto&& handler)
     {
         mPathMatcher->insert(
             method,
