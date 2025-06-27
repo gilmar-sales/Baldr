@@ -37,13 +37,13 @@ void Router::insert(HttpMethod method, std::string path,
         if (sv.starts_with(':'))
         {
             routeEntry.paramsNames.emplace_back(sv.substr(1));
-            regexStr += "([^/]+)";
+            regexStr += "([^/]+)/?";
             sv = "*";
         }
         else
         {
             regexStr += sv;
-            regexStr += '/';
+            regexStr += "/?";
         }
 
         if (!current->children.contains(sv))

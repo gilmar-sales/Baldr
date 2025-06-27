@@ -37,3 +37,46 @@ TEST_F(RouterSpec, RouterShouldRegisterMultipleGETs)
     ASSERT_TRUE(mRouter->match(HttpMethod::GET, "/hello_world").has_value());
     ASSERT_TRUE(mRouter->match(HttpMethod::GET, "/").has_value());
 }
+
+TEST_F(RouterSpec, RouterShoulNotConflictMethods)
+{
+    mRouter->insert(
+        HttpMethod::GET, "/",
+        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+
+    ASSERT_FALSE(mRouter->match(HttpMethod::POST, "/").has_value());
+    ASSERT_FALSE(mRouter->match(HttpMethod::DELETE, "/").has_value());
+    ASSERT_FALSE(mRouter->match(HttpMethod::PUT, "/").has_value());
+}
+
+TEST_F(RouterSpec, RouterShouldExtractSingleRouteParam)
+{
+    mRouter->insert(
+        HttpMethod::GET, "/hello/:name",
+        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+
+    auto routeEntry = mRouter->match(HttpMethod::GET, "/hello/Lorem Impsum");
+
+    ASSERT_TRUE(routeEntry.has_value());
+    ASSERT_STREQ(
+        routeEntry->extractRouteParams("/hello/Lorem Impsum")["name"].c_str(),
+        "Lorem Impsum");
+}
+
+TEST_F(RouterSpec, RouterShouldExtractMultipleRouteParams)
+{
+    mRouter->insert(
+        HttpMethod::GET, "/hello/:name/:surname",
+        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+
+    auto routeEntry = mRouter->match(HttpMethod::GET, "/hello/Lorem/Impsum");
+
+    ASSERT_TRUE(routeEntry.has_value());
+    ASSERT_STREQ(
+        routeEntry->extractRouteParams("/hello/Lorem/Impsum")["name"].c_str(),
+        "Lorem");
+    ASSERT_STREQ(
+        routeEntry->extractRouteParams("/hello/Lorem/Impsum")["surname"]
+            .c_str(),
+        "Impsum");
+}
