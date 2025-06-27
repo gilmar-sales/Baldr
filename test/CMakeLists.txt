@@ -16,5 +16,10 @@ add_executable(Tests_run ${TESTS_SRC})
 
 target_link_libraries(Tests_run gtest gtest_main baldr::baldr)
 target_include_directories(Tests_run PUBLIC ${gtest_SOURCE_DIR}/include ../include)
+target_precompile_headers(Tests_run
+   PUBLIC
+      <Skirnir/Skirnir.hpp>
+      <gtest/gtest.h>
+)
 
 gtest_discover_tests(Tests_run)

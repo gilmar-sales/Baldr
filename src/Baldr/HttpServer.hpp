@@ -7,7 +7,7 @@
 
 #include <Skirnir/Skirnir.hpp>
 
-#include "HttpSession.hpp"
+#include "HttpConnection.hpp"
 
 struct HttpServerOptions
 {
@@ -31,7 +31,7 @@ class HttpServer
         mAcceptor.set_option(asio::socket_base::reuse_address(true));
         mAcceptor.listen(asio::socket_base::max_listen_connections);
 
-        acceptConnection();
+        onNewConnection();
 
         mLogger->LogInformation("🚀 Server running on http://localhost:{}",
                                 httpServerOptions->port);
@@ -59,7 +59,7 @@ class HttpServer
     }
 
   private:
-    void acceptConnection()
+    void onNewConnection()
     {
         mAcceptor.async_accept(
             [this](const std::error_code ec, asio::ip::tcp::socket socket) {
@@ -69,11 +69,8 @@ class HttpServer
 
                     const auto scope = mServiceProvider->CreateServiceScope();
 
-                    auto httpSession = skr::MakeRef<HttpSession>(
+                    auto httpSession = skr::MakeRef<HttpConnection>(
                         scope->GetServiceProvider(),
-                        scope->GetServiceProvider()
-                            ->GetService<MiddlewareProvider>(),
-                        scope->GetServiceProvider()->GetService<Router>(),
                         std::move(socket));
 
                     httpSession->start();
@@ -84,7 +81,7 @@ class HttpServer
                                       ec.message());
                 }
 
-                acceptConnection();
+                onNewConnection();
             });
     }
 

@@ -1,11 +1,9 @@
-#include <gtest/gtest.h>
-
 #include "Baldr/Router.hpp"
 
 class RouterSpec : public ::testing::Test
 {
   protected:
-    void SetUp() override { mRouter = std::make_shared<Router>(); }
+    void SetUp() override { mRouter = skr::MakeRef<Router>(); }
 
     void TearDown() override { mRouter.reset(); }
 

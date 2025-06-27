@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Baldr/StringHelpers.hpp"
 #include "rfl/enums.hpp"
 #define ASIOP_STANDALONE
 #include <asio.hpp>
@@ -7,38 +8,27 @@
 #include <iostream>
 #include <memory>
 
+#include "HttpRequestParser.hpp"
 #include "HttpResponse.hpp"
 #include "MiddlewareProvider.hpp"
 #include "Router.hpp"
 
 #include <ranges>
 
-inline std::string trim(const std::string& str)
+class HttpConnection : public std::enable_shared_from_this<HttpConnection>
 {
-    const size_t start = str.find_first_not_of(" \t\n\r\f\v");
+    friend class HttpConnectionSpec;
 
-    const size_t end = str.find_last_not_of(" \t\n\r\f\v");
-
-    if (start == std::string::npos || end == std::string::npos)
-    {
-        return "";
-    }
-
-    return str.substr(start, end - start + 1);
-}
-
-class HttpSession : public std::enable_shared_from_this<HttpSession>
-{
   public:
-    explicit HttpSession(const Ref<skr::ServiceProvider>& serviceProvider,
-                         const Ref<MiddlewareProvider>&   middlewareProvider,
-                         const Ref<Router>&               pathMatcher,
-                         asio::ip::tcp::socket            socket) :
+    explicit HttpConnection(const Ref<skr::ServiceProvider>& serviceProvider,
+                            asio::ip::tcp::socket            socket) :
         mServiceProvider(serviceProvider),
-        mMiddlewareProvider(middlewareProvider), mPathMatcher(pathMatcher),
+        mMiddlewareProvider(serviceProvider->GetService<MiddlewareProvider>()),
+        mHttpRequestParser(serviceProvider->GetService<HttpRequestParser>()),
+        mPathMatcher(serviceProvider->GetService<Router>()),
         mSocket(std::move(socket))
     {
-        mLogger = mServiceProvider->GetService<skr::Logger<HttpSession>>();
+        mLogger = mServiceProvider->GetService<skr::Logger<HttpConnection>>();
     }
 
     void start() { readRequest(); }
@@ -66,72 +56,23 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
     {
         std::string request(mData.substr(0, bytes_transferred));
 
-        auto httpRequest = HttpRequest {};
+        auto httpRequestParse = mHttpRequestParser->parse(request);
 
-        httpRequest.clientIp = mSocket.remote_endpoint().address().to_string();
-
-        std::istringstream request_stream(request);
-
-        std::string httpMethod;
-
-        request_stream >> httpMethod;
-
-        auto parsedHttpMethod = rfl::string_to_enum<HttpMethod>(httpMethod);
-
-        mLogger->Assert(parsedHttpMethod.has_value(), "Invalid HTTP method");
-
-        httpRequest.method = parsedHttpMethod.value();
-
-        request_stream >> httpRequest.path >> httpRequest.version;
-
-        auto queryIndex = httpRequest.path.find('?');
-
-        if (queryIndex != std::string::npos)
+        if (!httpRequestParse.success)
         {
-            auto params =
-                std::string_view(httpRequest.path.begin() + queryIndex,
-                                 httpRequest.path.end());
-
-            for (const auto& part : params | std::views::split('&'))
-            {
-                std::string pair(part.begin(), part.end());
-                auto        eq_pos = pair.find('=');
-                if (eq_pos != std::string::npos)
-                {
-                    httpRequest.params[pair.substr(0, eq_pos)] =
-                        pair.substr(eq_pos + 1);
-                }
-                else
-                {
-                    httpRequest.params[pair] = "";
-                }
-            }
-
-            httpRequest.path.resize(queryIndex);
+            mLogger->LogError("Failed to parse HTTP request: {}",
+                              httpRequestParse.error);
+            mResponse = "HTTP/1.1 400 Bad Request\r\n\r\n";
+            writeResponse();
+            return;
         }
 
-        std::string line;
+        httpRequestParse.value.clientIp =
+            mSocket.remote_endpoint().address().to_string();
 
-        while (std::getline(request_stream, line) && request_stream.good())
-        {
-            if (auto colon = line.find(':'); colon != std::string::npos)
-            {
-                auto key                 = trim(line.substr(0, colon));
-                auto value               = trim(line.substr(colon + 1));
-                httpRequest.headers[key] = value;
-            }
-        }
-
-        if (httpRequest.headers.contains("Content-Length"))
-        {
-            httpRequest.body = trim(request);
-        }
-
-        // Simple routing logic
-        auto httpResponse = HttpResponse(httpRequest);
+        auto httpResponse = HttpResponse(httpRequestParse.value);
 
         auto current = mMiddlewareProvider->begin();
-        ;
 
         NextMiddleware nextLambda = [&]() -> void {
             auto nextIt = current + 1;
@@ -141,15 +82,16 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
                 current += 1;
 
                 return (*nextIt)(mServiceProvider)
-                    ->Handle(httpRequest, httpResponse, nextLambda);
+                    ->Handle(httpRequestParse.value, httpResponse, nextLambda);
             }
 
-            const auto& handler =
-                mPathMatcher->match(httpRequest.method, httpRequest.path);
+            const auto& handler = mPathMatcher->match(
+                httpRequestParse.value.method, httpRequestParse.value.path);
 
             if (handler.has_value())
             {
-                handler.value()(httpRequest, httpResponse, mServiceProvider);
+                handler.value()(httpRequestParse.value, httpResponse,
+                                mServiceProvider);
             }
             else
             {
@@ -162,7 +104,7 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
         };
 
         (*current)(mServiceProvider)
-            ->Handle(httpRequest, httpResponse, nextLambda);
+            ->Handle(httpRequestParse.value, httpResponse, nextLambda);
 
         // Create the HTTP response
         std::ostringstream response_stream;
@@ -236,8 +178,9 @@ class HttpSession : public std::enable_shared_from_this<HttpSession>
     std::string           mData;
     std::string           mResponse;
 
-    Ref<skr::Logger<HttpSession>> mLogger;
-    Ref<skr::ServiceProvider>     mServiceProvider;
-    Ref<MiddlewareProvider>       mMiddlewareProvider;
-    Ref<Router>                   mPathMatcher;
+    Ref<skr::Logger<HttpConnection>> mLogger;
+    Ref<skr::ServiceProvider>        mServiceProvider;
+    Ref<HttpRequestParser>           mHttpRequestParser;
+    Ref<MiddlewareProvider>          mMiddlewareProvider;
+    Ref<Router>                      mPathMatcher;
 };
