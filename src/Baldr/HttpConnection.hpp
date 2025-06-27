@@ -37,19 +37,23 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
     void readRequest()
     {
         auto self = shared_from_this();
-        async_read_until(mSocket, asio::dynamic_buffer(mData), "\r\n\r\n",
-                         [self](const std::error_code ec,
-                                const std::size_t     bytes_transferred) {
-                             if (!ec)
-                             {
-                                 self->processRequest(bytes_transferred);
-                             }
-                             else
-                             {
-                                 self->mLogger->LogError(
-                                     "Error reading request: {}", ec.message());
-                             }
-                         });
+        async_read_until(
+            mSocket, asio::dynamic_buffer(mData), "\r\n\r\n",
+            [self](const std::error_code ec,
+                   const std::size_t     bytes_transferred) {
+                if (!ec)
+                {
+                    self->processRequest(bytes_transferred);
+                }
+                else
+                {
+                    self->mLogger->LogError(
+                        "Error reading request: {}", ec.message());
+                    self->mResponse = "HTTP/1.1 400 Bad Request\r\n\r\n";
+                    self->writeResponse();
+                    return;
+                }
+            });
     }
 
     void processRequest(std::size_t bytes_transferred)
