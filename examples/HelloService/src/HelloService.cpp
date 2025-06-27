@@ -1,7 +1,7 @@
 #include "HelloService.hpp"
 
-Payload HelloService::Hello()
+Payload HelloService::Hello(std::string name)
 {
     mLogger->LogDebug("Hello");
-    return Payload { .message = "Hello, World!" };
+    return Payload { .message = std::format("Hello, {}!", name) };
 }

@@ -25,7 +25,7 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
         mServiceProvider(serviceProvider),
         mMiddlewareProvider(serviceProvider->GetService<MiddlewareProvider>()),
         mHttpRequestParser(serviceProvider->GetService<HttpRequestParser>()),
-        mPathMatcher(serviceProvider->GetService<Router>()),
+        mRouter(serviceProvider->GetService<Router>()),
         mSocket(std::move(socket))
     {
         mLogger = mServiceProvider->GetService<skr::Logger<HttpConnection>>();
@@ -78,6 +78,19 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
 
         auto current = mMiddlewareProvider->begin();
 
+        const auto& routeEntry = mRouter->match(
+            httpRequestParse.value.method, httpRequestParse.value.path);
+
+        if (!routeEntry.has_value())
+        {
+            httpResponse.statusCode = StatusCode::NotFound;
+            mResponse               = "HTTP/1.1 404 Not Found\r\n\r\n";
+            return writeResponse();
+        }
+
+        httpRequestParse.value.params =
+            routeEntry.value().extractRouteParams(httpRequestParse.value.path);
+
         NextMiddleware nextLambda = [&]() -> void {
             auto nextIt = current + 1;
 
@@ -89,18 +102,8 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
                     ->Handle(httpRequestParse.value, httpResponse, nextLambda);
             }
 
-            const auto& handler = mPathMatcher->match(
-                httpRequestParse.value.method, httpRequestParse.value.path);
-
-            if (handler.has_value())
-            {
-                handler.value()(httpRequestParse.value, httpResponse,
-                                mServiceProvider);
-            }
-            else
-            {
-                httpResponse.statusCode = StatusCode::NotFound;
-            }
+            routeEntry.value().handler(
+                httpRequestParse.value, httpResponse, mServiceProvider);
 
             if (!httpResponse.body.empty())
                 httpResponse.headers["Content-Length"] =
@@ -186,5 +189,5 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
     Ref<skr::ServiceProvider>        mServiceProvider;
     Ref<HttpRequestParser>           mHttpRequestParser;
     Ref<MiddlewareProvider>          mMiddlewareProvider;
-    Ref<Router>                      mPathMatcher;
+    Ref<Router>                      mRouter;
 };

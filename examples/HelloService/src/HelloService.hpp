@@ -14,7 +14,7 @@ class HelloService
     {
     }
 
-    Payload Hello();
+    Payload Hello(std::string name);
 
   private:
     Ref<skr::Logger<HelloService>> mLogger;

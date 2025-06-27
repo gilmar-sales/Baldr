@@ -6,7 +6,8 @@
 void Router::insert(HttpMethod method, std::string path,
                     const RouteHandler& routeHandler) const
 {
-    TrieNode* current = mMethodsMap.at(method);
+    TrieNode*  current = mMethodsMap.at(method);
+    RouteEntry routeEntry { .paramsNames = {}, .handler = routeHandler };
 
     auto pathSegments =
         path | std::views::split('/') |
@@ -22,14 +23,28 @@ void Router::insert(HttpMethod method, std::string path,
             }
             current = current->children[segment];
         }
-        current->routeHandler = routeHandler;
-        current->isEndOfPath  = true;
+        current->routeEntry  = routeEntry;
+        current->isEndOfPath = true;
         return;
     }
 
+    std::string regexStr = "^/";
+
     for (auto segment : pathSegments)
     {
-        const auto& sv = std::string(segment.begin(), segment.end());
+        auto sv = std::string(segment.begin(), segment.end());
+
+        if (sv.starts_with(':'))
+        {
+            routeEntry.paramsNames.emplace_back(sv.substr(1));
+            regexStr += "([^/]+)";
+            sv = "*";
+        }
+        else
+        {
+            regexStr += sv;
+            regexStr += '/';
+        }
 
         if (!current->children.contains(sv))
         {
@@ -38,14 +53,15 @@ void Router::insert(HttpMethod method, std::string path,
         current = current->children[sv];
     }
 
-    current->routeHandler = routeHandler;
-    current->isEndOfPath  = true;
+    routeEntry.extractParamsRegex = std::regex(regexStr + "$");
+
+    current->routeEntry  = routeEntry;
+    current->isEndOfPath = true;
 }
 
-std::optional<RouteHandler> Router::match(HttpMethod  method,
-                                          std::string path) const
+std::optional<RouteEntry> Router::match(HttpMethod  method,
+                                        std::string path) const
 {
-
     auto pathSegments =
         path | std::views::split('/') |
         std::views::filter([](const auto& s) { return s.size() > 0; });
@@ -56,7 +72,7 @@ std::optional<RouteHandler> Router::match(HttpMethod  method,
     {
         if (root->children.contains("/") && root->children["/"]->isEndOfPath)
         {
-            return root->children["/"]->routeHandler;
+            return root->children["/"]->routeEntry;
         }
 
         return {};
@@ -75,7 +91,7 @@ std::optional<RouteHandler> Router::match(HttpMethod  method,
         {
             if (node->isEndOfPath)
             {
-                return node->routeHandler;
+                return node->routeEntry;
             }
 
             continue;

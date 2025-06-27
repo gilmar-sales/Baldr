@@ -14,7 +14,7 @@ class WebApplication : public skr::IApplication
   public:
     WebApplication(const Ref<skr::ServiceProvider>& rootServiceProvider) :
         IApplication(rootServiceProvider),
-        mPathMatcher(rootServiceProvider->GetService<Router>()),
+        mRouter(rootServiceProvider->GetService<Router>()),
         mMiddlewareProvider(
             rootServiceProvider->GetService<MiddlewareProvider>())
     {
@@ -43,7 +43,7 @@ class WebApplication : public skr::IApplication
   private:
     void MapRoute(HttpMethod method, const std::string& route, auto&& handler)
     {
-        mPathMatcher->insert(
+        mRouter->insert(
             method,
             route,
             [&](HttpRequest& request, HttpResponse& response,
@@ -100,6 +100,6 @@ class WebApplication : public skr::IApplication
             });
     }
 
-    Ref<Router>             mPathMatcher;
+    Ref<Router>             mRouter;
     Ref<MiddlewareProvider> mMiddlewareProvider;
 };

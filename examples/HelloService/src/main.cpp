@@ -10,9 +10,10 @@ int main()
 
     auto app = builder.Build<WebApplication>();
 
-    app->MapGet("/json", [](Ref<HelloService> helloService) {
-        return helloService->Hello();
-    });
+    app->MapGet("/hello/:name",
+                [](Ref<HelloService> helloService, HttpRequest& request) {
+                    return helloService->Hello(request.params["name"]);
+                });
 
     app->Run();
 

@@ -77,11 +77,11 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
                 auto key   = trim(pair.substr(0, equalsIndex));
                 auto value = trim(pair.substr(equalsIndex + 1));
 
-                result.value.params[std::move(key)] = std::move(value);
+                result.value.query[std::move(key)] = std::move(value);
             }
             else
             {
-                result.value.params[pair] = "";
+                result.value.query[pair] = "";
             }
         }
 

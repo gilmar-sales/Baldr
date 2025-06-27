@@ -3,6 +3,7 @@
 #include <Skirnir/ServiceProvider.hpp>
 #include <functional>
 #include <map>
+#include <regex>
 #include <string>
 #include <unordered_map>
 
@@ -12,10 +13,34 @@
 using RouteHandler =
     std::function<void(HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>)>;
 
+struct RouteEntry
+{
+    std::regex               extractParamsRegex;
+    std::vector<std::string> paramsNames = {};
+    RouteHandler             handler;
+
+    std::unordered_map<std::string, std::string> extractRouteParams(
+        const std::string& path) const
+    {
+        std::smatch                                  match;
+        std::unordered_map<std::string, std::string> params;
+
+        if (std::regex_match(path, match, extractParamsRegex))
+        {
+            for (size_t i = 0; i < paramsNames.size(); ++i)
+            {
+                params[paramsNames[i]] = match[i + 1];
+            }
+        }
+
+        return std::move(params);
+    }
+};
+
 struct TrieNode
 {
     std::unordered_map<std::string, TrieNode*> children;
-    std::optional<RouteHandler>                routeHandler;
+    std::optional<RouteEntry>                  routeEntry;
     bool                                       isEndOfPath = false;
 };
 
@@ -40,8 +65,8 @@ class Router
     void insert(HttpMethod, std::string path,
                 const RouteHandler& routeHandler) const;
 
-    [[nodiscard]] std::optional<RouteHandler> match(HttpMethod,
-                                                    std::string path) const;
+    [[nodiscard]] std::optional<RouteEntry> match(HttpMethod,
+                                                  std::string path) const;
 
   private:
     std::map<HttpMethod, TrieNode*> mMethodsMap;
