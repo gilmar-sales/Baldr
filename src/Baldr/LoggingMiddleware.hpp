@@ -22,8 +22,11 @@ class LoggingMiddleware final : public IMiddleware
 
         mLogger->LogInformation(
             "Request - '{}' '{}' '{}'", request.version, method, request.path);
+
         auto begin = std::chrono::system_clock::now();
+
         next();
+
         auto end = std::chrono::system_clock::now();
 
         mLogger->LogInformation(

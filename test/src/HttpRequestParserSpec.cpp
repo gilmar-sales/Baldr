@@ -75,8 +75,8 @@ TEST_F(HttpRequestParserSpec, HttpRequestParserShouldDoQueryStringParsing)
     ASSERT_EQ(result.value.headers.size(), 1);
     ASSERT_EQ(result.value.headers["host"], "x");
     ASSERT_STREQ(result.value.body.c_str(), "");
-    ASSERT_STREQ(result.value.params["x"].c_str(), "1");
-    ASSERT_STREQ(result.value.params["y"].c_str(), "2");
+    ASSERT_STREQ(result.value.query["x"].c_str(), "1");
+    ASSERT_STREQ(result.value.query["y"].c_str(), "2");
 }
 
 TEST_F(HttpRequestParserSpec, HttpRequestParserShouldRejectHeaderFoldingRFC7230)
@@ -198,60 +198,98 @@ TEST_F(HttpRequestParserSpec, HttpRequestParserShouldRejectDuplicateHeaders)
 
 TEST_F(HttpRequestParserSpec, HttpRequestParserShouldRejectExtremelyLongPath)
 {
-    auto result = mHttpRequestParser->parse("");
+    std::string longPath(10000, 'a');
+    auto        result = mHttpRequestParser->parse(
+        "GET /" + longPath + " HTTP/1.1\r\nHost: x\r\n");
 
-    ASSERT_FALSE(true);
+    ASSERT_FALSE(result.success);
+    ASSERT_EQ(result.statusCode, StatusCode::BadRequest);
+    ASSERT_STREQ(result.error.c_str(), "Path is too long");
 }
 
 TEST_F(HttpRequestParserSpec, HttpRequestParserShouldRejectLargeNumberOfHeaders)
 {
-    auto result = mHttpRequestParser->parse("");
+    std::string headers;
+    for (int i = 0; i < 1000; ++i)
+    {
+        headers += "Header-" + std::to_string(i) + ": value\r\n";
+    }
+    auto result =
+        mHttpRequestParser->parse("GET /hello HTTP/1.1\r\n" + headers + "\r\n");
 
-    ASSERT_FALSE(true);
+    ASSERT_FALSE(result.success);
+    ASSERT_EQ(result.statusCode, StatusCode::BadRequest);
+    ASSERT_STREQ(result.error.c_str(), "Too many headers");
 }
 
 TEST_F(HttpRequestParserSpec, HttpRequestParserShouldRejectLargeHeaderValue)
 {
-    auto result = mHttpRequestParser->parse("");
+    auto result = mHttpRequestParser->parse(
+        "GET /hello HTTP/1.1\r\nHost: x\r\nLarge-Header: " +
+        std::string(8192, 'a') + "\r\n");
 
-    ASSERT_FALSE(true);
+    ASSERT_FALSE(result.success);
+    ASSERT_EQ(result.statusCode, StatusCode::BadRequest);
+    ASSERT_STREQ(result.error.c_str(), "Header value is too large");
 }
 
 TEST_F(HttpRequestParserSpec, HttpRequestParserShouldRejectNoContentLength)
 {
-    auto result = mHttpRequestParser->parse("");
+    auto result =
+        mHttpRequestParser->parse("POST /hello HTTP/1.1\r\nHost: x\r\n\r\n");
 
-    ASSERT_FALSE(true);
+    ASSERT_FALSE(result.success);
+    ASSERT_EQ(result.statusCode, StatusCode::BadRequest);
+    ASSERT_STREQ(result.error.c_str(), "Missing Content-Length header");
 }
 
 TEST_F(HttpRequestParserSpec,
        HttpRequestParserShouldRejectConflictingContentLengthAndTransferEncoding)
 {
-    auto result = mHttpRequestParser->parse("");
+    auto result = mHttpRequestParser->parse(
+        "POST /hello HTTP/1.1\r\nHost: x\r\nContent-Length: 10\r\n"
+        "Transfer-Encoding: chunked\r\n\r\n");
 
-    ASSERT_FALSE(true);
+    ASSERT_FALSE(result.success);
+    ASSERT_EQ(result.statusCode, StatusCode::BadRequest);
+    ASSERT_STREQ(result.error.c_str(),
+                 "Conflicting Content-Length and Transfer-Encoding headers");
 }
 
 TEST_F(HttpRequestParserSpec, HttpRequestParserShouldSanitizeHeaderInjection)
 {
-    auto result = mHttpRequestParser->parse("");
+    auto result = mHttpRequestParser->parse(
+        "GET /hello HTTP/1.1\r\nHost: x\r\nX-Injected-Header: value\r\n");
 
-    ASSERT_FALSE(true);
+    ASSERT_TRUE(result.success);
+    ASSERT_EQ(result.statusCode, StatusCode::OK);
+    ASSERT_EQ(result.value.method, HttpMethod::GET);
+    ASSERT_EQ(result.value.path, "/hello");
+    ASSERT_EQ(result.value.headers.size(), 2);
+    ASSERT_EQ(result.value.headers["host"], "x");
+    ASSERT_EQ(result.value.headers["x-injected-header"], "value");
+    ASSERT_STREQ(result.value.body.c_str(), "");
 }
 
 TEST_F(HttpRequestParserSpec,
        HttpRequestParserShouldRejectSmuggledNullByteInPath)
 {
-    auto result = mHttpRequestParser->parse("");
+    auto result =
+        mHttpRequestParser->parse("GET /hello%00world HTTP/1.1\r\nHost: x\r\n");
 
-    ASSERT_FALSE(true);
+    ASSERT_FALSE(result.success);
+    ASSERT_EQ(result.statusCode, StatusCode::BadRequest);
+    ASSERT_STREQ(result.error.c_str(), "Invalid URL encoding in path");
 }
 
 TEST_F(HttpRequestParserSpec, HttpRequestParserShouldRejectInvalidEncoding)
 {
-    auto result = mHttpRequestParser->parse("");
+    auto result = mHttpRequestParser->parse(
+        "GET /hello%20world% HTTP/1.1\r\nHost: x\r\n");
 
-    ASSERT_FALSE(true);
+    ASSERT_FALSE(result.success);
+    ASSERT_EQ(result.statusCode, StatusCode::BadRequest);
+    ASSERT_STREQ(result.error.c_str(), "Invalid URL encoding in path");
 }
 
 TEST_F(HttpRequestParserSpec, HttpRequestParserShouldTrimInHeaders)
@@ -261,4 +299,31 @@ TEST_F(HttpRequestParserSpec, HttpRequestParserShouldTrimInHeaders)
 
     ASSERT_TRUE(true);
     ASSERT_STREQ(result.value.headers["host"].c_str(), "x");
+}
+
+TEST_F(HttpRequestParserSpec, HttpRequestParserShouldDecodePath)
+{
+    auto result =
+        mHttpRequestParser->parse("GET /hello%20world HTTP/1.1\r\nHost: x\r\n");
+
+    ASSERT_TRUE(result.success);
+    ASSERT_EQ(result.statusCode, StatusCode::OK);
+    ASSERT_EQ(result.value.method, HttpMethod::GET);
+    ASSERT_EQ(result.value.path, "/hello world");
+    ASSERT_STREQ(result.value.body.c_str(), "");
+}
+
+TEST_F(HttpRequestParserSpec, HttpRequestParserShouldDecodePathAndQuery)
+{
+    auto result = mHttpRequestParser->parse(
+        "GET /hello%20world?name=John%20Doe HTTP/1.1\r\nHost: x\r\n");
+
+    ASSERT_TRUE(result.success);
+    ASSERT_EQ(result.statusCode, StatusCode::OK);
+    ASSERT_EQ(result.value.method, HttpMethod::GET);
+    ASSERT_EQ(result.value.path, "/hello world");
+    ASSERT_EQ(result.value.query["name"], "John Doe");
+    ASSERT_EQ(result.value.headers.size(), 1);
+    ASSERT_EQ(result.value.headers["host"], "x");
+    ASSERT_STREQ(result.value.body.c_str(), "");
 }

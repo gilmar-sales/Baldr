@@ -38,6 +38,23 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
 
     requestStream >> result.value.path;
 
+    if (result.value.path.size() > 2048)
+    {
+        result.error      = "Path is too long";
+        result.statusCode = StatusCode::BadRequest;
+        return result;
+    }
+
+    auto decodedPath = decode_path(result.value.path);
+    if (!decodedPath.has_value())
+    {
+        result.error      = "Invalid URL encoding in path";
+        result.statusCode = StatusCode::BadRequest;
+        return result;
+    }
+
+    result.value.path = decodedPath.value();
+
     requestStream.get();
     if (request.at(requestStream.tellg()) == ' ')
     {
@@ -74,10 +91,16 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
             auto equalsIndex = pair.find('=');
             if (equalsIndex != std::string::npos)
             {
-                auto key   = trim(pair.substr(0, equalsIndex));
-                auto value = trim(pair.substr(equalsIndex + 1));
+                auto key   = decode_path(trim(pair.substr(0, equalsIndex)));
+                auto value = decode_path(trim(pair.substr(equalsIndex + 1)));
 
-                result.value.query[std::move(key)] = std::move(value);
+                if (!key.has_value() || !value.has_value())
+                {
+                    result.error      = "Invalid URL encoding in query";
+                    result.statusCode = StatusCode::BadRequest;
+                    return result;
+                }
+                result.value.query.emplace(key.value(), value.value());
             }
             else
             {
@@ -92,9 +115,23 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
 
     while (std::getline(requestStream, line) && requestStream.good())
     {
+        if (result.value.headers.size() > 100)
+        {
+            result.error      = "Too many headers";
+            result.statusCode = StatusCode::BadRequest;
+            return result;
+        }
+
         if (auto colon = line.find(':'); colon != std::string::npos)
         {
             auto key = trim(line.substr(0, colon));
+
+            if (key.size() > 64)
+            {
+                result.error      = "Header key is too long";
+                result.statusCode = StatusCode::BadRequest;
+                return result;
+            }
 
             std::transform(key.begin(), key.end(), key.begin(),
                            [](unsigned char c) { return std::tolower(c); });
@@ -106,13 +143,22 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
                 return result;
             }
 
-            auto value                           = trim(line.substr(colon + 1));
+            auto value = trim(line.substr(colon + 1));
+
+            if (value.size() > 4096)
+            {
+                result.error      = "Header value is too large";
+                result.statusCode = StatusCode::BadRequest;
+                return result;
+            }
+
             result.value.headers[std::move(key)] = std::move(value);
             continue;
         }
 
         if (result.value.headers.contains("content-length"))
         {
+
             auto contentLength =
                 std::atoi(result.value.headers["content-length"].c_str());
 
@@ -120,12 +166,32 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
             contentLength =
                 requestStream.readsome(result.value.body.data(), contentLength);
         }
-        else if (!(line == "\r"))
+        else
         {
-            result.error      = "Header folding is not allowed in HTTP/1.1";
+            if (!(line == "\r"))
+            {
+                result.error      = "Header folding is not allowed in HTTP/1.1";
+                result.statusCode = StatusCode::BadRequest;
+                return result;
+            }
+        }
+    }
+    if (result.value.headers.contains("content-length"))
+    {
+        if (result.value.headers.contains("transfer-encoding"))
+        {
+            result.error =
+                "Conflicting Content-Length and Transfer-Encoding headers";
             result.statusCode = StatusCode::BadRequest;
             return result;
         }
+    }
+    else if (result.value.method == HttpMethod::POST &&
+             !result.value.headers.contains("transfer-encoding"))
+    {
+        result.error      = "Missing Content-Length header";
+        result.statusCode = StatusCode::BadRequest;
+        return result;
     }
 
     if (!result.value.headers.contains("host"))
