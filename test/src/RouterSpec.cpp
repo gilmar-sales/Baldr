@@ -12,27 +12,35 @@ class RouterSpec : public ::testing::Test
 
 TEST_F(RouterSpec, RouterShouldRegisterGET)
 {
+    // Arrange
+    const auto method = HttpMethod::GET;
+    const auto path   = "/hello_world";
+
+    // Act
     mRouter->insert(
-        HttpMethod::GET, "/",
+        method, path,
         [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
 
-    ASSERT_TRUE(mRouter->match(HttpMethod::GET, "/").has_value());
+    // Assert
+    ASSERT_TRUE(mRouter->match(HttpMethod::GET, "/hello_world").has_value());
 }
 
 TEST_F(RouterSpec, RouterShouldRegisterMultipleGETs)
 {
-    mRouter->insert(
-        HttpMethod::GET, "/hello_world",
-        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+    // Arrange
+    const auto method = HttpMethod::GET;
+    const auto paths =
+        std::vector<std::string> { "/hello_world", "/", "/hello" };
 
-    mRouter->insert(
-        HttpMethod::GET, "/",
-        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+    // Act
+    for (const auto& path : paths)
+    {
+        mRouter->insert(
+            method, path,
+            [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+    }
 
-    mRouter->insert(
-        HttpMethod::GET, "/hello",
-        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
-
+    // Assert
     ASSERT_TRUE(mRouter->match(HttpMethod::GET, "/hello").has_value());
     ASSERT_TRUE(mRouter->match(HttpMethod::GET, "/hello_world").has_value());
     ASSERT_TRUE(mRouter->match(HttpMethod::GET, "/").has_value());
@@ -40,10 +48,16 @@ TEST_F(RouterSpec, RouterShouldRegisterMultipleGETs)
 
 TEST_F(RouterSpec, RouterShoulNotConflictMethods)
 {
+    // Arrange
+    const auto method = HttpMethod::GET;
+    const auto path   = "/";
+
+    // Act
     mRouter->insert(
         HttpMethod::GET, "/",
         [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
 
+    // Assert
     ASSERT_FALSE(mRouter->match(HttpMethod::POST, "/").has_value());
     ASSERT_FALSE(mRouter->match(HttpMethod::DELETE, "/").has_value());
     ASSERT_FALSE(mRouter->match(HttpMethod::PUT, "/").has_value());
