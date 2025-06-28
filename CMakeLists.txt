@@ -59,6 +59,7 @@ if (BALDR_BUILD_EXAMPLES)
     add_subdirectory(examples/WeatherForecast)
     add_subdirectory(examples/HelloWorld)
     add_subdirectory(examples/HelloService)
+    add_subdirectory(examples/Devices)
 endif ()
 
 

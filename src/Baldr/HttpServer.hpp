@@ -77,7 +77,7 @@ class HttpServer
                 }
                 else
                 {
-                    mLogger->LogError("Error accepting conenction: {}",
+                    mLogger->LogError("Error accepting connection: {}",
                                       ec.message());
                 }
 
