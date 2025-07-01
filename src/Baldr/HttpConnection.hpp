@@ -29,6 +29,9 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
         mSocket(std::move(socket))
     {
         mLogger = mServiceProvider->GetService<skr::Logger<HttpConnection>>();
+
+        mRequest.reserve(8192);
+        mResponse.reserve(8192);
     }
 
     void start() { readRequest(); }
@@ -37,28 +40,19 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
     void readRequest()
     {
         auto self = shared_from_this();
-        async_read_until(
-            mSocket, asio::dynamic_buffer(mData), "\r\n\r\n",
-            [self](const std::error_code ec,
-                   const std::size_t     bytes_transferred) {
-                if (!ec)
-                {
-                    self->processRequest(bytes_transferred);
-                }
-                else
-                {
-                    self->mLogger->LogError(
-                        "Error reading request: {}", ec.message());
-                    self->mResponse = "HTTP/1.1 400 Bad Request\r\n\r\n";
-                    self->writeResponse();
-                    return;
-                }
-            });
+        async_read_until(mSocket, asio::dynamic_buffer(mRequest), "\r\n\r\n",
+                         [self](const std::error_code ec,
+                                const std::size_t     bytes_transferred) {
+                             if (!ec)
+                             {
+                                 self->processRequest(bytes_transferred);
+                             }
+                         });
     }
 
     void processRequest(std::size_t bytes_transferred)
     {
-        std::string request(mData.substr(0, bytes_transferred));
+        std::string request(mRequest.substr(0, bytes_transferred));
 
         auto httpRequestParse = mHttpRequestParser->parse(request);
 
@@ -182,8 +176,9 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
     }
 
     asio::ip::tcp::socket mSocket;
-    std::string           mData;
-    std::string           mResponse;
+
+    std::string mRequest;
+    std::string mResponse;
 
     Ref<skr::Logger<HttpConnection>> mLogger;
     Ref<skr::ServiceProvider>        mServiceProvider;

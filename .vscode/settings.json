@@ -86,6 +86,9 @@
     "strstream": "cpp",
     "queue": "cpp",
     "stack": "cpp",
-    "regex": "cpp"
+    "regex": "cpp",
+    "rope": "cpp",
+    "shared_mutex": "cpp",
+    "valarray": "cpp"
   }
 }
