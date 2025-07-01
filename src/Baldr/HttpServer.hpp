@@ -1,9 +1,11 @@
 #pragma once
 
 #include <iostream>
+#include <list>
 #include <memory>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include <Skirnir/Skirnir.hpp>
 
@@ -22,31 +24,35 @@ class HttpServer
                const Ref<skr::ServiceProvider>&    serviceProvider,
                const Ref<skr::Logger<HttpServer>>& logger) :
         mServiceProvider(serviceProvider), mLogger(logger),
-        mHttpServerOptions(httpServerOptions),
-        mIoContext(httpServerOptions->threadCount),
-        mAcceptor(mIoContext,
-                  asio::ip::tcp::endpoint(
-                      asio::ip::tcp::v4(), httpServerOptions->port))
+        mHttpServerOptions(httpServerOptions), mNextIoContext(0),
+        mAcceptor(addIoContext())
     {
-        mAcceptor.set_option(asio::socket_base::reuse_address(true));
-        mAcceptor.listen(asio::socket_base::max_listen_connections);
+        asio::ip::tcp::resolver resolver(mAcceptor.get_executor());
+        asio::ip::tcp::endpoint endpoint =
+            *resolver.resolve("0.0.0.0", "8080").begin();
+        mAcceptor.open(endpoint.protocol());
+        mAcceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
+        mAcceptor.bind(endpoint);
+        mAcceptor.listen();
+
+        for (auto i = 0; i < httpServerOptions->threadCount; i++)
+        {
+            addIoContext();
+        }
 
         onNewConnection();
-
-        mLogger->LogInformation("🚀 Server running on http://localhost:{}",
-                                httpServerOptions->port);
     }
 
     void Run()
     {
         std::vector<std::jthread> threads;
 
-        for (std::size_t i = 0; i < mHttpServerOptions->threadCount; ++i)
+        for (std::size_t i = 0; i < mIoContexts.size(); ++i)
         {
-            std::function<void()> worker = [&] {
+            std::function<void()> worker = [this, i, &worker] {
                 try
                 {
-                    mIoContext.run();
+                    mIoContexts[i]->run();
                 }
                 catch (const std::exception& e)
                 {
@@ -56,17 +62,58 @@ class HttpServer
             };
             threads.emplace_back(worker);
         }
+
+        mLogger->LogInformation("🚀 Server running on http://localhost:{}",
+                                mHttpServerOptions->port);
+    }
+
+    void Stop()
+    {
+        for (auto& ioContext : mIoContexts)
+        {
+            ioContext->stop();
+        }
+
+        mLogger->LogInformation("🛑 Server stopped.");
     }
 
   private:
+    HttpServer(const HttpServer&)            = delete;
+    HttpServer& operator=(const HttpServer&) = delete;
+
+    asio::io_context& addIoContext()
+    {
+        auto ioContext = skr::MakeRef<asio::io_context>();
+        mIoContexts.push_back(ioContext);
+        mWorkGuards.push_back(asio::make_work_guard(*ioContext));
+
+        return *ioContext;
+    }
+
+    asio::io_context& getIoContext()
+    {
+        auto& ioContext = *mIoContexts[mNextIoContext];
+
+        ++mNextIoContext;
+
+        if (mNextIoContext == mIoContexts.size())
+            mNextIoContext = 0;
+
+        return ioContext;
+    }
+
     void onNewConnection()
     {
         mAcceptor.async_accept(
+            getIoContext(),
             [this](const std::error_code ec, asio::ip::tcp::socket socket) {
+                if (!mAcceptor.is_open())
+                {
+                    return;
+                }
+
                 if (!ec)
                 {
-                    socket.set_option(asio::ip::tcp::no_delay(true));
-
                     const auto scope = mServiceProvider->CreateServiceScope();
 
                     auto httpSession = skr::MakeRef<HttpConnection>(
@@ -89,6 +136,9 @@ class HttpServer
     Ref<skr::ServiceProvider>    mServiceProvider;
     Ref<HttpServerOptions>       mHttpServerOptions;
 
-    asio::io_context        mIoContext;
-    asio::ip::tcp::acceptor mAcceptor;
+    std::list<asio::executor_work_guard<asio::io_context::executor_type>>
+                                       mWorkGuards;
+    std::vector<Ref<asio::io_context>> mIoContexts;
+    size_t                             mNextIoContext;
+    asio::ip::tcp::acceptor            mAcceptor;
 };
