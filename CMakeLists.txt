@@ -32,11 +32,16 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(skirnir)
 
 FetchContent_Declare(
-  reflect_cpp
+  reflectcpp
   GIT_REPOSITORY "https://github.com/getml/reflect-cpp.git"
   GIT_TAG        "main"
+  OVERRIDE_FIND_PACKAGE
 )
-FetchContent_MakeAvailable(reflect_cpp)
+FetchContent_MakeAvailable(reflectcpp)
+
+add_library(reflectcpp::reflectcpp ALIAS reflectcpp)
+
+message(STATUS "Using Skirnir version: ")
 
 file(GLOB_RECURSE BALDR_SOURCES
         src/*.cpp
@@ -60,6 +65,7 @@ if (BALDR_BUILD_EXAMPLES)
     add_subdirectory(examples/HelloWorld)
     add_subdirectory(examples/HelloService)
     add_subdirectory(examples/Devices)
+    add_subdirectory(examples/SqlgenIntegration)
 endif ()
 
 
