@@ -27,7 +27,7 @@ FetchContent_MakeAvailable(asiocmake)
 FetchContent_Declare(
   skirnir
   GIT_REPOSITORY "https://github.com/gilmar-sales/Skirnir.git"
-  GIT_TAG        "v0.12.1"
+  GIT_TAG        "main"
 )
 FetchContent_MakeAvailable(skirnir)
 
