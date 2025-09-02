@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Skirnir/Skirnir.hpp>
-
 #include <rfl.hpp>
 #include <rfl/json.hpp>
 

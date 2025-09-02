@@ -39,8 +39,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(reflectcpp)
 
-add_library(reflectcpp::reflectcpp ALIAS reflectcpp)
-
 message(STATUS "Using Skirnir version: ")
 
 file(GLOB_RECURSE BALDR_SOURCES
@@ -54,7 +52,7 @@ add_library(baldr::baldr ALIAS baldr)
 target_link_libraries(baldr asio::asio skirnir::skirnir reflectcpp)
 
 if (WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
-target_link_libraries(baldr ws2_32 wsock32 Bcrypt)
+    target_link_libraries(baldr ws2_32 wsock32 Bcrypt)
 
 endif()
 
@@ -65,10 +63,9 @@ if (BALDR_BUILD_EXAMPLES)
     add_subdirectory(examples/HelloWorld)
     add_subdirectory(examples/HelloService)
     add_subdirectory(examples/Devices)
-    add_subdirectory(examples/SqlgenIntegration)
 endif ()
 
 
 if (BALDR_BUILD_TESTS)
-add_subdirectory(./test)
+    add_subdirectory(./test)
 endif()

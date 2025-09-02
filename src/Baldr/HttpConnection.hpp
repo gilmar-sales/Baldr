@@ -1,16 +1,16 @@
 #pragma once
 
-#include "Baldr/StringHelpers.hpp"
-#include "rfl/enums.hpp"
-#define ASIOP_STANDALONE
-#include <asio.hpp>
-
+#include <asio/buffer.hpp>
 #include <iostream>
 #include <memory>
 
+#include <rfl/enums.hpp>
+
+#include "BufferPool.hpp"
 #include "HttpRequestParser.hpp"
 #include "HttpResponse.hpp"
 #include "MiddlewareProvider.hpp"
+#include "Net.hpp"
 #include "Router.hpp"
 
 #include <ranges>
@@ -21,7 +21,7 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
 
   public:
     explicit HttpConnection(const Ref<skr::ServiceProvider>& serviceProvider,
-                            asio::ip::tcp::socket            socket) :
+                            net::ip::tcp::socket             socket) :
         mServiceProvider(serviceProvider),
         mMiddlewareProvider(serviceProvider->GetService<MiddlewareProvider>()),
         mHttpRequestParser(serviceProvider->GetService<HttpRequestParser>()),
@@ -29,9 +29,7 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
         mSocket(std::move(socket))
     {
         mLogger = mServiceProvider->GetService<skr::Logger<HttpConnection>>();
-
-        mRequest.reserve(8192);
-        mResponse.reserve(8192);
+        mReadBuffer = mServiceProvider->GetService<ReadBufferPool>()->acquire();
     }
 
     void start() { readRequest(); }
@@ -40,7 +38,7 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
     void readRequest()
     {
         auto self = shared_from_this();
-        async_read_until(mSocket, asio::dynamic_buffer(mRequest), "\r\n\r\n",
+        async_read_until(mSocket, net::dynamic_buffer(*mReadBuffer), "\r\n\r\n",
                          [self](const std::error_code ec,
                                 const std::size_t     bytes_transferred) {
                              if (!ec)
@@ -52,9 +50,12 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
 
     void processRequest(std::size_t bytes_transferred)
     {
-        std::string request(mRequest.substr(0, bytes_transferred));
+        std::string request(mReadBuffer->data(), bytes_transferred);
 
         auto httpRequestParse = mHttpRequestParser->parse(request);
+
+        mServiceProvider->GetService<ReadBufferPool>()->release(
+            std::move(mReadBuffer));
 
         if (!httpRequestParse.success)
         {
@@ -108,7 +109,7 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
             ->Handle(httpRequestParse.value, httpResponse, nextLambda);
 
         // Create the HTTP response
-        std::ostringstream response_stream;
+        std::ostringstream response_stream {};
         response_stream << httpResponse.version << " "
                         << httpResponse.statusCode << " OK\r\n";
 
@@ -160,8 +161,8 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
     {
         auto self = shared_from_this();
 
-        async_write(
-            mSocket, asio::buffer(mResponse),
+        net::async_write(
+            mSocket, net::buffer(mResponse.data(), mResponse.size()),
             [self](const std::error_code ec, std::size_t bytes_transferred) {
                 if (!ec)
                 {
@@ -175,10 +176,11 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
             });
     }
 
-    asio::ip::tcp::socket mSocket;
+    net::ip::tcp::socket mSocket;
 
-    std::string mRequest;
-    std::string mResponse;
+    ReadBufferPool::BufferHandler mReadBuffer;
+    ReadBufferPool::BufferHandler mWriteBuffer;
+    std::string                   mResponse;
 
     Ref<skr::Logger<HttpConnection>> mLogger;
     Ref<skr::ServiceProvider>        mServiceProvider;

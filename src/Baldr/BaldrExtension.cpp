@@ -1,5 +1,6 @@
 #include "Baldr/BaldrExtension.hpp"
 
+#include "Baldr/BufferPool.hpp"
 #include "Baldr/HttpServer.hpp"
 #include "Baldr/LoggingMiddleware.hpp"
 #include "Baldr/WebApplication.hpp"
@@ -12,6 +13,7 @@ void BaldrExtension::ConfigureServices(skr::ServiceCollection& services)
     services.AddSingleton<Router>();
     services.AddSingleton<HttpServerOptions>();
     services.AddSingleton<HttpServer>();
+    services.AddSingleton<ReadBufferPool>();
 
     services.AddTransient<skr::Logger<HttpConnection>>();
     services.AddSingleton(
