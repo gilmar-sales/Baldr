@@ -1,10 +1,6 @@
 #pragma once
 
-#include <asio/ip/tcp.hpp>
-#include <asio/socket_base.hpp>
-#include <iostream>
 #include <list>
-#include <memory>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -12,6 +8,7 @@
 #include <Skirnir/Skirnir.hpp>
 
 #include "HttpConnection.hpp"
+#include "Net.hpp"
 
 struct HttpServerOptions
 {
@@ -116,6 +113,10 @@ class HttpServer
 
                 if (!ec)
                 {
+                    socket.set_option(
+                        net::socket_base::send_buffer_size(256 * 1024));
+                    socket.set_option(
+                        net::socket_base::receive_buffer_size(256 * 1024));
                     socket.set_option(net::ip::tcp::no_delay(true));
                     socket.set_option(net::socket_base::keep_alive(true));
 
@@ -142,8 +143,8 @@ class HttpServer
     Ref<HttpServerOptions>       mHttpServerOptions;
 
     std::list<net::executor_work_guard<net::io_context::executor_type>>
-                                       mWorkGuards;
+                                      mWorkGuards;
     std::vector<Ref<net::io_context>> mIoContexts;
-    size_t                             mNextIoContext;
+    size_t                            mNextIoContext;
     net::ip::tcp::acceptor            mAcceptor;
 };

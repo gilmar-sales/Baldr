@@ -6,6 +6,7 @@
 
 #include <rfl/enums.hpp>
 
+#include "Baldr/MpMcPool.hpp"
 #include "BufferPool.hpp"
 #include "HttpRequestParser.hpp"
 #include "HttpResponse.hpp"
@@ -29,7 +30,6 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
         mSocket(std::move(socket))
     {
         mLogger = mServiceProvider->GetService<skr::Logger<HttpConnection>>();
-        mReadBuffer = mServiceProvider->GetService<ReadBufferPool>()->acquire();
     }
 
     void start() { readRequest(); }
@@ -38,24 +38,26 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
     void readRequest()
     {
         auto self = shared_from_this();
-        async_read_until(mSocket, net::dynamic_buffer(*mReadBuffer), "\r\n\r\n",
-                         [self](const std::error_code ec,
+
+        auto buffer = mServiceProvider->GetService<MpMcBufferPool>()->try_pop();
+        async_read_until(mSocket, net::dynamic_buffer(*buffer), "\r\n\r\n",
+                         [self, buffer](const std::error_code ec,
                                 const std::size_t     bytes_transferred) {
                              if (!ec)
                              {
-                                 self->processRequest(bytes_transferred);
+                                 self->processRequest(buffer, bytes_transferred);
                              }
+
+                             if (!self->mServiceProvider->GetService<MpMcBufferPool>()->try_push(buffer))
+                                 delete buffer;
                          });
     }
 
-    void processRequest(std::size_t bytes_transferred)
+    void processRequest(std::vector<char>* buffer, std::size_t bytes_transferred)
     {
-        std::string request(mReadBuffer->data(), bytes_transferred);
+        std::string request(buffer->data(), bytes_transferred);
 
         auto httpRequestParse = mHttpRequestParser->parse(request);
-
-        mServiceProvider->GetService<ReadBufferPool>()->release(
-            std::move(mReadBuffer));
 
         if (!httpRequestParse.success)
         {

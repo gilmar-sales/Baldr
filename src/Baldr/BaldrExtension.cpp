@@ -1,11 +1,13 @@
-#include "Baldr/BaldrExtension.hpp"
+#include "BaldrExtension.hpp"
 
-#include "Baldr/BufferPool.hpp"
-#include "Baldr/HttpServer.hpp"
-#include "Baldr/LoggingMiddleware.hpp"
-#include "Baldr/WebApplication.hpp"
+#include "BufferPool.hpp"
 #include "HttpRequestParser.hpp"
+#include "HttpServer.hpp"
+#include "LoggingMiddleware.hpp"
+#include "MpMcPool.hpp"
 #include "RateLimitMiddleware.hpp"
+#include "Skirnir/Common.hpp"
+#include "WebApplication.hpp"
 
 void BaldrExtension::ConfigureServices(skr::ServiceCollection& services)
 {
@@ -14,6 +16,7 @@ void BaldrExtension::ConfigureServices(skr::ServiceCollection& services)
     services.AddSingleton<HttpServerOptions>();
     services.AddSingleton<HttpServer>();
     services.AddSingleton<ReadBufferPool>();
+    services.AddSingleton(skr::MakeRef<MpMcBufferPool>(size_t(16 * 1024)));
 
     services.AddTransient<skr::Logger<HttpConnection>>();
     services.AddSingleton(
