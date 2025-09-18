@@ -19,7 +19,7 @@ option(
 
 FetchContent_Declare(
   asiocmake
-  GIT_REPOSITORY "https://github.com/OlivierLDff/asio.cmake"
+  GIT_REPOSITORY "https://github.com/gilmar-sales/asio.cmake.git"
   GIT_TAG        "main"
 )
 FetchContent_MakeAvailable(asiocmake)

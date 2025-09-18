@@ -1,5 +1,9 @@
 #pragma once
 
+#include <asio/error_code.hpp>
+#include <asio/io_context.hpp>
+#include <atomic>
+#include <csignal>
 #include <list>
 #include <thread>
 #include <utility>
@@ -24,55 +28,55 @@ class HttpServer
                const Ref<skr::Logger<HttpServer>>& logger) :
         mServiceProvider(serviceProvider), mLogger(logger),
         mHttpServerOptions(httpServerOptions), mNextIoContext(0),
-        mAcceptor(addIoContext())
+        mAcceptorIoContext(mHttpServerOptions->threadCount),
+        mAcceptor(mAcceptorIoContext)
     {
-        net::ip::tcp::resolver resolver(mAcceptor.get_executor());
+        net::ip::tcp::resolver resolver(mAcceptorIoContext);
         net::ip::tcp::endpoint endpoint =
-            *resolver.resolve("0.0.0.0", "8080").begin();
+            *resolver
+                 .resolve("0.0.0.0", std::to_string(mHttpServerOptions->port))
+                 .begin();
         mAcceptor.open(endpoint.protocol());
         mAcceptor.set_option(net::ip::tcp::acceptor::reuse_address(true));
         mAcceptor.bind(endpoint);
         mAcceptor.listen();
-
-        for (auto i = 0; i < httpServerOptions->threadCount; i++)
-        {
-            addIoContext();
-        }
-
-        onNewConnection();
     }
 
     void Run()
     {
+        onNewConnection();
+
+        net::signal_set signals(mAcceptorIoContext, SIGINT, SIGTERM);
+        signals.async_wait([this](net::error_code, int) { Stop(); });
+
         std::vector<std::jthread> threads;
 
-        for (std::size_t i = 0; i < mIoContexts.size(); ++i)
+        // Start worker threads
+        for (std::size_t i = 0; i < mHttpServerOptions->threadCount; ++i)
         {
             std::function<void()> worker = [this, i, &worker] {
                 try
                 {
-                    mIoContexts[i]->run();
+                    mAcceptorIoContext.run();
                 }
                 catch (const std::exception& e)
                 {
-                    mLogger->LogError("Thread exception: {}", e.what());
+                    mLogger->LogError("Worker thread {} exception: {}", i,
+                                      e.what());
                     worker();
                 }
             };
             threads.emplace_back(worker);
         }
 
-        mLogger->LogInformation("🚀 Server running on http://localhost:{}",
-                                mHttpServerOptions->port);
+        mLogger->LogInformation(
+            "🚀 Server running on http://localhost:{} with {} worker threads",
+            mHttpServerOptions->port, mHttpServerOptions->threadCount);
     }
 
     void Stop()
     {
-        for (auto& ioContext : mIoContexts)
-        {
-            ioContext->stop();
-        }
-
+        mAcceptorIoContext.stop();
         mLogger->LogInformation("🛑 Server stopped.");
     }
 
@@ -80,31 +84,23 @@ class HttpServer
     HttpServer(const HttpServer&)            = delete;
     HttpServer& operator=(const HttpServer&) = delete;
 
-    net::io_context& addIoContext()
+    void addIoContext()
     {
-        auto ioContext = skr::MakeRef<net::io_context>();
-        mIoContexts.push_back(ioContext);
-        mWorkGuards.push_back(net::make_work_guard(*ioContext));
-
-        return *ioContext;
+        mIoContexts.push_back(std::move(new net::io_context()));
+        mWorkGuards.push_back(net::make_work_guard(*mIoContexts.back()));
     }
 
     net::io_context& getIoContext()
     {
-        auto& ioContext = *mIoContexts[mNextIoContext];
+        auto next = mNextIoContext.fetch_add(1) % mIoContexts.size();
 
-        ++mNextIoContext;
-
-        if (mNextIoContext == mIoContexts.size())
-            mNextIoContext = 0;
-
-        return ioContext;
+        return *mIoContexts[next];
     }
 
     void onNewConnection()
     {
         mAcceptor.async_accept(
-            getIoContext(),
+            mAcceptorIoContext,
             [this](const std::error_code ec, net::ip::tcp::socket socket) {
                 if (!mAcceptor.is_open())
                 {
@@ -143,8 +139,9 @@ class HttpServer
     Ref<HttpServerOptions>       mHttpServerOptions;
 
     std::list<net::executor_work_guard<net::io_context::executor_type>>
-                                      mWorkGuards;
-    std::vector<Ref<net::io_context>> mIoContexts;
-    size_t                            mNextIoContext;
-    net::ip::tcp::acceptor            mAcceptor;
+                                  mWorkGuards;
+    std::vector<net::io_context*> mIoContexts;
+    std::atomic<int>              mNextIoContext;
+    net::io_context               mAcceptorIoContext;
+    net::ip::tcp::acceptor        mAcceptor;
 };
