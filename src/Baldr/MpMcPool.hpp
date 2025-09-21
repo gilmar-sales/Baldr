@@ -24,7 +24,7 @@ class MPMCLockFreePool
     std::unique_ptr<Node[]> nodes_;
 
   public:
-     MPMCLockFreePool(size_t capacity) :
+    MPMCLockFreePool(size_t capacity) :
         capacity_(next_power_of_2(capacity)), mask_(capacity_ - 1),
         nodes_(std::make_unique<Node[]>(capacity_))
     {
@@ -51,9 +51,10 @@ class MPMCLockFreePool
             {
                 // Slot disponível, tentar claim
                 if (enqueue_pos_.compare_exchange_weak(
-                        pos, pos + 1, std::memory_order_relaxed))
+                        pos,
+                        pos + 1,
+                        std::memory_order_relaxed))
                 {
-
                     node.data.store(item, std::memory_order_relaxed);
                     node.sequence.store(pos + 1, std::memory_order_release);
                     return true;
@@ -87,7 +88,9 @@ class MPMCLockFreePool
             {
                 // Item disponível, tentar claim
                 if (dequeue_pos_.compare_exchange_weak(
-                        pos, pos + 1, std::memory_order_relaxed))
+                        pos,
+                        pos + 1,
+                        std::memory_order_relaxed))
                 {
 
                     T* data = node.data.load(std::memory_order_relaxed);
@@ -124,6 +127,5 @@ class MPMCLockFreePool
         return n + 1;
     }
 };
-
 
 using MpMcBufferPool = MPMCLockFreePool<std::vector<char>, 16 * 1024>;

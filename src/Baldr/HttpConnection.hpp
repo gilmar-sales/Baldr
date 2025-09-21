@@ -30,6 +30,7 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
         mSocket(std::move(socket))
     {
         mLogger = mServiceProvider->GetService<skr::Logger<HttpConnection>>();
+        mBuffer = mServiceProvider->GetService<MpMcBufferPool>()->try_pop();
     }
 
     void start() { readRequest(); }
@@ -38,22 +39,19 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
     void readRequest()
     {
         auto self = shared_from_this();
-
-        auto buffer = mServiceProvider->GetService<MpMcBufferPool>()->try_pop();
-        async_read_until(mSocket, net::dynamic_buffer(*buffer), "\r\n\r\n",
-                         [self, buffer](const std::error_code ec,
-                                const std::size_t     bytes_transferred) {
-                             if (!ec)
-                             {
-                                 self->processRequest(buffer, bytes_transferred);
-                             }
-
-                             if (!self->mServiceProvider->GetService<MpMcBufferPool>()->try_push(buffer))
-                                 delete buffer;
-                         });
+        async_read_until(
+            mSocket, net::dynamic_buffer(*mBuffer), "\r\n\r\n",
+            [self](const std::error_code ec,
+                   const std::size_t     bytes_transferred) {
+                if (!ec)
+                {
+                    self->processRequest(self->mBuffer, bytes_transferred);
+                }
+            });
     }
 
-    void processRequest(std::vector<char>* buffer, std::size_t bytes_transferred)
+    void processRequest(std::vector<char>* buffer,
+                        std::size_t        bytes_transferred)
     {
         std::string request(buffer->data(), bytes_transferred);
 
@@ -63,7 +61,7 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
         {
             mLogger->LogError("Failed to parse HTTP request: {}",
                               httpRequestParse.error);
-            mResponse = "HTTP/1.1 400 Bad Request\r\n\r\n";
+            mBuffer->assign_range("HTTP/1.1 400 Bad Request\r\n\r\n");
             writeResponse();
             return;
         }
@@ -81,7 +79,7 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
         if (!routeEntry.has_value())
         {
             httpResponse.statusCode = StatusCode::NotFound;
-            mResponse               = "HTTP/1.1 404 Not Found\r\n\r\n";
+            mBuffer->assign_range("HTTP/1.1 404 Not Found\r\n\r\n");
             return writeResponse();
         }
 
@@ -155,34 +153,41 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
 
         response_stream << "Connection: close\r\n\r\n" << httpResponse.body;
 
-        mResponse = response_stream.str();
+        mBuffer->clear();
+        mBuffer->assign_range(response_stream.str());
         writeResponse();
     }
 
     void writeResponse()
     {
-        auto self = shared_from_this();
-
         net::async_write(
-            mSocket, net::buffer(mResponse.data(), mResponse.size()),
-            [self](const std::error_code ec, std::size_t bytes_transferred) {
+            mSocket, net::buffer(*mBuffer),
+            [self = shared_from_this()](
+                const std::error_code ec, std::size_t bytes_transferred) {
                 if (!ec)
                 {
-                    self->mLogger->LogInformation("Message sent: {} bytes",
-                                                  bytes_transferred);
+                    self->mBuffer->clear();
+
+                    if (!self->mServiceProvider->GetService<MpMcBufferPool>()
+                             ->try_push(self->mBuffer))
+                        delete self->mBuffer;
+
+                    if (self)
+                        self->mLogger->LogInformation("Message sent: {} bytes",
+                                                      bytes_transferred);
                 }
                 else
                 {
-                    self->mLogger->LogError("Error writing: {}", ec.message());
+                    if (self)
+                        self->mLogger->LogError(
+                            "Error writing: {}", ec.message());
                 }
             });
     }
 
     net::ip::tcp::socket mSocket;
 
-    ReadBufferPool::BufferHandler mReadBuffer;
-    ReadBufferPool::BufferHandler mWriteBuffer;
-    std::string                   mResponse;
+    std::vector<char>* mBuffer;
 
     Ref<skr::Logger<HttpConnection>> mLogger;
     Ref<skr::ServiceProvider>        mServiceProvider;
