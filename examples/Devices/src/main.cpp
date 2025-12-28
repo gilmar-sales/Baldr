@@ -4,7 +4,7 @@
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().AddExtension(BaldrExtension());
+    auto builder = skr::ApplicationBuilder().AddExtension<BaldrExtension>();
 
     auto app = builder.Build<WebApplication>();
 

@@ -124,9 +124,6 @@ TEST_F(HttpRequestParserSpec, HttpRequestParserShouldRejectMalformedMethod)
 
 TEST_F(HttpRequestParserSpec, HttpRequestParserShouldRejectMissingEndLine)
 {
-    GTEST_SKIP_("This test is skipped because the socket will not stop reading "
-                "the request until found request end line.");
-
     auto result =
         mHttpRequestParser->parse("GET /api?x=1&y=2 HTTP/1.1\r\nHost: x");
 

@@ -176,6 +176,15 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
             }
         }
     }
+
+    if (line.size() > 0 && result.value.headers.empty())
+    {
+        result.error =
+            "Missing end of request line";
+        result.statusCode = StatusCode::BadRequest;
+        return result;
+    }
+
     if (result.value.headers.contains("content-length"))
     {
         if (result.value.headers.contains("transfer-encoding"))

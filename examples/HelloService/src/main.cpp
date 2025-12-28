@@ -4,7 +4,7 @@
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().AddExtension(BaldrExtension());
+    auto builder = skr::ApplicationBuilder().AddExtension<BaldrExtension>();
 
     builder.GetServiceCollection().AddTransient<HelloService>();
 

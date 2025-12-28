@@ -5,9 +5,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(gtest)
 
-enable_testing()
-include(GoogleTest)
-
 file(GLOB_RECURSE TESTS_SRC
         "src/**.cpp"
 )

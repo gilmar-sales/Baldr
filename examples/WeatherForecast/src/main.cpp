@@ -21,7 +21,7 @@ int random(const int min, const int max)
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().AddExtension(BaldrExtension());
+    auto builder = skr::ApplicationBuilder().AddExtension<BaldrExtension>();
 
     auto app = builder.Build<WebApplication>();
 

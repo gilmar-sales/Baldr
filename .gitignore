@@ -14,3 +14,5 @@ CMakeUserPresets.json
 cmake-build-*
 build
 .cache
+out
+.vs
