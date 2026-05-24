@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(Baldr)
+project(Baldr VERSION 0.15.1)
 
 option(BALDR_BUILD_EXAMPLES OFF)
 option(BALDR_BUILD_TESTS OFF)
@@ -9,8 +9,8 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
-    set(BALDR_BUILD_EXAMPLES ON)
-    set(BALDR_BUILD_TESTS ON)
+  set(BALDR_BUILD_EXAMPLES ON)
+  set(BALDR_BUILD_TESTS ON)
 endif ()
 
 include(FetchContent)
@@ -54,25 +54,25 @@ add_library(baldr ${BALDR_SOURCES})
 
 add_library(baldr::baldr ALIAS baldr)
 
-target_link_libraries(baldr asio::asio skirnir::skirnir reflectcpp)
+target_link_libraries(baldr asio::asio skirnir::skirnir reflectcpp::reflectcpp)
 
 if (WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
-    target_link_libraries(baldr ws2_32 wsock32 Bcrypt)
+  target_link_libraries(baldr ws2_32 wsock32 Bcrypt)
 
 endif()
 
 target_include_directories(baldr PUBLIC src/)
 
 if (BALDR_BUILD_EXAMPLES)
-    add_subdirectory(examples/WeatherForecast)
-    add_subdirectory(examples/HelloWorld)
-    add_subdirectory(examples/HelloService)
-    add_subdirectory(examples/Devices)
+  add_subdirectory(examples/WeatherForecast)
+  add_subdirectory(examples/HelloWorld)
+  add_subdirectory(examples/HelloService)
+  add_subdirectory(examples/Devices)
 endif ()
 
 
 if (BALDR_BUILD_TESTS)
-    enable_testing()
-    include(GoogleTest)
-    add_subdirectory(test/)
+  enable_testing()
+  include(GoogleTest)
+  add_subdirectory(test/)
 endif()

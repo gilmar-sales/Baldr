@@ -94,3 +94,67 @@ TEST_F(RouterSpec, RouterShouldExtractMultipleRouteParams)
             .c_str(),
         "Impsum");
 }
+
+TEST_F(RouterSpec, RouterShouldNotMatchDifferentHTTPMethods)
+{
+    // Register only GET
+    mRouter->insert(
+        HttpMethod::GET, "/admin",
+        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+
+    // POST to same path should NOT match
+    ASSERT_FALSE(mRouter->match(HttpMethod::POST, "/admin").has_value());
+    ASSERT_FALSE(mRouter->match(HttpMethod::DELETE, "/admin").has_value());
+    ASSERT_FALSE(mRouter->match(HttpMethod::PUT, "/admin").has_value());
+}
+
+TEST_F(RouterSpec, RouterShouldNotMatchUnregisteredPaths)
+{
+    // Register /admin
+    mRouter->insert(
+        HttpMethod::GET, "/admin",
+        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+
+    // Similar but different path should NOT match
+    ASSERT_FALSE(mRouter->match(HttpMethod::GET, "/admin123").has_value());
+    ASSERT_FALSE(mRouter->match(HttpMethod::GET, "/admins").has_value());
+    ASSERT_FALSE(mRouter->match(HttpMethod::GET, "/").has_value());
+}
+
+// ============================================================================
+// CWE-835: Infinite Loop Prevention (Regex DoS)
+// ============================================================================
+
+TEST_F(RouterSpec, RouterWithManyRouteParametersShouldNotCauseReDoS)
+{
+    // Pattern like /(:a)*/ can cause catastrophic backtracking
+    // The current implementation uses [^/]+ which is safe
+
+    mRouter->insert(
+        HttpMethod::GET, "/user/:id/profile/:name",
+        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+
+    // Should match quickly without ReDoS
+    auto start = std::chrono::high_resolution_clock::now();
+    auto match = mRouter->match(HttpMethod::GET, "/user/123/profile/john");
+    auto end   = std::chrono::high_resolution_clock::now();
+
+    ASSERT_TRUE(match.has_value());
+
+    auto duration =
+        std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    // Should complete in well under 1 second
+    ASSERT_LT(duration.count(), 100000);
+}
+
+TEST_F(RouterSpec, RouterShouldHandleDeeplyNestedPaths)
+{
+    // Deep path with many segments
+    mRouter->insert(
+        HttpMethod::GET, "/a/b/c/d/e/f/g/h/i/j",
+        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+
+    auto result = mRouter->match(HttpMethod::GET, "/a/b/c/d/e/f/g/h/i/j");
+
+    ASSERT_TRUE(result.has_value());
+}
