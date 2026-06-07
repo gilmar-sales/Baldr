@@ -7,8 +7,8 @@ class RateLimitMiddleware : public IMiddleware
 {
   public:
     explicit RateLimitMiddleware(
-        const Ref<RateLimiter>&                      rateLimiter,
-        const Ref<skr::Logger<RateLimitMiddleware>>& logger) :
+        const skr::Arc<RateLimiter>&                      rateLimiter,
+        const skr::Arc<skr::Logger<RateLimitMiddleware>>& logger) :
         mRateLimiter(rateLimiter), mLogger(logger)
     {
     }
@@ -33,6 +33,6 @@ class RateLimitMiddleware : public IMiddleware
     }
 
   private:
-    Ref<RateLimiter>                      mRateLimiter;
-    Ref<skr::Logger<RateLimitMiddleware>> mLogger;
+    skr::Arc<RateLimiter>                      mRateLimiter;
+    skr::Arc<skr::Logger<RateLimitMiddleware>> mLogger;
 };

@@ -5,7 +5,7 @@ project(Baldr VERSION 0.15.1)
 option(BALDR_BUILD_EXAMPLES OFF)
 option(BALDR_BUILD_TESTS OFF)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
@@ -32,7 +32,7 @@ FetchContent_MakeAvailable(asiocmake)
 FetchContent_Declare(
   skirnir
   GIT_REPOSITORY "https://github.com/gilmar-sales/Skirnir.git"
-  GIT_TAG        "v0.15.3"
+  GIT_TAG        "refactor/cpp-reflection"
 )
 FetchContent_MakeAvailable(skirnir)
 
@@ -58,7 +58,6 @@ target_link_libraries(baldr asio::asio skirnir::skirnir reflectcpp::reflectcpp)
 
 if (WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
   target_link_libraries(baldr ws2_32 wsock32 Bcrypt)
-
 endif()
 
 target_include_directories(baldr PUBLIC src/)

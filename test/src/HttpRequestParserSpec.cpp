@@ -7,12 +7,12 @@ class HttpRequestParserSpec : public ::testing::Test
   protected:
     void SetUp() override
     {
-        mHttpRequestParser = skr::MakeRef<HttpRequestParser>();
+        mHttpRequestParser = skr::MakeArc<HttpRequestParser>();
     }
 
     void TearDown() override { mHttpRequestParser.reset(); }
 
-    Ref<HttpRequestParser> mHttpRequestParser;
+    skr::Arc<HttpRequestParser> mHttpRequestParser;
 };
 
 TEST_F(HttpRequestParserSpec, HttpRequestParser_ShouldAccept_ValidGetWithNoBody)

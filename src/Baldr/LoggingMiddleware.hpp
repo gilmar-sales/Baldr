@@ -8,14 +8,15 @@
 class LoggingMiddleware final : public IMiddleware
 {
   public:
-    LoggingMiddleware(Ref<skr::Logger<LoggingMiddleware>> logger) :
+    LoggingMiddleware(skr::Arc<skr::Logger<LoggingMiddleware>> logger) :
         mLogger(logger)
     {
     }
 
     ~LoggingMiddleware() = default;
 
-    void Handle(const HttpRequest& request, HttpResponse& response,
+    void Handle(const HttpRequest&    request,
+                HttpResponse&         response,
                 const NextMiddleware& next) override
     {
         const auto method = rfl::enum_to_string(request.method);
@@ -37,5 +38,5 @@ class LoggingMiddleware final : public IMiddleware
     }
 
   private:
-    Ref<skr::Logger<LoggingMiddleware>> mLogger;
+    skr::Arc<skr::Logger<LoggingMiddleware>> mLogger;
 };

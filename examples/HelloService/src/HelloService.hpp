@@ -10,12 +10,12 @@ struct Payload
 class HelloService
 {
   public:
-    HelloService(const Ref<skr::Logger<HelloService>> logger) : mLogger(logger)
+    HelloService(const skr::Arc<skr::Logger<HelloService>> logger) : mLogger(logger)
     {
     }
 
     Payload Hello(std::string name);
 
   private:
-    Ref<skr::Logger<HelloService>> mLogger;
+    skr::Arc<skr::Logger<HelloService>> mLogger;
 };

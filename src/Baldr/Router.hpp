@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Skirnir/ServiceProvider.hpp>
+#include <Skirnir/DependencyInjection/ServiceProvider.hpp>
 #include <functional>
 #include <map>
 #include <regex>
@@ -11,7 +11,7 @@
 #include "HttpResponse.hpp"
 
 using RouteHandler =
-    std::function<void(HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>)>;
+    std::function<void(HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>)>;
 
 struct RouteEntry
 {

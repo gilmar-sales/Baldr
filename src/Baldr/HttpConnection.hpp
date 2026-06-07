@@ -16,12 +16,12 @@
 
 #include <ranges>
 
-class HttpConnection : public std::enable_shared_from_this<HttpConnection>
+class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
 {
     friend class HttpConnectionSpec;
 
   public:
-    explicit HttpConnection(const Ref<skr::ServiceProvider>& serviceProvider,
+    explicit HttpConnection(const skr::Arc<skr::ServiceProvider>& serviceProvider,
                             net::ip::tcp::socket             socket) :
         mServiceProvider(serviceProvider),
         mMiddlewareProvider(serviceProvider->GetService<MiddlewareProvider>()),
@@ -189,9 +189,9 @@ class HttpConnection : public std::enable_shared_from_this<HttpConnection>
 
     std::vector<char>* mBuffer;
 
-    Ref<skr::Logger<HttpConnection>> mLogger;
-    Ref<skr::ServiceProvider>        mServiceProvider;
-    Ref<HttpRequestParser>           mHttpRequestParser;
-    Ref<MiddlewareProvider>          mMiddlewareProvider;
-    Ref<Router>                      mRouter;
+    skr::Arc<skr::Logger<HttpConnection>> mLogger;
+    skr::Arc<skr::ServiceProvider>        mServiceProvider;
+    skr::Arc<HttpRequestParser>           mHttpRequestParser;
+    skr::Arc<MiddlewareProvider>          mMiddlewareProvider;
+    skr::Arc<Router>                      mRouter;
 };

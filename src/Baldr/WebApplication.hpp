@@ -8,11 +8,11 @@
 #include "Router.hpp"
 #include "Tuple.hpp"
 
-class WebApplication : public skr::IApplication
+class WebApplication : public skr::IAsyncApplication
 {
   public:
-    WebApplication(const Ref<skr::ServiceProvider>& rootServiceProvider) :
-        IApplication(rootServiceProvider),
+    WebApplication(const skr::Arc<skr::ServiceProvider>& rootServiceProvider) :
+        IAsyncApplication(rootServiceProvider),
         mRouter(rootServiceProvider->GetService<Router>()),
         mMiddlewareProvider(
             rootServiceProvider->GetService<MiddlewareProvider>())
@@ -37,7 +37,7 @@ class WebApplication : public skr::IApplication
         return *this;
     }
 
-    void Run() override;
+    skr::Task<> RunAsync() override;
 
   private:
     void MapRoute(HttpMethod method, const std::string& route, auto&& handler)
@@ -46,7 +46,7 @@ class WebApplication : public skr::IApplication
             method,
             route,
             [&](HttpRequest& request, HttpResponse& response,
-                Ref<skr::ServiceProvider> serviceProvider) {
+                skr::Arc<skr::ServiceProvider> serviceProvider) {
                 using HandlerArgsTuple = typename LambdaTraits<
                     std::remove_reference_t<decltype(handler)>>::ArgsTuple;
 
@@ -65,7 +65,7 @@ class WebApplication : public skr::IApplication
                 };
 
                 auto ptrFactory =
-                    [&]<typename TArg>(Ref<TArg>* x) -> Ref<TArg> {
+                    [&]<typename TArg>(skr::Arc<TArg>* x) -> skr::Arc<TArg> {
                     return serviceProvider
                         ->GetService<std::remove_pointer_t<TArg>>();
                 };
@@ -99,6 +99,6 @@ class WebApplication : public skr::IApplication
             });
     }
 
-    Ref<Router>             mRouter;
-    Ref<MiddlewareProvider> mMiddlewareProvider;
+    skr::Arc<Router>             mRouter;
+    skr::Arc<MiddlewareProvider> mMiddlewareProvider;
 };

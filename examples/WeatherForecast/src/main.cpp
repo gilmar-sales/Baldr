@@ -21,9 +21,9 @@ int random(const int min, const int max)
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().AddExtension<BaldrExtension>();
+    auto builder = skr::ApplicationBuilder().WithExtension<BaldrExtension>();
 
-    auto app = builder.Build<WebApplication>();
+    auto app = builder.BuildAsync<WebApplication>();
 
     auto summaries = std::vector { "Freezing",   "Bracing",  "Chilly", "Cool",
                                    "Mild",       "Warm",     "Balmy",  "Hot",
@@ -49,7 +49,7 @@ int main()
 
     app->Use<RateLimitMiddleware>();
 
-    app->Run();
+    skr::AsyncApplicationHost::Run(*app);
 
     return 0;
 }

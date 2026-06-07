@@ -3,11 +3,11 @@
 class RouterSpec : public ::testing::Test
 {
   protected:
-    void SetUp() override { mRouter = skr::MakeRef<Router>(); }
+    void SetUp() override { mRouter = skr::MakeArc<Router>(); }
 
     void TearDown() override { mRouter.reset(); }
 
-    Ref<Router> mRouter;
+    skr::Arc<Router> mRouter;
 };
 
 TEST_F(RouterSpec, RouterShouldRegisterGET)
@@ -19,7 +19,7 @@ TEST_F(RouterSpec, RouterShouldRegisterGET)
     // Act
     mRouter->insert(
         method, path,
-        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
 
     // Assert
     ASSERT_TRUE(mRouter->match(HttpMethod::GET, "/hello_world").has_value());
@@ -37,7 +37,7 @@ TEST_F(RouterSpec, RouterShouldRegisterMultipleGETs)
     {
         mRouter->insert(
             method, path,
-            [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+            [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
     }
 
     // Assert
@@ -55,7 +55,7 @@ TEST_F(RouterSpec, RouterShoulNotConflictMethods)
     // Act
     mRouter->insert(
         HttpMethod::GET, "/",
-        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
 
     // Assert
     ASSERT_FALSE(mRouter->match(HttpMethod::POST, "/").has_value());
@@ -67,7 +67,7 @@ TEST_F(RouterSpec, RouterShouldExtractSingleRouteParam)
 {
     mRouter->insert(
         HttpMethod::GET, "/hello/:name",
-        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
 
     auto routeEntry = mRouter->match(HttpMethod::GET, "/hello/Lorem Impsum");
 
@@ -81,7 +81,7 @@ TEST_F(RouterSpec, RouterShouldExtractMultipleRouteParams)
 {
     mRouter->insert(
         HttpMethod::GET, "/hello/:name/:surname",
-        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
 
     auto routeEntry = mRouter->match(HttpMethod::GET, "/hello/Lorem/Impsum");
 
@@ -100,7 +100,7 @@ TEST_F(RouterSpec, RouterShouldNotMatchDifferentHTTPMethods)
     // Register only GET
     mRouter->insert(
         HttpMethod::GET, "/admin",
-        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
 
     // POST to same path should NOT match
     ASSERT_FALSE(mRouter->match(HttpMethod::POST, "/admin").has_value());
@@ -113,7 +113,7 @@ TEST_F(RouterSpec, RouterShouldNotMatchUnregisteredPaths)
     // Register /admin
     mRouter->insert(
         HttpMethod::GET, "/admin",
-        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
 
     // Similar but different path should NOT match
     ASSERT_FALSE(mRouter->match(HttpMethod::GET, "/admin123").has_value());
@@ -132,7 +132,7 @@ TEST_F(RouterSpec, RouterWithManyRouteParametersShouldNotCauseReDoS)
 
     mRouter->insert(
         HttpMethod::GET, "/user/:id/profile/:name",
-        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
 
     // Should match quickly without ReDoS
     auto start = std::chrono::high_resolution_clock::now();
@@ -152,7 +152,7 @@ TEST_F(RouterSpec, RouterShouldHandleDeeplyNestedPaths)
     // Deep path with many segments
     mRouter->insert(
         HttpMethod::GET, "/a/b/c/d/e/f/g/h/i/j",
-        [](HttpRequest&, HttpResponse&, Ref<skr::ServiceProvider>) {});
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
 
     auto result = mRouter->match(HttpMethod::GET, "/a/b/c/d/e/f/g/h/i/j");
 

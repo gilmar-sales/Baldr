@@ -3,7 +3,7 @@
 #include "IMiddleware.hpp"
 
 using MiddlewareFactory =
-    std::function<Ref<IMiddleware>(const Ref<skr::ServiceProvider>&)>;
+    std::function<skr::Arc<IMiddleware>(const skr::Arc<skr::ServiceProvider>&)>;
 
 using MiddlewareFactoryList = std::vector<MiddlewareFactory>;
 
@@ -14,7 +14,7 @@ class MiddlewareProvider
     void AddMiddleware()
     {
         mMiddlewareFactories.push_back(
-            [](const Ref<skr::ServiceProvider>& serviceProvider) {
+            [](const skr::Arc<skr::ServiceProvider>& serviceProvider) {
                 return serviceProvider->GetService<TMiddleware>();
             });
     }

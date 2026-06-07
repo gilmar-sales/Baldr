@@ -11,6 +11,7 @@
 
 #include <Skirnir/Skirnir.hpp>
 
+#include "AsioAdapter.hpp"
 #include "HttpConnection.hpp"
 #include "Net.hpp"
 
@@ -23,13 +24,14 @@ struct HttpServerOptions
 class HttpServer
 {
   public:
-    HttpServer(const Ref<HttpServerOptions>&       httpServerOptions,
-               const Ref<skr::ServiceProvider>&    serviceProvider,
-               const Ref<skr::Logger<HttpServer>>& logger) :
+    HttpServer(const skr::Arc<HttpServerOptions>&       httpServerOptions,
+               const skr::Arc<skr::ServiceProvider>&    serviceProvider,
+               const skr::Arc<skr::Logger<HttpServer>>& logger) :
         mServiceProvider(serviceProvider), mLogger(logger),
         mHttpServerOptions(httpServerOptions), mNextIoContext(0),
         mAcceptorIoContext(mHttpServerOptions->threadCount),
-        mAcceptor(mAcceptorIoContext)
+        mAcceptor(mAcceptorIoContext),
+        mScheduler(mAcceptorIoContext.get_executor())
     {
         net::ip::tcp::resolver resolver(mAcceptorIoContext);
         net::ip::tcp::endpoint endpoint =
@@ -42,7 +44,7 @@ class HttpServer
         mAcceptor.listen();
     }
 
-    void Run()
+    skr::Task<> RunAsync()
     {
         onNewConnection();
 
@@ -72,6 +74,8 @@ class HttpServer
         mLogger->LogInformation(
             "🚀 Server running on http://localhost:{} with {} worker threads",
             mHttpServerOptions->port, mHttpServerOptions->threadCount);
+
+        co_return;
     }
 
     void Stop()
@@ -83,19 +87,6 @@ class HttpServer
   private:
     HttpServer(const HttpServer&)            = delete;
     HttpServer& operator=(const HttpServer&) = delete;
-
-    void addIoContext()
-    {
-        mIoContexts.push_back(std::move(new net::io_context()));
-        mWorkGuards.push_back(net::make_work_guard(*mIoContexts.back()));
-    }
-
-    net::io_context& getIoContext()
-    {
-        auto next = mNextIoContext.fetch_add(1) % mIoContexts.size();
-
-        return *mIoContexts[next];
-    }
 
     void onNewConnection()
     {
@@ -118,7 +109,7 @@ class HttpServer
 
                     const auto scope = mServiceProvider->CreateServiceScope();
 
-                    auto httpSession = skr::MakeRef<HttpConnection>(
+                    auto httpSession = skr::MakeArc<HttpConnection>(
                         scope->GetServiceProvider(),
                         std::move(socket));
 
@@ -134,14 +125,14 @@ class HttpServer
             });
     }
 
-    Ref<skr::Logger<HttpServer>> mLogger;
-    Ref<skr::ServiceProvider>    mServiceProvider;
-    Ref<HttpServerOptions>       mHttpServerOptions;
+    skr::Arc<skr::Logger<HttpServer>> mLogger;
+    skr::Arc<skr::ServiceProvider>    mServiceProvider;
+    skr::Arc<HttpServerOptions>       mHttpServerOptions;
 
     std::list<net::executor_work_guard<net::io_context::executor_type>>
-                                  mWorkGuards;
-    std::vector<net::io_context*> mIoContexts;
-    std::atomic<int>              mNextIoContext;
-    net::io_context               mAcceptorIoContext;
-    net::ip::tcp::acceptor        mAcceptor;
+                           mWorkGuards;
+    std::atomic<int>       mNextIoContext;
+    net::io_context        mAcceptorIoContext;
+    net::ip::tcp::acceptor mAcceptor;
+    AsioScheduler          mScheduler;
 };

@@ -4,18 +4,18 @@
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().AddExtension<BaldrExtension>();
+    auto builder = skr::ApplicationBuilder().WithExtension<BaldrExtension>();
 
-    builder.GetServiceCollection().AddTransient<HelloService>();
+    builder.GetServiceCollection()->AddTransient<HelloService>();
 
-    auto app = builder.Build<WebApplication>();
+    auto app = builder.BuildAsync<WebApplication>();
 
     app->MapGet("/hello/:name",
-                [](Ref<HelloService> helloService, HttpRequest& request) {
+                [](skr::Arc<HelloService> helloService, HttpRequest& request) {
                     return helloService->Hello(request.params["name"]);
                 });
 
-    app->Run();
+    skr::AsyncApplicationHost::Run(*app);
 
     return 0;
 }

@@ -4,16 +4,15 @@
 
 #include "Baldr/HttpServer.hpp"
 
-void WebApplication::Run()
+skr::Task<> WebApplication::RunAsync()
 {
-    auto logger =
-        mRootServiceProvider->GetService<skr::Logger<WebApplication>>();
-
+    auto logger = co_await mRootServiceProvider
+                      ->GetServiceAsync<skr::Logger<WebApplication>>();
     try
     {
-        auto server = mRootServiceProvider->GetService<HttpServer>();
+        auto server = co_await mRootServiceProvider->GetServiceAsync<HttpServer>();
 
-        server->Run();
+        co_await server->RunAsync();
     }
     catch (const std::exception& e)
     {
