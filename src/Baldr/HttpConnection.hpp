@@ -4,8 +4,6 @@
 #include <iostream>
 #include <memory>
 
-#include <rfl/enums.hpp>
-
 #include "AsioAwait.hpp"
 #include "Baldr/MpMcPool.hpp"
 #include "BufferPool.hpp"

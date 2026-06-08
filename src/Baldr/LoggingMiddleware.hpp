@@ -2,8 +2,10 @@
 
 #include "IMiddleware.hpp"
 
-#include "rfl/enums.hpp"
 #include <chrono>
+#include <meta>
+
+#include <Skirnir/Common/Reflection.hpp>
 
 class LoggingMiddleware final : public IMiddleware
 {
@@ -15,11 +17,11 @@ class LoggingMiddleware final : public IMiddleware
 
     ~LoggingMiddleware() = default;
 
-    skr::Task<>  Handle(const HttpRequest&    request,
-                HttpResponse&         response,
-                const NextMiddleware& next) override
+    skr::Task<> Handle(const HttpRequest&    request,
+                       HttpResponse&         response,
+                       const NextMiddleware& next) override
     {
-        const auto method = rfl::enum_to_string(request.method);
+        const auto method = refl::enum_to_string(request.method);
 
         mLogger->LogInformation(
             "Request - '{}' '{}' '{}'", request.version, method, request.path);

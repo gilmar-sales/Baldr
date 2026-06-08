@@ -36,16 +36,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(skirnir)
 
-FetchContent_Declare(
-  reflectcpp
-  GIT_REPOSITORY "https://github.com/getml/reflect-cpp.git"
-  GIT_TAG        "v0.22.0"
-  OVERRIDE_FIND_PACKAGE
-)
-FetchContent_MakeAvailable(reflectcpp)
-
-message(STATUS "Using Skirnir version: ")
-
 file(GLOB_RECURSE BALDR_SOURCES
         src/*.cpp
 )
@@ -54,7 +44,7 @@ add_library(baldr ${BALDR_SOURCES})
 
 add_library(baldr::baldr ALIAS baldr)
 
-target_link_libraries(baldr asio::asio skirnir::skirnir reflectcpp::reflectcpp)
+target_link_libraries(baldr asio::asio skirnir::skirnir)
 
 if (WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
   target_link_libraries(baldr ws2_32 wsock32 Bcrypt)

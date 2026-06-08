@@ -1,8 +1,6 @@
 #pragma once
 
 #include <Skirnir/Skirnir.hpp>
-#include <rfl.hpp>
-#include <rfl/json.hpp>
 
 #include "MiddlewareProvider.hpp"
 #include "Router.hpp"
@@ -86,8 +84,15 @@ class WebApplication : public skr::IAsyncApplication
                     }
                     else
                     {
-                        response.body = rfl::json::write(result);
-                        response.headers["Content-Type"] = "application/json";
+                        simdjson::simdjson_result<std::string> json =
+                            simdjson::to_json(result);
+                        if (json.has_value())
+                        {
+
+                            response.body = std::move(json).take_value();
+                            response.headers["Content-Type"] =
+                                "application/json";
+                        }
                     }
 
                     response.statusCode = StatusCode::OK;
