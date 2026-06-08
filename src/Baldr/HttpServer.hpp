@@ -42,8 +42,7 @@ class HttpServer
     skr::Arc<skr::ServiceProvider>    mServiceProvider;
     skr::Arc<HttpServerOptions>       mHttpServerOptions;
 
-    std::atomic<int>       mNextIoContext;
-    net::io_context        mAcceptorIoContext;
+    net::thread_pool       mThreadPool;
     net::ip::tcp::acceptor mAcceptor;
     AsioScheduler          mScheduler;
 };

@@ -5,10 +5,12 @@ HttpServer::HttpServer(const skr::Arc<HttpServerOptions>&    httpServerOptions,
                        const skr::Arc<skr::Logger<HttpServer>>& logger) :
     mServiceProvider(serviceProvider), mLogger(logger),
     mHttpServerOptions(httpServerOptions),
-    mAcceptorIoContext(mHttpServerOptions->threadCount),
-    mAcceptor(mAcceptorIoContext), mScheduler(mAcceptorIoContext.get_executor())
+    mThreadPool(
+        static_cast<std::size_t>(mHttpServerOptions->threadCount)),
+    mAcceptor(mThreadPool.get_executor()),
+    mScheduler(mThreadPool.get_executor())
 {
-    net::ip::tcp::resolver resolver(mAcceptorIoContext);
+    net::ip::tcp::resolver resolver(mThreadPool);
     net::ip::tcp::endpoint endpoint =
         *resolver.resolve("0.0.0.0", std::to_string(mHttpServerOptions->port))
              .begin();
@@ -20,9 +22,7 @@ HttpServer::HttpServer(const skr::Arc<HttpServerOptions>&    httpServerOptions,
 
 skr::Task<> HttpServer::RunAsync()
 {
-    onNewConnection();
-
-    net::signal_set signals(mAcceptorIoContext, SIGINT, SIGTERM);
+    net::signal_set signals(mThreadPool, SIGINT, SIGTERM);
     signals.async_wait([this](net::error_code, int) { Stop(); });
 
     std::vector<std::jthread> threads;
@@ -32,7 +32,9 @@ skr::Task<> HttpServer::RunAsync()
         std::function<void()> worker = [this, i, &worker] {
             try
             {
-                mAcceptorIoContext.run();
+                onNewConnection();
+
+                mThreadPool.join();
             }
             catch (const std::exception& e)
             {
@@ -53,14 +55,14 @@ skr::Task<> HttpServer::RunAsync()
 
 void HttpServer::Stop()
 {
-    mAcceptorIoContext.stop();
+    mThreadPool.stop();
     mLogger->LogInformation("🛑 Server stopped.");
 }
 
 void HttpServer::onNewConnection()
 {
     mAcceptor.async_accept(
-        mAcceptorIoContext,
+        mThreadPool,
         [this](const std::error_code ec, net::ip::tcp::socket socket) {
             if (!mAcceptor.is_open())
             {
