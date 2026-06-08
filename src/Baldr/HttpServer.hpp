@@ -28,12 +28,11 @@ class HttpServer
                const skr::Arc<skr::ServiceProvider>&    serviceProvider,
                const skr::Arc<skr::Logger<HttpServer>>& logger) :
         mServiceProvider(serviceProvider), mLogger(logger),
-        mHttpServerOptions(httpServerOptions), mNextIoContext(0),
-        mAcceptorIoContext(mHttpServerOptions->threadCount),
-        mAcceptor(mAcceptorIoContext),
-        mScheduler(mAcceptorIoContext.get_executor())
+        mHttpServerOptions(httpServerOptions),
+        mIoContext(mHttpServerOptions->threadCount), mAcceptor(mIoContext),
+        mScheduler(mIoContext.get_executor())
     {
-        net::ip::tcp::resolver resolver(mAcceptorIoContext);
+        net::ip::tcp::resolver resolver(mIoContext);
         net::ip::tcp::endpoint endpoint =
             *resolver
                  .resolve("0.0.0.0", std::to_string(mHttpServerOptions->port))
@@ -132,7 +131,7 @@ class HttpServer
     std::list<net::executor_work_guard<net::io_context::executor_type>>
                            mWorkGuards;
     std::atomic<int>       mNextIoContext;
-    net::io_context        mAcceptorIoContext;
+    net::io_context        mIoContext;
     net::ip::tcp::acceptor mAcceptor;
     AsioScheduler          mScheduler;
 };
