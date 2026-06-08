@@ -102,7 +102,7 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
                     ->Handle(httpRequestParse.value, httpResponse, nextLambda);
             }
 
-            routeEntry.value().handler(
+            co_await routeEntry.value().handler(
                 httpRequestParse.value, httpResponse, mServiceProvider);
 
             if (!httpResponse.body.empty())
