@@ -63,7 +63,10 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
         {
             mLogger->LogError("Failed to parse HTTP request: {}",
                               httpRequestParse.error);
-            mBuffer->assign_range("HTTP/1.1 400 Bad Request\r\n\r\n");
+            mBuffer->assign_range("HTTP/1.1 400 Bad Request\r\n"
+                                  "Content-Length: 0\r\n"
+                                  "Connection: close\r\n"
+                                  "\r\n");
             co_await writeResponse();
             co_return;
         }
@@ -80,8 +83,10 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
 
         if (!routeEntry.has_value())
         {
-            httpResponse.statusCode = StatusCode::NotFound;
-            mBuffer->assign_range("HTTP/1.1 404 Not Found\r\n\r\n");
+            mBuffer->assign_range("HTTP/1.1 404 Not Found\r\n"
+                                  "Content-Length: 0\r\n"
+                                  "Connection: close\r\n"
+                                  "\r\n");
             co_await writeResponse();
             co_return;
         }
@@ -156,7 +161,7 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
             response_stream << "\r\n";
         }
 
-        response_stream << "Connection: close\r\n\r\n" << httpResponse.body;
+        response_stream << "\r\n\r\n" << httpResponse.body;
 
         mBuffer->clear();
         mBuffer->assign_range(response_stream.str());
