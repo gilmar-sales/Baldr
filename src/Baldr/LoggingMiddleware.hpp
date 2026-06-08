@@ -15,7 +15,7 @@ class LoggingMiddleware final : public IMiddleware
 
     ~LoggingMiddleware() = default;
 
-    void Handle(const HttpRequest&    request,
+    skr::Task<>  Handle(const HttpRequest&    request,
                 HttpResponse&         response,
                 const NextMiddleware& next) override
     {
@@ -26,7 +26,7 @@ class LoggingMiddleware final : public IMiddleware
 
         auto begin = std::chrono::system_clock::now();
 
-        next();
+        co_await next();
 
         auto end = std::chrono::system_clock::now();
 
@@ -35,6 +35,8 @@ class LoggingMiddleware final : public IMiddleware
             static_cast<int>(response.statusCode), method, request.path,
             std::chrono::duration_cast<std::chrono::microseconds>(end - begin),
             request.clientIp);
+
+        co_return;
     }
 
   private:

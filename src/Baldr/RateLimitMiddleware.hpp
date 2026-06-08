@@ -13,8 +13,8 @@ class RateLimitMiddleware : public IMiddleware
     {
     }
 
-    void Handle(const HttpRequest& request, HttpResponse& response,
-                const NextMiddleware& next) override
+    skr::Task<> Handle(const HttpRequest& request, HttpResponse& response,
+                       const NextMiddleware& next) override
     {
         if (!mRateLimiter->isAllowed(request.clientIp))
         {
@@ -26,10 +26,12 @@ class RateLimitMiddleware : public IMiddleware
                 std::to_string(response.body.size());
 
             mLogger->LogWarning("Endpoint {} - Has been limited", request.path);
-            return;
+            co_return;
         }
 
-        next();
+        co_await next();
+
+        co_return;
     }
 
   private:

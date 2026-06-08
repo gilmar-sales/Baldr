@@ -6,6 +6,7 @@
 
 #include <rfl/enums.hpp>
 
+#include "AsioAwait.hpp"
 #include "Baldr/MpMcPool.hpp"
 #include "BufferPool.hpp"
 #include "HttpRequestParser.hpp"
@@ -21,8 +22,9 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
     friend class HttpConnectionSpec;
 
   public:
-    explicit HttpConnection(const skr::Arc<skr::ServiceProvider>& serviceProvider,
-                            net::ip::tcp::socket             socket) :
+    explicit HttpConnection(
+        const skr::Arc<skr::ServiceProvider>& serviceProvider,
+        net::ip::tcp::socket                  socket) :
         mServiceProvider(serviceProvider),
         mMiddlewareProvider(serviceProvider->GetService<MiddlewareProvider>()),
         mHttpRequestParser(serviceProvider->GetService<HttpRequestParser>()),
@@ -36,22 +38,24 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
     void start() { readRequest(); }
 
   private:
-    void readRequest()
+    skr::Task<> readRequest()
     {
-        auto self = shared_from_this();
-        async_read_until(
-            mSocket, net::dynamic_buffer(*mBuffer), "\r\n\r\n",
-            [self](const std::error_code ec,
-                   const std::size_t     bytes_transferred) {
-                if (!ec)
-                {
-                    self->processRequest(self->mBuffer, bytes_transferred);
-                }
-            });
+        mBuffer->clear();
+        std::size_t bytes_transferred = co_await baldr::AsioAwait<std::size_t>(
+            mSocket.get_executor(),
+            net::async_read_until(mSocket, net::dynamic_buffer(*mBuffer),
+                                  "\r\n\r\n", net::use_awaitable));
+
+        if (bytes_transferred > 0)
+        {
+            co_await processRequest(mBuffer, bytes_transferred);
+        }
+
+        co_return;
     }
 
-    void processRequest(std::vector<char>* buffer,
-                        std::size_t        bytes_transferred)
+    skr::Task<> processRequest(std::vector<char>* buffer,
+                               std::size_t        bytes_transferred)
     {
         std::string request(buffer->data(), bytes_transferred);
 
@@ -62,8 +66,8 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
             mLogger->LogError("Failed to parse HTTP request: {}",
                               httpRequestParse.error);
             mBuffer->assign_range("HTTP/1.1 400 Bad Request\r\n\r\n");
-            writeResponse();
-            return;
+            co_await writeResponse();
+            co_return;
         }
 
         httpRequestParse.value.clientIp =
@@ -80,20 +84,21 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
         {
             httpResponse.statusCode = StatusCode::NotFound;
             mBuffer->assign_range("HTTP/1.1 404 Not Found\r\n\r\n");
-            return writeResponse();
+            co_await writeResponse();
+            co_return;
         }
 
         httpRequestParse.value.params =
             routeEntry.value().extractRouteParams(httpRequestParse.value.path);
 
-        NextMiddleware nextLambda = [&]() -> void {
+        NextMiddleware nextLambda = [&]() -> skr::Task<> {
             auto nextIt = current + 1;
 
             if (nextIt != mMiddlewareProvider->end())
             {
                 current += 1;
 
-                return (*nextIt)(mServiceProvider)
+                co_await (*nextIt)(mServiceProvider)
                     ->Handle(httpRequestParse.value, httpResponse, nextLambda);
             }
 
@@ -103,9 +108,11 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
             if (!httpResponse.body.empty())
                 httpResponse.headers["Content-Length"] =
                     std::to_string(httpResponse.body.size());
+
+            co_return;
         };
 
-        (*current)(mServiceProvider)
+        co_await (*current)(mServiceProvider)
             ->Handle(httpRequestParse.value, httpResponse, nextLambda);
 
         // Create the HTTP response
@@ -155,34 +162,23 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
 
         mBuffer->clear();
         mBuffer->assign_range(response_stream.str());
-        writeResponse();
+
+        co_await writeResponse();
     }
 
-    void writeResponse()
+    skr::Task<> writeResponse()
     {
-        net::async_write(
-            mSocket, net::buffer(*mBuffer),
-            [self = shared_from_this()](
-                const std::error_code ec, std::size_t bytes_transferred) {
-                if (!ec)
-                {
-                    self->mBuffer->clear();
+        auto bytes_transferred = co_await baldr::AsioAwait<std::size_t>(
+            mSocket.get_executor(),
+            net::async_write(mSocket, net::buffer(*mBuffer),
+                             net::use_awaitable));
 
-                    if (!self->mServiceProvider->GetService<MpMcBufferPool>()
-                             ->try_push(self->mBuffer))
-                        delete self->mBuffer;
+        if (!mServiceProvider->GetService<MpMcBufferPool>()->try_push(mBuffer))
+            delete mBuffer;
 
-                    if (self)
-                        self->mLogger->LogInformation("Message sent: {} bytes",
-                                                      bytes_transferred);
-                }
-                else
-                {
-                    if (self)
-                        self->mLogger->LogError(
-                            "Error writing: {}", ec.message());
-                }
-            });
+        mLogger->LogInformation("Message sent: {} bytes", bytes_transferred);
+
+        co_return;
     }
 
     net::ip::tcp::socket mSocket;

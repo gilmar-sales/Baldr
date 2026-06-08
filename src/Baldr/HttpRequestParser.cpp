@@ -1,10 +1,35 @@
 #include "Baldr/StringHelpers.hpp"
-#include "rfl/enums.hpp"
+#include <algorithm>
+#include <cctype>
 #include <ranges>
 #include <sstream>
 
 #include "Baldr/HttpRequestParser.hpp"
 #include "Baldr/StatusCode.hpp"
+
+std::optional<HttpMethod> parseMethod(std::string_view method)
+{
+    if (method == "GET")
+        return HttpMethod::Get;
+    if (method == "POST")
+        return HttpMethod::Post;
+    if (method == "PUT")
+        return HttpMethod::Put;
+    if (method == "DELETE")
+        return HttpMethod::Delete;
+    if (method == "PATCH")
+        return HttpMethod::Patch;
+    if (method == "OPTIONS")
+        return HttpMethod::Options;
+    if (method == "HEAD")
+        return HttpMethod::Head;
+    if (method == "TRACE")
+        return HttpMethod::Trace;
+    if (method == "CONNECT")
+        return HttpMethod::Connect;
+
+    return std::nullopt;
+}
 
 HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
 {
@@ -19,7 +44,7 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
 
     requestStream >> httpMethod;
 
-    auto parsedHttpMethod = rfl::string_to_enum<HttpMethod>(httpMethod);
+    auto parsedHttpMethod = parseMethod(httpMethod);
 
     if (!parsedHttpMethod.has_value())
     {
@@ -179,8 +204,7 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
 
     if (line.size() > 0 && result.value.headers.empty())
     {
-        result.error =
-            "Missing end of request line";
+        result.error      = "Missing end of request line";
         result.statusCode = StatusCode::BadRequest;
         return result;
     }
@@ -195,7 +219,7 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
             return result;
         }
     }
-    else if (result.value.method == HttpMethod::POST &&
+    else if (result.value.method == HttpMethod::Post &&
              !result.value.headers.contains("transfer-encoding"))
     {
         result.error      = "Missing Content-Length header";

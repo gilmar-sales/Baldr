@@ -22,7 +22,7 @@ TEST_F(HttpRequestParserSpec, HttpRequestParser_ShouldAccept_ValidGetWithNoBody)
 
     ASSERT_TRUE(result.success);
     ASSERT_EQ(result.statusCode, StatusCode::OK);
-    ASSERT_EQ(result.value.method, HttpMethod::GET);
+    ASSERT_EQ(result.value.method, HttpMethod::Get);
     ASSERT_EQ(result.value.path, "/hello");
     ASSERT_EQ(result.value.version, "HTTP/1.1");
     ASSERT_EQ(result.value.headers.size(), 1);
@@ -38,7 +38,7 @@ TEST_F(HttpRequestParserSpec,
 
     ASSERT_TRUE(result.success);
     ASSERT_EQ(result.statusCode, StatusCode::OK);
-    ASSERT_EQ(result.value.method, HttpMethod::POST);
+    ASSERT_EQ(result.value.method, HttpMethod::Post);
     ASSERT_EQ(result.value.path, "/x");
     ASSERT_EQ(result.value.version, "HTTP/1.1");
     ASSERT_EQ(result.value.headers.size(), 2);
@@ -54,7 +54,7 @@ TEST_F(HttpRequestParserSpec,
 
     ASSERT_TRUE(result.success);
     ASSERT_EQ(result.statusCode, StatusCode::OK);
-    ASSERT_EQ(result.value.method, HttpMethod::GET);
+    ASSERT_EQ(result.value.method, HttpMethod::Get);
     ASSERT_EQ(result.value.path, "/x");
     ASSERT_EQ(result.value.version, "HTTP/1.1");
     ASSERT_EQ(result.value.headers.size(), 2);
@@ -69,7 +69,7 @@ TEST_F(HttpRequestParserSpec, HttpRequestParserShouldDoQueryStringParsing)
 
     ASSERT_TRUE(result.success);
     ASSERT_EQ(result.statusCode, StatusCode::OK);
-    ASSERT_EQ(result.value.method, HttpMethod::GET);
+    ASSERT_EQ(result.value.method, HttpMethod::Get);
     ASSERT_EQ(result.value.path, "/api");
     ASSERT_EQ(result.value.version, "HTTP/1.1");
     ASSERT_EQ(result.value.headers.size(), 1);
@@ -87,7 +87,7 @@ TEST_F(HttpRequestParserSpec, HttpRequestParserShouldRejectHeaderFoldingRFC7230)
 
     ASSERT_FALSE(result.success);
     ASSERT_EQ(result.statusCode, StatusCode::BadRequest);
-    ASSERT_EQ(result.value.method, HttpMethod::POST);
+    ASSERT_EQ(result.value.method, HttpMethod::Post);
     ASSERT_EQ(result.value.path, "/test");
     ASSERT_EQ(result.value.version, "HTTP/1.1");
     ASSERT_STREQ(result.error.c_str(),
@@ -260,7 +260,7 @@ TEST_F(HttpRequestParserSpec, HttpRequestParserShouldSanitizeHeaderInjection)
 
     ASSERT_TRUE(result.success);
     ASSERT_EQ(result.statusCode, StatusCode::OK);
-    ASSERT_EQ(result.value.method, HttpMethod::GET);
+    ASSERT_EQ(result.value.method, HttpMethod::Get);
     ASSERT_EQ(result.value.path, "/hello");
     ASSERT_EQ(result.value.headers.size(), 2);
     ASSERT_EQ(result.value.headers["host"], "x");
@@ -305,7 +305,7 @@ TEST_F(HttpRequestParserSpec, HttpRequestParserShouldDecodePath)
 
     ASSERT_TRUE(result.success);
     ASSERT_EQ(result.statusCode, StatusCode::OK);
-    ASSERT_EQ(result.value.method, HttpMethod::GET);
+    ASSERT_EQ(result.value.method, HttpMethod::Get);
     ASSERT_EQ(result.value.path, "/hello world");
     ASSERT_STREQ(result.value.body.c_str(), "");
 }
@@ -317,7 +317,7 @@ TEST_F(HttpRequestParserSpec, HttpRequestParserShouldDecodePathAndQuery)
 
     ASSERT_TRUE(result.success);
     ASSERT_EQ(result.statusCode, StatusCode::OK);
-    ASSERT_EQ(result.value.method, HttpMethod::GET);
+    ASSERT_EQ(result.value.method, HttpMethod::Get);
     ASSERT_EQ(result.value.path, "/hello world");
     ASSERT_EQ(result.value.query["name"], "John Doe");
     ASSERT_EQ(result.value.headers.size(), 1);

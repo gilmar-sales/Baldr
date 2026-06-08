@@ -1,17 +1,18 @@
 #pragma once
 
-#include <Skirnir/DependencyInjection/ServiceProvider.hpp>
 #include <functional>
 #include <map>
 #include <regex>
 #include <string>
 #include <unordered_map>
 
+#include <Skirnir/DependencyInjection/ServiceProvider.hpp>
+
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
 
-using RouteHandler =
-    std::function<void(HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>)>;
+using RouteHandler = std::function<void(
+    HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>)>;
 
 struct RouteEntry
 {
@@ -50,15 +51,15 @@ class Router
     Router()
     {
         mMethodsMap = {
-            { HttpMethod::GET, new TrieNode() },
-            { HttpMethod::POST, new TrieNode() },
-            { HttpMethod::PUT, new TrieNode() },
-            { HttpMethod::DELETE, new TrieNode() },
-            { HttpMethod::PATCH, new TrieNode() },
-            { HttpMethod::OPTIONS, new TrieNode() },
-            { HttpMethod::HEAD, new TrieNode() },
-            { HttpMethod::TRACE, new TrieNode() },
-            { HttpMethod::CONNECT, new TrieNode() },
+            { HttpMethod::Get, new TrieNode() },
+            { HttpMethod::Post, new TrieNode() },
+            { HttpMethod::Put, new TrieNode() },
+            { HttpMethod::Delete, new TrieNode() },
+            { HttpMethod::Patch, new TrieNode() },
+            { HttpMethod::Options, new TrieNode() },
+            { HttpMethod::Head, new TrieNode() },
+            { HttpMethod::Trace, new TrieNode() },
+            { HttpMethod::Connect, new TrieNode() },
         };
     }
 

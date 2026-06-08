@@ -21,12 +21,12 @@ class WebApplication : public skr::IAsyncApplication
 
     void MapGet(const std::string& route, auto&& handler)
     {
-        MapRoute(HttpMethod::GET, route, handler);
+        MapRoute(HttpMethod::Get, route, handler);
     }
 
     void MapPost(const std::string& route, auto&& handler)
     {
-        MapRoute(HttpMethod::POST, route, handler);
+        MapRoute(HttpMethod::Post, route, handler);
     }
 
     template <typename TMiddleware>
