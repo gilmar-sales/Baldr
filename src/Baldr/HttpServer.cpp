@@ -38,29 +38,11 @@ skr::Task<> HttpServer::RunAsync()
 
     onNewConnection();
 
-    std::vector<std::jthread> threads;
-    const auto workerCount = mResolvedThreadCount;
-
-    for (int i = 0; i < workerCount; ++i)
-    {
-        std::jthread worker([this, i] {
-            try
-            {
-                mThreadPool.join();
-            }
-            catch (const std::exception& e)
-            {
-                mLogger->LogError("Worker thread {} exception: {}", i,
-                                  e.what());
-            }
-        });
-        threads.push_back(std::move(worker));
-    }
-
     mLogger->LogInformation(
         "🚀 Server running on http://localhost:{} with {} worker threads",
-        mHttpServerOptions->port, workerCount);
+        mHttpServerOptions->port, mResolvedThreadCount);
 
+    mThreadPool.join();
     co_return;
 }
 
@@ -80,6 +62,8 @@ void HttpServer::onNewConnection()
                 return;
             }
 
+            onNewConnection();
+
             if (!ec)
             {
                 socket.set_option(
@@ -95,14 +79,13 @@ void HttpServer::onNewConnection()
                     skr::MakeArc<HttpConnection>(scope->GetServiceProvider(),
                                                  std::move(socket));
 
-                httpSession->start();
+            net::post(mThreadPool,
+                      [httpSession] { httpSession->start(); });
             }
             else
             {
                 mLogger->LogError("Error accepting connection: {}",
                                   ec.message());
             }
-
-            onNewConnection();
         });
 }
