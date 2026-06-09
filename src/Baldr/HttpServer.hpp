@@ -41,6 +41,7 @@ class HttpServer
     skr::Arc<skr::Logger<HttpServer>> mLogger;
     skr::Arc<skr::ServiceProvider>    mServiceProvider;
     skr::Arc<HttpServerOptions>       mHttpServerOptions;
+    int                               mResolvedThreadCount;
 
     net::thread_pool       mThreadPool;
     net::ip::tcp::acceptor mAcceptor;

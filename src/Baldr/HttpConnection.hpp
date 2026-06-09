@@ -161,7 +161,7 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
             response_stream << "\r\n";
         }
 
-        response_stream << "\r\n\r\n" << httpResponse.body;
+        response_stream << "\r\n" << httpResponse.body;
 
         mBuffer->clear();
         mBuffer->assign_range(response_stream.str());
