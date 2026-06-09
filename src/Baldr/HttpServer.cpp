@@ -6,8 +6,9 @@
 int resolveThreadCount(int configured)
 {
 
-    return configured > 0 ? configured
-                          : static_cast<int>(std::thread::hardware_concurrency());
+    return configured > 0
+               ? configured
+               : static_cast<int>(std::thread::hardware_concurrency());
 }
 
 HttpServer::HttpServer(const skr::Arc<HttpServerOptions>&    httpServerOptions,
@@ -15,8 +16,7 @@ HttpServer::HttpServer(const skr::Arc<HttpServerOptions>&    httpServerOptions,
                        const skr::Arc<skr::Logger<HttpServer>>& logger) :
     mServiceProvider(serviceProvider), mLogger(logger),
     mHttpServerOptions(httpServerOptions),
-    mResolvedThreadCount(
-        resolveThreadCount(mHttpServerOptions->threadCount)),
+    mResolvedThreadCount(resolveThreadCount(mHttpServerOptions->threadCount)),
     mThreadPool(static_cast<std::size_t>(mResolvedThreadCount)),
     mAcceptor(mThreadPool.get_executor()),
     mScheduler(mThreadPool.get_executor())
@@ -58,34 +58,28 @@ void HttpServer::onNewConnection()
         mThreadPool,
         [this](const std::error_code ec, net::ip::tcp::socket socket) {
             if (!mAcceptor.is_open())
-            {
                 return;
-            }
 
             onNewConnection();
 
-            if (!ec)
-            {
-                socket.set_option(
-                    net::socket_base::send_buffer_size(32 * 1024));
-                socket.set_option(
-                    net::socket_base::receive_buffer_size(32 * 1024));
-                socket.set_option(net::ip::tcp::no_delay(true));
-                socket.set_option(net::socket_base::keep_alive(true));
-
-                const auto scope = mServiceProvider->CreateServiceScope();
-
-                auto httpSession =
-                    skr::MakeArc<HttpConnection>(scope->GetServiceProvider(),
-                                                 std::move(socket));
-
-            net::post(mThreadPool,
-                      [httpSession] { httpSession->start(); });
-            }
-            else
+            if (ec)
             {
                 mLogger->LogError("Error accepting connection: {}",
                                   ec.message());
+                return;
             }
+
+            socket.set_option(net::socket_base::send_buffer_size(32 * 1024));
+            socket.set_option(net::socket_base::receive_buffer_size(32 * 1024));
+            socket.set_option(net::ip::tcp::no_delay(true));
+            socket.set_option(net::socket_base::keep_alive(true));
+
+            const auto scope = mServiceProvider->CreateServiceScope();
+
+            auto httpSession =
+                skr::MakeArc<HttpConnection>(scope->GetServiceProvider(),
+                                             std::move(socket));
+
+            net::post(mThreadPool, [httpSession] { httpSession->start(); });
         });
 }
