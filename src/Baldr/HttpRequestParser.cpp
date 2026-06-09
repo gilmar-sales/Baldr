@@ -33,12 +33,27 @@ std::optional<HttpMethod> parseMethod(std::string_view method)
 
 HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
 {
+    auto headerEnd = request.find("\r\n\r\n");
+    std::size_t headerByteCount = (headerEnd == std::string::npos)
+                                      ? request.size()
+                                      : headerEnd + 4;
+    return parse(request, headerByteCount);
+}
+
+HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request,
+                                                 std::size_t headerByteCount)
+{
     auto result =
         HttpResult<HttpRequest> { .success    = false,
                                   .error      = "Empty request",
                                   .statusCode = StatusCode::BadRequest };
 
-    std::istringstream requestStream(request);
+    const auto headerView =
+        (headerByteCount <= request.size())
+            ? std::string_view(request.data(), headerByteCount)
+            : std::string_view(request.data(), request.size());
+
+    std::istringstream requestStream{std::string(headerView)};
 
     std::string httpMethod;
 
@@ -55,7 +70,8 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
     result.value.method = parsedHttpMethod.value();
 
     requestStream.get();
-    if (request.at(requestStream.tellg()) == ' ')
+    if (static_cast<std::size_t>(requestStream.tellg()) < headerView.size() &&
+        request.at(requestStream.tellg()) == ' ')
     {
         result.error = "Extra whitespace in method";
         return result;
@@ -81,7 +97,8 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
     result.value.path = decodedPath.value();
 
     requestStream.get();
-    if (request.at(requestStream.tellg()) == ' ')
+    if (static_cast<std::size_t>(requestStream.tellg()) < headerView.size() &&
+        request.at(requestStream.tellg()) == ' ')
     {
         result.error = "Extra whitespace in path";
         return result;
@@ -95,7 +112,8 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
         return result;
     }
 
-    if (request.at(requestStream.tellg()) == ' ')
+    if (static_cast<std::size_t>(requestStream.tellg()) < headerView.size() &&
+        request.at(requestStream.tellg()) == ' ')
     {
         result.error = "Extra whitespace in version";
         return result;
@@ -183,13 +201,8 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
 
         if (result.value.headers.contains("content-length"))
         {
-
-            auto contentLength =
-                std::atoi(result.value.headers["content-length"].c_str());
-
-            result.value.body = std::string(contentLength, '\0');
-            contentLength =
-                requestStream.readsome(result.value.body.data(), contentLength);
+            // Header block ends here. Body handling is done below.
+            break;
         }
         else
         {
@@ -218,9 +231,31 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
             result.statusCode = StatusCode::BadRequest;
             return result;
         }
+
+        auto contentLength =
+            std::atoi(result.value.headers["content-length"].c_str());
+
+        if (contentLength < 0)
+        {
+            result.error      = "Invalid Content-Length header";
+            result.statusCode = StatusCode::BadRequest;
+            return result;
+        }
+
+        if (headerByteCount + static_cast<std::size_t>(contentLength) >
+            request.size())
+        {
+            result.error =
+                "Request body incomplete; need more bytes from the socket";
+            result.statusCode = StatusCode::BadRequest;
+            return result;
+        }
+
+        result.value.body.assign(
+            request.data() + headerByteCount,
+            static_cast<std::size_t>(contentLength));
     }
-    else if (result.value.method == HttpMethod::Post &&
-             !result.value.headers.contains("transfer-encoding"))
+    else if (result.value.method == HttpMethod::Post)
     {
         result.error      = "Missing Content-Length header";
         result.statusCode = StatusCode::BadRequest;
