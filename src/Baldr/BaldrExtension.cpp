@@ -19,11 +19,11 @@ void BaldrExtension::ConfigureServices(skr::ServiceCollection& services)
     services.AddSingleton(skr::MakeArc<MpMcBufferPool>(size_t(16 * 1024)));
 
     services.AddTransient<skr::Logger<HttpConnection>>();
+    services.AddTransient<HttpRequestParser>();
     services.AddSingleton(
         skr::MakeArc<RateLimiter>(10, std::chrono::seconds(10)));
     services.AddScoped<LoggingMiddleware>();
     services.AddScoped<RateLimitMiddleware>();
-    services.AddScoped<HttpRequestParser>();
 }
 
 void BaldrExtension::UseServices(skr::ServiceProvider& serviceProvider)

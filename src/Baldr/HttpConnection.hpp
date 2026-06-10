@@ -25,7 +25,6 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
         net::ip::tcp::socket                  socket) :
         mServiceProvider(serviceProvider),
         mMiddlewareProvider(serviceProvider->GetService<MiddlewareProvider>()),
-        mHttpRequestParser(serviceProvider->GetService<HttpRequestParser>()),
         mRouter(serviceProvider->GetService<Router>()),
         mSocket(std::move(socket))
     {
@@ -68,10 +67,9 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
             }
 
             std::string request(mBuffer->data(), mBuffer->size());
-            bool       clientWantsClose = false;
-            keepAlive                  = decideKeepAlive(request,
-                                              headerByteCount,
-                                              clientWantsClose);
+            bool        clientWantsClose = false;
+            keepAlive =
+                decideKeepAlive(request, headerByteCount, clientWantsClose);
 
             bool closeAfterWrite = false;
             co_await processRequest(request,
@@ -105,32 +103,31 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
             net::async_read_until(mSocket, net::dynamic_buffer(*mBuffer),
                                   "\r\n\r\n", net::use_awaitable));
 
-        auto end = std::string_view(mBuffer->data(), mBuffer->size())
-                       .find("\r\n\r\n");
-        headerByteCount = (end == std::string_view::npos)
-                              ? mBuffer->size()
-                              : end + 4;
+        auto end =
+            std::string_view(mBuffer->data(), mBuffer->size()).find("\r\n\r\n");
+        headerByteCount =
+            (end == std::string_view::npos) ? mBuffer->size() : end + 4;
         ec = {};
         co_return;
     }
 
     skr::Task<> ensureBody(std::size_t headerByteCount, std::error_code& ec)
     {
-        ec = {};
+        ec                        = {};
         std::size_t contentLength = 0;
         bool        hasBody       = false;
 
         std::string_view headerView(mBuffer->data(), headerByteCount);
         for (auto pos = headerView.find("Content-Length:");
-                 pos != std::string_view::npos;
-                 pos = headerView.find("Content-Length:", pos + 1))
+             pos != std::string_view::npos;
+             pos = headerView.find("Content-Length:", pos + 1))
         {
             auto lineEnd = headerView.find("\r\n", pos);
             if (lineEnd == std::string_view::npos)
                 lineEnd = headerView.size();
             std::string_view line(headerView.data() + pos + 15,
                                   lineEnd - (pos + 15));
-            auto begin = line.find_first_not_of(" \t");
+            auto             begin = line.find_first_not_of(" \t");
             if (begin != std::string_view::npos)
             {
                 line.remove_prefix(begin);
@@ -157,8 +154,8 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
             net::async_read(
                 mSocket,
                 net::dynamic_buffer(*mBuffer),
-                net::transfer_exactly(contentLength -
-                                      (mBuffer->size() - headerByteCount)),
+                net::transfer_exactly(
+                    contentLength - (mBuffer->size() - headerByteCount)),
                 net::use_awaitable));
         co_return;
     }
@@ -168,8 +165,7 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
                                 bool&              clientWantsClose)
     {
         std::string_view headerView(request.data(), headerByteCount);
-        bool             http10 =
-            headerView.find("HTTP/1.0") != std::string_view::npos;
+        bool http10 = headerView.find("HTTP/1.0") != std::string_view::npos;
 
         // Default: HTTP/1.1 = keep-alive, HTTP/1.0 = close.
         bool keepAlive = !http10;
@@ -195,14 +191,14 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
                 lineEnd = headerView.size();
             std::string_view value(headerView.data() + connPos + 11,
                                    lineEnd - (connPos + 11));
-            std::string lowered;
+            std::string      lowered;
             lowered.reserve(value.size());
             for (char c : value)
             {
                 if (c == ' ' || c == '\t')
                     continue;
-                lowered.push_back(
-                    static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+                lowered.push_back(static_cast<char>(
+                    std::tolower(static_cast<unsigned char>(c))));
             }
             if (lowered.find("close") != std::string::npos)
                 keepAlive = false;
@@ -219,8 +215,11 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
                                bool               clientWantsClose,
                                bool&              closeAfterWrite)
     {
+        auto httpRequestParser =
+            mServiceProvider->GetService<HttpRequestParser>();
+
         auto httpRequestParse =
-            mHttpRequestParser->parse(request, headerByteCount);
+            httpRequestParser->parse(request, headerByteCount);
 
         if (!httpRequestParse.success)
         {
@@ -257,6 +256,7 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
         httpRequestParse.value.params =
             routeEntry.value().extractRouteParams(httpRequestParse.value.path);
 
+        auto           scope      = mServiceProvider->CreateServiceScope();
         NextMiddleware nextLambda = [&]() -> skr::Task<> {
             auto nextIt = current + 1;
 
@@ -264,12 +264,12 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
             {
                 current += 1;
 
-                co_await (*nextIt)(mServiceProvider)
+                co_await (*nextIt)(scope->GetServiceProvider())
                     ->Handle(httpRequestParse.value, httpResponse, nextLambda);
             }
 
             co_await routeEntry.value().handler(
-                httpRequestParse.value, httpResponse, mServiceProvider);
+                httpRequestParse.value, httpResponse, scope->GetServiceProvider());
 
             if (!httpResponse.body.empty())
                 httpResponse.headers["Content-Length"] =
@@ -278,12 +278,12 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
             co_return;
         };
 
-        co_await (*current)(mServiceProvider)
+        co_await (*current)(scope->GetServiceProvider())
             ->Handle(httpRequestParse.value, httpResponse, nextLambda);
 
         // Detect whether the handler/middleware signalled Connection: close.
         bool serverWantsClose = false;
-        auto closeIt = httpResponse.headers.find("Connection");
+        auto closeIt          = httpResponse.headers.find("Connection");
         if (closeIt != httpResponse.headers.end())
         {
             std::string lowered(closeIt->second);
@@ -376,7 +376,6 @@ class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
 
     skr::Arc<skr::Logger<HttpConnection>> mLogger;
     skr::Arc<skr::ServiceProvider>        mServiceProvider;
-    skr::Arc<HttpRequestParser>           mHttpRequestParser;
     skr::Arc<MiddlewareProvider>          mMiddlewareProvider;
     skr::Arc<Router>                      mRouter;
 };
