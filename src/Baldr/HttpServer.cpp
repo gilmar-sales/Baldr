@@ -1,5 +1,7 @@
 #include "HttpServer.hpp"
 
+#include <asio/co_spawn.hpp>
+#include <asio/detached.hpp>
 #include <cstdlib>
 #include <string>
 
@@ -36,50 +38,46 @@ skr::Task<> HttpServer::RunAsync()
     net::signal_set signals(mThreadPool, SIGINT, SIGTERM);
     signals.async_wait([this](net::error_code, int) { Stop(); });
 
-    onNewConnection();
+    net::co_spawn(mThreadPool, listener(), net::detached);
 
     mLogger->LogInformation(
         "🚀 Server running on http://localhost:{} with {} worker threads",
         mHttpServerOptions->port, mResolvedThreadCount);
 
     mThreadPool.join();
+    mLogger->LogInformation("🛑 Server stopped.");
     co_return;
 }
 
 void HttpServer::Stop()
 {
+    mLogger->LogInformation("🛑 Server stopping.");
     mThreadPool.stop();
-    mLogger->LogInformation("🛑 Server stopped.");
 }
 
-void HttpServer::onNewConnection()
+net::awaitable<void> HttpServer::listener()
 {
-    mAcceptor.async_accept(
-        mThreadPool,
-        [this](const std::error_code ec, net::ip::tcp::socket socket) {
-            if (!mAcceptor.is_open())
-                return;
+    for (;;)
+    {
+        auto socket = co_await mAcceptor.async_accept(net::use_awaitable);
+        auto strand = asio::make_strand(mThreadPool);
+        net::co_spawn(strand, onNewConnection(std::move(socket)),
+                      net::detached);
+    }
+}
 
-            onNewConnection();
+net::awaitable<void> HttpServer::onNewConnection(net::ip::tcp::socket socket)
+{
+    mLogger->LogDebug("New connection");
+    socket.set_option(net::socket_base::send_buffer_size(32 * 1024));
+    socket.set_option(net::socket_base::receive_buffer_size(32 * 1024));
+    socket.set_option(net::ip::tcp::no_delay(true));
+    socket.set_option(net::socket_base::keep_alive(true));
 
-            if (ec)
-            {
-                mLogger->LogError("Error accepting connection: {}",
-                                  ec.message());
-                return;
-            }
+    auto httpConnection = skr::MakeArc<HttpConnection>(mServiceProvider,
+                                                    std::move(socket));
+                                                    
+    net::post(mThreadPool, [httpConnection]() { httpConnection->start(); });
 
-            socket.set_option(net::socket_base::send_buffer_size(32 * 1024));
-            socket.set_option(net::socket_base::receive_buffer_size(32 * 1024));
-            socket.set_option(net::ip::tcp::no_delay(true));
-            socket.set_option(net::socket_base::keep_alive(true));
-
-            const auto scope = mServiceProvider->CreateServiceScope();
-
-            auto httpSession =
-                skr::MakeArc<HttpConnection>(scope->GetServiceProvider(),
-                                             std::move(socket));
-
-            net::post(mThreadPool, [httpSession] { httpSession->start(); });
-        });
+    co_return;
 }

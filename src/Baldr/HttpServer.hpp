@@ -36,7 +36,8 @@ class HttpServer
     HttpServer(const HttpServer&)            = delete;
     HttpServer& operator=(const HttpServer&) = delete;
 
-    void onNewConnection();
+    net::awaitable<void> listener();
+    net::awaitable<void> onNewConnection(net::ip::tcp::socket socket);
 
     skr::Arc<skr::Logger<HttpServer>> mLogger;
     skr::Arc<skr::ServiceProvider>    mServiceProvider;
