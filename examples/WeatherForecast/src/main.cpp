@@ -5,7 +5,7 @@
 struct WeatherForecast
 {
     std::string date;
-    std::string summary;
+    std::string_view summary;
 
     int temperatureC;
     int temperatureF;
@@ -25,12 +25,13 @@ int main()
 
     auto app = builder.BuildAsync<WebApplication>();
 
-    auto summaries = std::vector { "Freezing",   "Bracing",  "Chilly", "Cool",
-                                   "Mild",       "Warm",     "Balmy",  "Hot",
-                                   "Sweltering", "Scorching" };
-
-    app->MapGet("/", [&] {
+    app->MapGet("/", [] {
         auto forecast = std::vector<WeatherForecast>(5);
+
+        static auto summaries =
+            std::vector { "Freezing",   "Bracing",  "Chilly", "Cool",
+                          "Mild",       "Warm",     "Balmy",  "Hot",
+                          "Sweltering", "Scorching" };
 
         for (auto& item : forecast)
         {
@@ -46,8 +47,6 @@ int main()
 
         return forecast;
     });
-
-    app->Use<RateLimitMiddleware>();
 
     skr::AsyncApplicationHost::Run(*app);
 
