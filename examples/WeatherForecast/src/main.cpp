@@ -44,7 +44,7 @@ int main()
             };
         }
 
-        return std::move(forecast);
+        return forecast;
     });
 
     app->Use<RateLimitMiddleware>();

@@ -1,19 +1,14 @@
 #pragma once
 
-#include <asio/error_code.hpp>
-#include <asio/io_context.hpp>
 #include <atomic>
 #include <csignal>
-#include <list>
 #include <thread>
-#include <utility>
 #include <vector>
 
 #include <Skirnir/Skirnir.hpp>
+#include <h2o.h>
 
-#include "AsioAdapter.hpp"
 #include "HttpConnection.hpp"
-#include "Net.hpp"
 
 struct HttpServerOptions
 {
@@ -24,27 +19,42 @@ struct HttpServerOptions
 class HttpServer
 {
   public:
+    struct WorkerContext
+    {
+        uv_loop_t        loop;
+        h2o_context_t    h2oCtx;
+        h2o_accept_ctx_t acceptCtx;
+        uv_tcp_t         listener;
+        std::thread      thread;
+    };
+
+  public:
     HttpServer(const skr::Arc<HttpServerOptions>&       httpServerOptions,
                const skr::Arc<skr::ServiceProvider>&    serviceProvider,
                const skr::Arc<skr::Logger<HttpServer>>& logger);
+
+    ~HttpServer();
+
+    HttpServer(const HttpServer&)            = delete;
+    HttpServer& operator=(const HttpServer&) = delete;
 
     skr::Task<> RunAsync();
 
     void Stop();
 
   private:
-    HttpServer(const HttpServer&)            = delete;
-    HttpServer& operator=(const HttpServer&) = delete;
-
-    net::awaitable<void> listener();
-    net::awaitable<void> onNewConnection(net::ip::tcp::socket socket);
+    void workerLoop(WorkerContext& ctx);
 
     skr::Arc<skr::Logger<HttpServer>> mLogger;
     skr::Arc<skr::ServiceProvider>    mServiceProvider;
     skr::Arc<HttpServerOptions>       mHttpServerOptions;
     int                               mResolvedThreadCount;
 
-    net::thread_pool       mThreadPool;
-    net::ip::tcp::acceptor mAcceptor;
-    AsioScheduler          mScheduler;
+    h2o_globalconf_t                mGlobalConfig;
+    h2o_hostconf_t*                 mHostConfig = nullptr;
+    h2o_pathconf_t*                 mPathConfig = nullptr;
+    h2o_handler_t*                  mRootHandler = nullptr;
+    HttpConnection*                 mConnection  = nullptr;
+    std::vector<std::unique_ptr<WorkerContext>> mWorkers;
+    std::atomic<bool>               mRunning { false };
 };

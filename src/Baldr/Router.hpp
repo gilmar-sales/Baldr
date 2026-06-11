@@ -11,7 +11,7 @@
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
 
-using RouteHandler = std::function<skr::Task<>(
+using RouteHandler = std::function<void(
     HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>)>;
 
 struct RouteEntry

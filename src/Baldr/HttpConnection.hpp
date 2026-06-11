@@ -1,381 +1,361 @@
 #pragma once
 
-#include <asio/buffer.hpp>
-#include <iostream>
-#include <memory>
+#include <cctype>
+#include <cstring>
+#include <string>
+#include <string_view>
+#include <utility>
 
-#include "AsioAwait.hpp"
-#include "Baldr/MpMcPool.hpp"
-#include "BufferPool.hpp"
-#include "HttpRequestParser.hpp"
+#include <Skirnir/Common/Namespace.hpp>
+#include <h2o.h>
+#include <picohttpparser.h>
+
+#include "Baldr/HttpMethod.hpp"
+#include "Baldr/MiddlewareProvider.hpp"
+#include "Baldr/StatusCode.hpp"
+#include "Baldr/StringHelpers.hpp"
+#include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
-#include "MiddlewareProvider.hpp"
-#include "Net.hpp"
 #include "Router.hpp"
 
-#include <ranges>
-
-class HttpConnection : public skr::enable_arc_from_this<HttpConnection>
+class HttpConnection
 {
-    friend class HttpConnectionSpec;
-
   public:
-    explicit HttpConnection(
-        const skr::Arc<skr::ServiceProvider>& serviceProvider,
-        net::ip::tcp::socket                  socket) :
+    struct H2oHandler
+    {
+        h2o_handler_t super;
+        HttpConnection* connection;
+    };
+
+    HttpConnection(const skr::Arc<skr::ServiceProvider>& serviceProvider) :
         mServiceProvider(serviceProvider),
         mMiddlewareProvider(serviceProvider->GetService<MiddlewareProvider>()),
         mRouter(serviceProvider->GetService<Router>()),
-        mSocket(std::move(socket))
+        mLogger(serviceProvider->GetService<skr::Logger<HttpConnection>>())
     {
-        mLogger = mServiceProvider->GetService<skr::Logger<HttpConnection>>();
     }
 
-    void start() { run(); }
+    static int onRequest(h2o_handler_t* self, h2o_req_t* req)
+    {
+        auto* handler = reinterpret_cast<H2oHandler*>(self);
+        return handler->connection->handle(req);
+    }
 
   private:
-    skr::Task<> run()
+    static std::string toLowerAscii(std::string_view s)
     {
-        bool keepAlive = true;
-
-        while (keepAlive)
+        std::string out;
+        out.reserve(s.size());
+        for (char c : s)
         {
-            mBuffer = mServiceProvider->GetService<MpMcBufferPool>()->try_pop();
-
-            std::error_code ec;
-            std::size_t     headerByteCount = 0;
-
-            co_await readHeaders(headerByteCount, ec);
-            if (ec)
-            {
-                if (ec != net::error::eof &&
-                    ec != net::error::connection_reset &&
-                    ec != net::error::operation_aborted)
-                {
-                    mLogger->LogError("read error: {}", ec.message());
-                }
-                releaseBuffer();
-                break;
-            }
-
-            co_await ensureBody(headerByteCount, ec);
-            if (ec)
-            {
-                mLogger->LogError("read body error: {}", ec.message());
-                releaseBuffer();
-                break;
-            }
-
-            std::string request(mBuffer->data(), mBuffer->size());
-            bool        clientWantsClose = false;
-            keepAlive =
-                decideKeepAlive(request, headerByteCount, clientWantsClose);
-
-            bool closeAfterWrite = false;
-            co_await processRequest(request,
-                                    headerByteCount,
-                                    clientWantsClose,
-                                    closeAfterWrite);
-
-            co_await writeResponse(ec);
-            releaseBuffer();
-
-            if (ec)
-            {
-                mLogger->LogError("write error: {}", ec.message());
-                break;
-            }
-
-            if (closeAfterWrite)
-                keepAlive = false;
+            if (c >= 'A' && c <= 'Z')
+                out.push_back(static_cast<char>(c + 32));
+            else
+                out.push_back(c);
         }
-
-        std::error_code ignored;
-        mSocket.shutdown(net::socket_base::shutdown_send, ignored);
-        co_return;
+        return out;
     }
 
-    skr::Task<> readHeaders(std::size_t& headerByteCount, std::error_code& ec)
+    static HttpMethod parseMethod(std::string_view method)
     {
-        mBuffer->clear();
-        co_await baldr::AsioAwait<std::size_t>(
-            mSocket.get_executor(),
-            net::async_read_until(mSocket, net::dynamic_buffer(*mBuffer),
-                                  "\r\n\r\n", net::use_awaitable));
-
-        auto end =
-            std::string_view(mBuffer->data(), mBuffer->size()).find("\r\n\r\n");
-        headerByteCount =
-            (end == std::string_view::npos) ? mBuffer->size() : end + 4;
-        ec = {};
-        co_return;
+        if (method == "GET")
+            return HttpMethod::Get;
+        if (method == "POST")
+            return HttpMethod::Post;
+        if (method == "PUT")
+            return HttpMethod::Put;
+        if (method == "DELETE")
+            return HttpMethod::Delete;
+        if (method == "PATCH")
+            return HttpMethod::Patch;
+        if (method == "OPTIONS")
+            return HttpMethod::Options;
+        if (method == "HEAD")
+            return HttpMethod::Head;
+        if (method == "TRACE")
+            return HttpMethod::Trace;
+        if (method == "CONNECT")
+            return HttpMethod::Connect;
+        return HttpMethod::Get;
     }
 
-    skr::Task<> ensureBody(std::size_t headerByteCount, std::error_code& ec)
+    static std::string versionString(int version)
     {
-        ec                        = {};
-        std::size_t contentLength = 0;
-        bool        hasBody       = false;
-
-        std::string_view headerView(mBuffer->data(), headerByteCount);
-        for (auto pos = headerView.find("Content-Length:");
-             pos != std::string_view::npos;
-             pos = headerView.find("Content-Length:", pos + 1))
-        {
-            auto lineEnd = headerView.find("\r\n", pos);
-            if (lineEnd == std::string_view::npos)
-                lineEnd = headerView.size();
-            std::string_view line(headerView.data() + pos + 15,
-                                  lineEnd - (pos + 15));
-            auto             begin = line.find_first_not_of(" \t");
-            if (begin != std::string_view::npos)
-            {
-                line.remove_prefix(begin);
-                try
-                {
-                    contentLength = std::stoul(std::string(line));
-                    hasBody       = true;
-                }
-                catch (...)
-                {
-                }
-            }
-            break;
-        }
-
-        if (!hasBody)
-            co_return;
-
-        if (mBuffer->size() >= headerByteCount + contentLength)
-            co_return;
-
-        co_await baldr::AsioAwait<std::size_t>(
-            mSocket.get_executor(),
-            net::async_read(
-                mSocket,
-                net::dynamic_buffer(*mBuffer),
-                net::transfer_exactly(
-                    contentLength - (mBuffer->size() - headerByteCount)),
-                net::use_awaitable));
-        co_return;
+        int major = version >> 8;
+        int minor = version & 0xff;
+        return "HTTP/" + std::to_string(major) + "." + std::to_string(minor);
     }
 
-    static bool decideKeepAlive(const std::string& request,
-                                std::size_t        headerByteCount,
-                                bool&              clientWantsClose)
+    static std::string peerIp(h2o_req_t* req)
     {
-        std::string_view headerView(request.data(), headerByteCount);
-        bool http10 = headerView.find("HTTP/1.0") != std::string_view::npos;
-
-        // Default: HTTP/1.1 = keep-alive, HTTP/1.0 = close.
-        bool keepAlive = !http10;
-
-        // Inspect the Connection header. The parser lowercases header names,
-        // but we are reading the raw request here, so we case-fold.
-        auto findHeader = [&](std::string_view needle) {
-            auto pos = headerView.find(needle);
-            while (pos != std::string_view::npos)
-            {
-                if (pos == 0 || headerView[pos - 1] == '\n')
-                    return pos;
-                pos = headerView.find(needle, pos + 1);
-            }
-            return pos;
-        };
-
-        auto connPos = findHeader("Connection:");
-        if (connPos != std::string_view::npos)
+        struct sockaddr_storage sa {};
+        socklen_t               salen = 0;
+        if (req->conn->callbacks->get_peername != nullptr)
         {
-            auto lineEnd = headerView.find("\r\n", connPos);
-            if (lineEnd == std::string_view::npos)
-                lineEnd = headerView.size();
-            std::string_view value(headerView.data() + connPos + 11,
-                                   lineEnd - (connPos + 11));
-            std::string      lowered;
-            lowered.reserve(value.size());
-            for (char c : value)
-            {
-                if (c == ' ' || c == '\t')
-                    continue;
-                lowered.push_back(static_cast<char>(
-                    std::tolower(static_cast<unsigned char>(c))));
-            }
-            if (lowered.find("close") != std::string::npos)
-                keepAlive = false;
-            else if (lowered.find("keep-alive") != std::string::npos)
-                keepAlive = true;
+            salen =
+                req->conn->callbacks->get_peername(req->conn, (struct sockaddr*)&sa);
         }
-
-        clientWantsClose = !keepAlive;
-        return keepAlive;
+        if (salen == 0)
+            return "";
+        char buf[NI_MAXHOST] = { 0 };
+        if (getnameinfo((struct sockaddr*)&sa, salen, buf, sizeof(buf), nullptr,
+                        0, NI_NUMERICHOST) != 0)
+        {
+            return "";
+        }
+        return std::string(buf);
     }
 
-    skr::Task<> processRequest(const std::string& request,
-                               std::size_t        headerByteCount,
-                               bool               clientWantsClose,
-                               bool&              closeAfterWrite)
+    int handle(h2o_req_t* req)
     {
-        auto httpRequestParser =
-            mServiceProvider->GetService<HttpRequestParser>();
-
-        auto httpRequestParse =
-            httpRequestParser->parse(request, headerByteCount);
-
-        if (!httpRequestParse.success)
+        mLogger->LogDebug("onRequest method={} path={}", std::string(req->method.base, req->method.len), std::string(req->path.base, req->path.len));
+        try
         {
-            mLogger->LogError("Failed to parse HTTP request: {}",
-                              httpRequestParse.error);
-            mBuffer->assign_range("HTTP/1.1 400 Bad Request\r\n"
-                                  "Content-Length: 0\r\n"
-                                  "Connection: close\r\n"
-                                  "\r\n");
-            closeAfterWrite = true;
-            co_return;
+        HttpRequest request;
+        request.method    = parseMethod(
+            std::string_view(req->method.base, req->method.len));
+        request.version   = versionString(req->version);
+
+        std::string_view fullPath(req->path.base, req->path.len);
+        std::string_view pathOnly = fullPath;
+        if (req->query_at != SIZE_MAX && req->query_at <= fullPath.size())
+        {
+            pathOnly = fullPath.substr(0, req->query_at);
+            std::string_view query(
+                fullPath.data() + req->query_at + 1,
+                fullPath.size() - req->query_at - 1);
+            parseQuery(query, request);
+        }
+        if (auto decoded = decode_path(std::string(pathOnly));
+            decoded.has_value())
+        {
+            request.path = std::move(*decoded);
+        }
+        else
+        {
+            h2o_send_error_400(req, "Bad Request", "Invalid URL encoding", 0);
+            return 0;
         }
 
-        httpRequestParse.value.clientIp =
-            mSocket.remote_endpoint().address().to_string();
+        for (size_t i = 0; i < req->headers.size; ++i)
+        {
+            const auto& h = req->headers.entries[i];
+            std::string name = toLowerAscii(
+                std::string_view(h.name->base, h.name->len));
+            if (name == "host")
+                continue;
+            std::string value(h.value.base, h.value.len);
+            if (!request.headers.contains(name))
+                request.headers.emplace(std::move(name), std::move(value));
+        }
+        if (req->entity.base != nullptr && req->entity.len > 0)
+        {
+            request.body.assign(req->entity.base, req->entity.len);
+        }
+        request.clientIp = peerIp(req);
 
-        auto httpResponse = HttpResponse(httpRequestParse.value);
+        auto httpResponse = HttpResponse(request);
 
-        auto current = mMiddlewareProvider->begin();
-
-        const auto& routeEntry = mRouter->match(
-            httpRequestParse.value.method, httpRequestParse.value.path);
-
+        const auto& routeEntry =
+            mRouter->match(request.method, request.path);
         if (!routeEntry.has_value())
         {
-            mBuffer->assign_range("HTTP/1.1 404 Not Found\r\n"
-                                  "Content-Length: 0\r\n"
-                                  "Connection: close\r\n"
-                                  "\r\n");
-            closeAfterWrite = true;
-            co_return;
+            mLogger->LogWarning("no route for {} {}", refl::enum_to_string(request.method), request.path);
+            httpResponse.statusCode = StatusCode::NotFound;
+            httpResponse.body = "Not Found";
+            httpResponse.headers["Content-Type"] = "plain/text";
+            httpResponse.headers["Content-Length"] = std::to_string(httpResponse.body.size());
+            sendResponse(req, httpResponse, /*closeConnection=*/false);
+            return 0;
         }
 
-        httpRequestParse.value.params =
-            routeEntry.value().extractRouteParams(httpRequestParse.value.path);
+        request.params =
+            routeEntry.value().extractRouteParams(request.path);
 
-        auto           scope      = mServiceProvider->CreateServiceScope();
-        NextMiddleware nextLambda = [&]() -> skr::Task<> {
+        auto           scope = mServiceProvider->CreateServiceScope();
+        auto           scopedProvider = scope->GetServiceProvider();
+        auto           current = mMiddlewareProvider->begin();
+
+        std::function<void()> next;
+        next = [&]() {
             auto nextIt = current + 1;
-
             if (nextIt != mMiddlewareProvider->end())
             {
-                current += 1;
-
-                co_await (*nextIt)(scope->GetServiceProvider())
-                    ->Handle(httpRequestParse.value, httpResponse, nextLambda);
+                ++current;
+                (*nextIt)(scopedProvider)
+                    ->Handle(request, httpResponse, next);
             }
-
-            co_await routeEntry.value().handler(
-                httpRequestParse.value, httpResponse, scope->GetServiceProvider());
-
-            if (!httpResponse.body.empty())
-                httpResponse.headers["Content-Length"] =
-                    std::to_string(httpResponse.body.size());
-
-            co_return;
+            else
+            {
+                routeEntry.value().handler(request, httpResponse,
+                                            scopedProvider);
+            }
         };
 
-        co_await (*current)(scope->GetServiceProvider())
-            ->Handle(httpRequestParse.value, httpResponse, nextLambda);
+        (*current)(scopedProvider)
+            ->Handle(request, httpResponse, next);
 
-        // Detect whether the handler/middleware signalled Connection: close.
-        bool serverWantsClose = false;
-        auto closeIt          = httpResponse.headers.find("Connection");
-        if (closeIt != httpResponse.headers.end())
+        if (httpResponse.body.empty() &&
+            httpResponse.headers.find("Content-Length") == httpResponse.headers.end())
         {
-            std::string lowered(closeIt->second);
-            std::transform(lowered.begin(),
-                           lowered.end(),
-                           lowered.begin(),
-                           [](unsigned char c) { return std::tolower(c); });
+            httpResponse.headers["Content-Length"] = "0";
+        }
+        if (httpResponse.headers.find("Content-Length") == httpResponse.headers.end())
+        {
+            httpResponse.headers["Content-Length"] =
+                std::to_string(httpResponse.body.size());
+        }
+
+        bool closeConnection = false;
+        if (auto it = httpResponse.headers.find("Connection");
+            it != httpResponse.headers.end())
+        {
+            std::string lowered(it->second);
+            for (auto& c : lowered)
+            {
+                if (c >= 'A' && c <= 'Z')
+                    c = static_cast<char>(c + 32);
+            }
             if (lowered == "close")
-                serverWantsClose = true;
+                closeConnection = true;
         }
-        if (serverWantsClose)
-            closeAfterWrite = true;
-
-        std::ostringstream response_stream {};
-        response_stream << httpResponse.version << " "
-                        << httpResponse.statusCode << " OK\r\n";
-
-        for (const auto& [headerName, headerValue] : httpResponse.headers)
+        sendResponse(req, httpResponse, closeConnection);
+        }
+        catch (const std::exception& e)
         {
-            if (serverWantsClose && headerName == "Connection")
+            mLogger->LogError("handler exception: {}", e.what());
+            h2o_send_error_500(req, "Internal Server Error", e.what(), 0);
+        }
+        catch (...)
+        {
+            mLogger->LogError("handler unknown exception");
+            h2o_send_error_500(req, "Internal Server Error", "internal error", 0);
+        }
+        return 0;
+    }
+
+    static void parseQuery(std::string_view query, HttpRequest& request)
+    {
+        size_t pos = 0;
+        while (pos < query.size())
+        {
+            size_t amp = query.find('&', pos);
+            if (amp == std::string_view::npos)
+                amp = query.size();
+            std::string_view part = query.substr(pos, amp - pos);
+            if (!part.empty())
+            {
+                size_t eq = part.find('=');
+                if (eq == std::string_view::npos)
+                {
+                    request.query.emplace(std::string(part), "");
+                }
+                else
+                {
+                    auto k = decode_path(std::string(part.substr(0, eq)));
+                    auto v = decode_path(std::string(part.substr(eq + 1)));
+                    if (k && v)
+                        request.query.emplace(std::move(*k), std::move(*v));
+                }
+            }
+            pos = amp + 1;
+        }
+    }
+
+    static void sendResponse(h2o_req_t* req, const HttpResponse& response,
+                             bool closeConnection)
+    {
+        req->res.status = static_cast<int>(response.statusCode);
+        req->res.reason = reasonPhrase(response.statusCode);
+        req->res.content_length = response.body.size();
+
+        for (const auto& [name, value] : response.headers)
+        {
+            if (name == "Connection" || name == "Content-Length")
                 continue;
-            response_stream << headerName << ": " << headerValue << "\r\n";
+            h2o_add_header_by_str(&req->pool, &req->res.headers, name.data(),
+                                  name.size(), 0, NULL, value.data(),
+                                  value.size());
         }
 
-        for (const auto& [cookieName, cookieOptions] : httpResponse.cookies)
+        for (const auto& [cookieName, cookieOptions] : response.cookies)
         {
-            response_stream
-                << "Set-Cookie: " << cookieName << "=" << cookieOptions.value;
-
+            std::string cookie = cookieName + "=" + cookieOptions.value;
             switch (cookieOptions.sameSite)
             {
                 case SameSite::None:
-                    response_stream << "; SameSite=None";
+                    cookie += "; SameSite=None";
                     break;
                 case SameSite::Lax:
-                    response_stream << "; SameSite=Lax";
+                    cookie += "; SameSite=Lax";
                     break;
                 case SameSite::Strict:
-                    response_stream << "; SameSite=Strict";
+                    cookie += "; SameSite=Strict";
                     break;
             }
-
             if (cookieOptions.domain.has_value())
-                response_stream << "; Domain=" << cookieOptions.domain.value();
-
+                cookie += "; Domain=" + cookieOptions.domain.value();
             if (cookieOptions.secure)
-                response_stream << "; Secure";
-
+                cookie += "; Secure";
             if (cookieOptions.httpOnly)
-                response_stream << "; HttpOnly";
-
+                cookie += "; HttpOnly";
             if (cookieOptions.maxAge)
-                response_stream << "; Max-Age=" << cookieOptions.maxAge;
+                cookie += "; Max-Age=" + std::to_string(cookieOptions.maxAge);
 
-            response_stream << "\r\n";
+            h2o_add_header_by_str(&req->pool, &req->res.headers,
+                                  H2O_TOKEN_SET_COOKIE->buf.base,
+                                  H2O_TOKEN_SET_COOKIE->buf.len, 0, NULL,
+                                  cookie.data(), cookie.size());
         }
 
-        if (serverWantsClose || clientWantsClose)
-            response_stream << "Connection: close\r\n";
+        if (closeConnection)
+        {
+            h2o_add_header_by_str(&req->pool, &req->res.headers,
+                                  H2O_TOKEN_CONNECTION->buf.base,
+                                  H2O_TOKEN_CONNECTION->buf.len, 0, NULL,
+                                  H2O_STRLIT("close"));
+        }
 
-        response_stream << "\r\n" << httpResponse.body;
-
-        mBuffer->clear();
-        mBuffer->assign_range(response_stream.str());
-        co_return;
+        if (response.body.empty())
+        {
+            h2o_send_inline(req, "", 0);
+        }
+        else
+        {
+            h2o_send_inline(req, response.body.data(), response.body.size());
+        }
     }
 
-    skr::Task<> writeResponse(std::error_code& ec)
+    static const char* reasonPhrase(StatusCode status)
     {
-        co_await baldr::AsioAwait<std::size_t>(
-            mSocket.get_executor(),
-            net::async_write(mSocket, net::buffer(*mBuffer),
-                             net::use_awaitable));
-        ec = {};
-        co_return;
+        switch (status)
+        {
+            case StatusCode::OK: return "OK";
+            case StatusCode::Created: return "Created";
+            case StatusCode::Accepted: return "Accepted";
+            case StatusCode::NoContent: return "No Content";
+            case StatusCode::MovedPermanently: return "Moved Permanently";
+            case StatusCode::Found: return "Found";
+            case StatusCode::SeeOther: return "See Other";
+            case StatusCode::NotModified: return "Not Modified";
+            case StatusCode::TemporaryRedirect: return "Temporary Redirect";
+            case StatusCode::BadRequest: return "Bad Request";
+            case StatusCode::Unauthorized: return "Unauthorized";
+            case StatusCode::Forbidden: return "Forbidden";
+            case StatusCode::NotFound: return "Not Found";
+            case StatusCode::MethodNotAllowed: return "Method Not Allowed";
+            case StatusCode::Conflict: return "Conflict";
+            case StatusCode::TooManyRequests: return "Too Many Requests";
+            case StatusCode::InternalServerError: return "Internal Server Error";
+            case StatusCode::NotImplemented: return "Not Implemented";
+            case StatusCode::BadGateway: return "Bad Gateway";
+            case StatusCode::ServiceUnavailable: return "Service Unavailable";
+            default: return "OK";
+        }
     }
 
-    void releaseBuffer()
-    {
-        if (mBuffer == nullptr)
-            return;
-        if (!mServiceProvider->GetService<MpMcBufferPool>()->try_push(mBuffer))
-            delete mBuffer;
-        mBuffer = nullptr;
-    }
-
-    net::ip::tcp::socket mSocket;
-
-    std::vector<char>* mBuffer = nullptr;
-
-    skr::Arc<skr::Logger<HttpConnection>> mLogger;
     skr::Arc<skr::ServiceProvider>        mServiceProvider;
     skr::Arc<MiddlewareProvider>          mMiddlewareProvider;
     skr::Arc<Router>                      mRouter;
+    skr::Arc<skr::Logger<HttpConnection>> mLogger;
 };

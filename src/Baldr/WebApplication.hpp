@@ -44,7 +44,7 @@ class WebApplication : public skr::IAsyncApplication
             method,
             route,
             [&](HttpRequest& request, HttpResponse& response,
-                skr::Arc<skr::ServiceProvider> serviceProvider) -> skr::Task<> {
+                skr::Arc<skr::ServiceProvider> serviceProvider) {
                 using HandlerArgsTuple = typename LambdaTraits<
                     std::remove_reference_t<decltype(handler)>>::ArgsTuple;
 
@@ -101,8 +101,6 @@ class WebApplication : public skr::IAsyncApplication
                 {
                     std::apply(handler, args);
                 }
-
-                co_return;
             });
     }
 
