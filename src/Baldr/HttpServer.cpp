@@ -96,9 +96,7 @@ skr::Task<> HttpServer::RunAsync()
         uv_loop_t* loop = &ctx->loop;
         if (uv_loop_init(loop) != 0)
             throw std::runtime_error("uv_loop_init failed");
-        mLogger->LogInformation("  uv_loop_init done");
         h2o_context_init(&ctx->h2oCtx, loop, &mGlobalConfig);
-        mLogger->LogInformation("  h2o_context_init done");
 
         ctx->acceptCtx.ctx   = &ctx->h2oCtx;
         ctx->acceptCtx.hosts = mGlobalConfig.hosts;
@@ -115,21 +113,15 @@ skr::Task<> HttpServer::RunAsync()
         if (uv_tcp_bind(&listener, reinterpret_cast<sockaddr*>(&addr),
                         UV_TCP_REUSEPORT) != 0)
         {
-            mLogger->LogError("uv_tcp_bind failed");
             throw std::runtime_error("uv_tcp_bind failed");
         }
-        mLogger->LogInformation("  uv_tcp_bind done");
         if (uv_listen(reinterpret_cast<uv_stream_t*>(&listener), 4096,
                       onAccept) != 0)
         {
-            mLogger->LogError("uv_listen failed");
             throw std::runtime_error("uv_listen failed");
         }
-        mLogger->LogInformation("  uv_listen done");
-        mLogger->LogInformation("  uv_listen done");
 
         ctx->thread = std::thread([this, rawCtx = ctx.get()]() {
-            mLogger->LogInformation("Worker thread starting");
             workerLoop(*rawCtx);
         });
 
