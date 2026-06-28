@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(Baldr VERSION 0.15.1)
+project(Baldr VERSION 0.15.1 LANGUAGES C CXX)
 
 option(BALDR_BUILD_EXAMPLES OFF)
 option(BALDR_BUILD_TESTS OFF)
@@ -16,12 +16,14 @@ endif ()
 include(FetchContent)
 
 
+set(TRANTOR_BUILD_C-ARES OFF CACHE BOOL "" FORCE)
+set(TRANTOR_USE_TLS "none" CACHE STRING "" FORCE)
 FetchContent_Declare(
-  h2o
-  GIT_REPOSITORY "https://github.com/h2o/h2o.git"
-  GIT_TAG        "ed7899d1c234fd15d272a0ac6404ffbd89a3c772"
+  trantor
+  GIT_REPOSITORY "https://github.com/an-tao/trantor.git"
+  GIT_TAG        "v1.5.28"
 )
-FetchContent_MakeAvailable(h2o)
+FetchContent_MakeAvailable(trantor)
 
 FetchContent_Declare(
   skirnir
@@ -38,22 +40,13 @@ add_library(baldr ${BALDR_SOURCES})
 
 add_library(baldr::baldr ALIAS baldr)
 
-target_link_libraries(baldr libh2o skirnir::skirnir)
+target_link_libraries(baldr trantor skirnir::skirnir)
 
-if (WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
-  target_link_libraries(baldr ws2_32 wsock32 Bcrypt)
+if (WIN32)
+  target_link_libraries(baldr ws2_32)
 endif()
 
 target_include_directories(baldr PUBLIC src/)
-target_include_directories(baldr SYSTEM PUBLIC
-  ${h2o_SOURCE_DIR}/include
-  ${h2o_SOURCE_DIR}/deps/picotls/include
-  ${h2o_SOURCE_DIR}/deps/quicly/include
-  ${h2o_SOURCE_DIR}/deps/yoml
-  ${h2o_SOURCE_DIR}/deps/hiredis
-  ${h2o_SOURCE_DIR}/deps/klib
-  ${h2o_SOURCE_DIR}/deps/picohttpparser
-)
 
 if (BALDR_BUILD_EXAMPLES)
   add_subdirectory(examples/WeatherForecast)

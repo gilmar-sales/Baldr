@@ -29,8 +29,16 @@ inline std::optional<std::string> decode_path(const std::string& path)
             if (i + 2 < path.size())
             {
                 std::string hex = path.substr(i + 1, 2);
-                char        decodedChar =
-                    static_cast<char>(std::stoi(hex, nullptr, 16));
+                char        decodedChar;
+                try
+                {
+                    decodedChar =
+                        static_cast<char>(std::stoi(hex, nullptr, 16));
+                }
+                catch (const std::exception&)
+                {
+                    return std::nullopt;
+                }
 
                 if (decodedChar == '\0')
                 {
