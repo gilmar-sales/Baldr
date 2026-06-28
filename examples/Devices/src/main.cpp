@@ -6,7 +6,7 @@ int main()
 {
     auto builder = skr::ApplicationBuilder().WithExtension<BaldrExtension>();
 
-    auto app = builder.BuildAsync<WebApplication>();
+    auto app = builder.Build<WebApplication>();
 
     app->MapGet("/api/devices", []() {
         auto devices = std::vector<Device> {
@@ -55,7 +55,7 @@ int main()
         return std::move(devices);
     });
 
-    skr::AsyncApplicationHost::Run(*app);
+    app->Run();
 
     return 0;
 }

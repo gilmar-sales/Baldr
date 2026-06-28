@@ -23,7 +23,7 @@ int main()
 {
     auto builder = skr::ApplicationBuilder().WithExtension<BaldrExtension>();
 
-    auto app = builder.BuildAsync<WebApplication>();
+    auto app = builder.Build<WebApplication>();
 
     app->MapGet("/", [] {
         auto forecast = std::vector<WeatherForecast>(5);
@@ -48,7 +48,7 @@ int main()
         return forecast;
     });
 
-    skr::AsyncApplicationHost::Run(*app);
+    app->Run();
 
     return 0;
 }

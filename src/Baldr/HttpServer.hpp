@@ -30,7 +30,7 @@ class HttpServer
     HttpServer(const HttpServer&)            = delete;
     HttpServer& operator=(const HttpServer&) = delete;
 
-    skr::Task<> RunAsync();
+    void Run();
 
     void Stop();
 

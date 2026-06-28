@@ -6,8 +6,6 @@
 #include <trantor/net/TcpConnection.h>
 #include <trantor/utils/MsgBuffer.h>
 
-#include "Skirnir/Async/Task.hpp"
-
 namespace
 {
     int resolveThreadCount(int configured)
@@ -34,10 +32,10 @@ HttpServer::~HttpServer()
     Stop();
 }
 
-skr::Task<> HttpServer::RunAsync()
+void HttpServer::Run()
 {
     if (mRunning.exchange(true))
-        co_return;
+        return;
 
     mAcceptorLoop = std::make_unique<trantor::EventLoop>();
     mIoLoopPool   = std::make_shared<trantor::EventLoopThreadPool>(
@@ -90,7 +88,6 @@ skr::Task<> HttpServer::RunAsync()
     mIoLoopPool.reset();
     mAcceptorLoop.reset();
     mRunning.store(false);
-    co_return;
 }
 
 void HttpServer::Stop()

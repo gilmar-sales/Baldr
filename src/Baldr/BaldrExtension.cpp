@@ -15,6 +15,7 @@ void BaldrExtension::ConfigureServices(skr::ServiceCollection& services)
     services.AddSingleton<HttpServer>();
 
     services.AddTransient<skr::Logger<HttpConnection>>();
+    services.AddTransient<skr::Logger<WebApplication>>();
     services.AddTransient<HttpRequestParser>();
     services.AddSingleton(
         skr::MakeArc<RateLimiter>(10, std::chrono::seconds(10)));

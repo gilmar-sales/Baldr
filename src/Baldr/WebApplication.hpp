@@ -6,11 +6,11 @@
 #include "Router.hpp"
 #include "Tuple.hpp"
 
-class WebApplication : public skr::IAsyncApplication
+class WebApplication : public skr::IApplication
 {
   public:
     WebApplication(const skr::Arc<skr::ServiceProvider>& rootServiceProvider) :
-        IAsyncApplication(rootServiceProvider),
+        IApplication(rootServiceProvider),
         mRouter(rootServiceProvider->GetService<Router>()),
         mMiddlewareProvider(
             rootServiceProvider->GetService<MiddlewareProvider>())
@@ -35,7 +35,7 @@ class WebApplication : public skr::IAsyncApplication
         return *this;
     }
 
-    skr::Task<> RunAsync() override;
+    void Run() override;
 
   private:
     void MapRoute(HttpMethod method, const std::string& route, auto&& handler)

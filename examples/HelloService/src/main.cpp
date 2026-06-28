@@ -8,14 +8,14 @@ int main()
 
     builder.GetServiceCollection()->AddTransient<HelloService>();
 
-    auto app = builder.BuildAsync<WebApplication>();
+    auto app = builder.Build<WebApplication>();
 
     app->MapGet("/hello/:name",
                 [](skr::Arc<HelloService> helloService, HttpRequest& request) {
                     return helloService->Hello(request.params["name"]);
                 });
 
-    skr::AsyncApplicationHost::Run(*app);
+    app->Run();
 
     return 0;
 }

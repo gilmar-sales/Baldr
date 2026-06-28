@@ -9,12 +9,12 @@ int main()
 {
     auto builder = skr::ApplicationBuilder().WithExtension<BaldrExtension>();
 
-    auto app = builder.BuildAsync<WebApplication>();
+    auto app = builder.Build<WebApplication>();
 
     app->MapGet("/json",
                 [&] { return Payload { .message = "Hello, World!" }; });
 
-    skr::AsyncApplicationHost::Run(*app);
+    app->Run();
 
     return 0;
 }
