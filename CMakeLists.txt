@@ -42,10 +42,6 @@ add_library(baldr::baldr ALIAS baldr)
 
 target_link_libraries(baldr trantor skirnir::skirnir)
 
-if (WIN32)
-  target_link_libraries(baldr ws2_32)
-endif()
-
 target_include_directories(baldr PUBLIC src/)
 
 if (BALDR_BUILD_EXAMPLES)

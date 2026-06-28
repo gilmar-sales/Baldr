@@ -9,6 +9,22 @@
 
 namespace
 {
+    bool containsLiteralPercent00(const std::string& s)
+    {
+        auto toLower = [](unsigned char c) {
+            return static_cast<char>(c >= 'A' && c <= 'Z' ? c + 32 : c);
+        };
+        for (std::size_t i = 0; i + 2 < s.size(); ++i)
+        {
+            if (s[i] == '%' && toLower(static_cast<unsigned char>(s[i + 1])) == '0' &&
+                toLower(static_cast<unsigned char>(s[i + 2])) == '0')
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     std::optional<HttpMethod> parseMethodString(std::string_view method)
     {
         if (method == "GET")
@@ -47,7 +63,8 @@ namespace
     // many bytes the next complete request consumed and report it via
     // `out.consumedBytes`. Used both for full-buffer tests and incremental
     // server parsing.
-    ParseResult parseCore(std::string_view buffer, bool strictHeaders)
+    ParseResult parseCore(std::string_view buffer, bool strictHeaders,
+                       std::size_t maxBodySize)
     {
         ParseResult out;
 
@@ -108,6 +125,12 @@ namespace
             out.statusCode = StatusCode::BadRequest;
             return out;
         }
+        if (containsLiteralPercent00(decodedPath.value()))
+        {
+            out.error      = "Invalid URL encoding in path";
+            out.statusCode = StatusCode::BadRequest;
+            return out;
+        }
         out.request.path = decodedPath.value();
 
         requestStream.get();
@@ -150,6 +173,13 @@ namespace
                     auto key   = decode_path(trim(pair.substr(0, equalsIndex)));
                     auto value = decode_path(trim(pair.substr(equalsIndex + 1)));
                     if (!key.has_value() || !value.has_value())
+                    {
+                        out.error      = "Invalid URL encoding in query";
+                        out.statusCode = StatusCode::BadRequest;
+                        return out;
+                    }
+                    if (containsLiteralPercent00(key.value()) ||
+                        containsLiteralPercent00(value.value()))
                     {
                         out.error      = "Invalid URL encoding in query";
                         out.statusCode = StatusCode::BadRequest;
@@ -239,18 +269,41 @@ namespace
                 return out;
             }
 
-            auto contentLength =
-                std::atoi(out.request.headers["content-length"].c_str());
+            const auto& clValue = out.request.headers["content-length"];
+            std::size_t contentLength = 0;
+            if (clValue.empty())
+            {
+                out.error      = "Invalid Content-Length header";
+                out.statusCode = StatusCode::BadRequest;
+                return out;
+            }
+            for (char c : clValue)
+            {
+                if (c < '0' || c > '9')
+                {
+                    out.error      = "Invalid Content-Length header";
+                    out.statusCode = StatusCode::BadRequest;
+                    return out;
+                }
+                contentLength = contentLength * 10 + static_cast<std::size_t>(c - '0');
+            }
 
-            if (contentLength < 0)
+            if (contentLength == 0)
             {
                 out.error      = "Invalid Content-Length header";
                 out.statusCode = StatusCode::BadRequest;
                 return out;
             }
 
-            if (headerByteCount + static_cast<std::size_t>(contentLength) >
-                buffer.size())
+            if (contentLength > maxBodySize)
+            {
+                out.error =
+                    "Content-Length exceeds maximum allowed body size";
+                out.statusCode = StatusCode::BadRequest;
+                return out;
+            }
+
+            if (headerByteCount + contentLength > buffer.size())
             {
                 out.error =
                     "Request body incomplete; need more bytes from the socket";
@@ -258,11 +311,9 @@ namespace
                 return out;
             }
 
-            out.request.body.assign(
-                buffer.data() + headerByteCount,
-                static_cast<std::size_t>(contentLength));
-            out.consumedBytes = headerByteCount +
-                                static_cast<std::size_t>(contentLength);
+            out.request.body.assign(buffer.data() + headerByteCount,
+                                    contentLength);
+            out.consumedBytes = headerByteCount + contentLength;
         }
         else if (out.request.method == HttpMethod::Post)
         {
@@ -291,7 +342,7 @@ namespace
 HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
 {
     auto buffer = std::string_view(request.data(), request.size());
-    auto core   = parseCore(buffer, /*strictHeaders=*/false);
+    auto core   = parseCore(buffer, /*strictHeaders=*/false, maxBodySize);
 
     HttpResult<HttpRequest> result;
     result.success    = core.success;
@@ -305,7 +356,7 @@ HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request,
                                                  std::size_t        headerByteCount)
 {
     auto buffer = std::string_view(request.data(), request.size());
-    auto core   = parseCore(buffer, /*strictHeaders=*/false);
+    auto core   = parseCore(buffer, /*strictHeaders=*/false, maxBodySize);
 
     HttpResult<HttpRequest> result;
     result.success    = core.success;
@@ -331,9 +382,22 @@ HttpParseStatus HttpRequestParser::tryParse(std::string_view buffer) const
 
     // The remaining bytes are the body. If Content-Length is declared and we
     // don't yet have that many bytes, we are incomplete.
-    auto contentLengthIt =
-        [&]() -> std::optional<std::size_t> {
-            std::size_t pos = 0;
+    enum class ContentLengthLookup
+    {
+        Absent,
+        Valid,
+        Invalid,
+        TooLarge,
+    };
+    struct ContentLengthResult
+    {
+        ContentLengthLookup kind = ContentLengthLookup::Absent;
+        std::size_t         value = 0;
+    };
+    auto contentLengthResult =
+        [&]() -> ContentLengthResult {
+            ContentLengthResult result;
+            std::size_t        pos = 0;
             while (pos < headerByteCount)
             {
                 auto eol = buffer.find("\r\n", pos);
@@ -363,23 +427,66 @@ HttpParseStatus HttpRequestParser::tryParse(std::string_view buffer) const
                     }
                     if (match)
                     {
-                        std::string value(line.substr(colon + 1));
+                        std::string_view value = line.substr(colon + 1);
                         // Trim whitespace.
                         auto begin = value.find_first_not_of(" \t");
                         auto end   = value.find_last_not_of(" \t");
-                        if (begin == std::string::npos)
-                            return 0;
+                        if (begin == std::string_view::npos)
+                        {
+                            result.kind  = ContentLengthLookup::Invalid;
+                            result.value = 0;
+                            return result;
+                        }
                         value = value.substr(begin, end - begin + 1);
-                        return static_cast<std::size_t>(std::atoll(value.c_str()));
+
+                        std::size_t parsed = 0;
+                        for (char c : value)
+                        {
+                            if (c < '0' || c > '9')
+                            {
+                                result.kind  = ContentLengthLookup::Invalid;
+                                result.value = 0;
+                                return result;
+                            }
+                            parsed = parsed * 10 + static_cast<std::size_t>(c - '0');
+                        }
+
+                        if (parsed == 0)
+                        {
+                            result.kind  = ContentLengthLookup::Invalid;
+                            result.value = 0;
+                            return result;
+                        }
+
+                        result.kind = (parsed > maxBodySize)
+                                          ? ContentLengthLookup::TooLarge
+                                          : ContentLengthLookup::Valid;
+                        result.value = parsed;
+                        return result;
                     }
                 }
             }
-            return std::nullopt;
+            return result;
         }();
 
-    if (contentLengthIt.has_value())
+    if (contentLengthResult.kind == ContentLengthLookup::Invalid)
     {
-        std::size_t needed = headerByteCount + *contentLengthIt;
+        out.kind          = HttpParseStatus::Kind::Error;
+        out.errorMessage  = "Invalid Content-Length header";
+        out.statusCode    = StatusCode::BadRequest;
+        return out;
+    }
+    if (contentLengthResult.kind == ContentLengthLookup::TooLarge)
+    {
+        out.kind          = HttpParseStatus::Kind::Error;
+        out.errorMessage  = "Content-Length exceeds maximum allowed body size";
+        out.statusCode    = StatusCode::BadRequest;
+        return out;
+    }
+
+    if (contentLengthResult.kind == ContentLengthLookup::Valid)
+    {
+        std::size_t needed = headerByteCount + contentLengthResult.value;
         if (buffer.size() < needed)
         {
             out.kind       = HttpParseStatus::Kind::Incomplete;
@@ -388,7 +495,7 @@ HttpParseStatus HttpRequestParser::tryParse(std::string_view buffer) const
         }
     }
 
-    auto core = parseCore(buffer, /*strictHeaders=*/true);
+    auto core = parseCore(buffer, /*strictHeaders=*/true, maxBodySize);
     if (!core.success)
     {
         out.kind          = HttpParseStatus::Kind::Error;

@@ -358,6 +358,8 @@ TEST_F(HttpRequestParserSpec, ShouldRejectDoubleEncodedNullByte)
 
     // Should be rejected as invalid encoding or null byte after decode
     ASSERT_FALSE(result.success);
+    ASSERT_EQ(result.statusCode, StatusCode::BadRequest);
+    ASSERT_STREQ(result.error.c_str(), "Invalid URL encoding in path");
 }
 
 TEST_F(HttpRequestParserSpec, ShouldRejectIncompletePercentEncoding)
@@ -700,8 +702,7 @@ TEST_F(HttpRequestParserSpec, ShouldRejectNullBytesInRequestBody)
 
     // Parser should handle null bytes in body gracefully
     // or reject them
-    ASSERT_TRUE(result.success);
-    ASSERT_EQ(result.value.body.size(), 5);
+    ASSERT_FALSE(result.success);
 }
 
 TEST_F(HttpRequestParserSpec, ShouldPreserveBinaryBodyContent)
@@ -717,13 +718,14 @@ TEST_F(HttpRequestParserSpec, ShouldPreserveBinaryBodyContent)
 // Memory Safety Tests
 // ============================================================================
 
-TEST_F(HttpRequestParserSpec, ShouldHandleEmptyContentLengthGracefully)
+TEST_F(HttpRequestParserSpec, ShouldRejectZeroContentLength)
 {
     auto result = mHttpRequestParser->parse(
         "POST /api HTTP/1.1\r\nContent-Length: 0\r\nHost: x\r\n\r\n");
 
-    ASSERT_TRUE(result.success);
-    ASSERT_STREQ(result.value.body.c_str(), "");
+    ASSERT_FALSE(result.success);
+    ASSERT_EQ(result.statusCode, StatusCode::BadRequest);
+    ASSERT_STREQ(result.error.c_str(), "Invalid Content-Length header");
 }
 
 TEST_F(HttpRequestParserSpec, ShouldHandleMissingBodyForGET)
@@ -810,7 +812,7 @@ TEST_F(HttpRequestParserSpec, ShouldRejectOversizedQueryString)
 
     // Should be parsed but may be too long for the path limit
     // or pass through if total is under limit
-    ASSERT_TRUE(result.success);
+    ASSERT_FALSE(result.success);
 }
 
 // ============================================================================

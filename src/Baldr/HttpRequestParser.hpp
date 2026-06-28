@@ -26,6 +26,11 @@ struct HttpParseStatus
 class HttpRequestParser
 {
   public:
+    HttpRequestParser() = default;
+
+    // Maximum allowed Content-Length / body size in bytes.
+    std::size_t maxBodySize = 100 * 1024 * 1024;
+
     // Parse a full request (headers + body) contained entirely in `request`.
     HttpResult<HttpRequest> parse(const std::string& request);
 
