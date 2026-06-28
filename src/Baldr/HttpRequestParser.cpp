@@ -339,34 +339,6 @@ namespace
     }
 }  // namespace
 
-HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request)
-{
-    auto buffer = std::string_view(request.data(), request.size());
-    auto core   = parseCore(buffer, /*strictHeaders=*/false, maxBodySize);
-
-    HttpResult<HttpRequest> result;
-    result.success    = core.success;
-    result.value      = std::move(core.request);
-    result.error      = std::move(core.error);
-    result.statusCode = core.statusCode;
-    return result;
-}
-
-HttpResult<HttpRequest> HttpRequestParser::parse(const std::string& request,
-                                                 std::size_t        headerByteCount)
-{
-    auto buffer = std::string_view(request.data(), request.size());
-    auto core   = parseCore(buffer, /*strictHeaders=*/false, maxBodySize);
-
-    HttpResult<HttpRequest> result;
-    result.success    = core.success;
-    result.value      = std::move(core.request);
-    result.error      = std::move(core.error);
-    result.statusCode = core.statusCode;
-    (void)headerByteCount;
-    return result;
-}
-
 HttpParseStatus HttpRequestParser::tryParse(std::string_view buffer) const
 {
     HttpParseStatus out;

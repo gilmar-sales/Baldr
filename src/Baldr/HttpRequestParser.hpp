@@ -31,18 +31,6 @@ class HttpRequestParser
     // Maximum allowed Content-Length / body size in bytes.
     std::size_t maxBodySize = 100 * 1024 * 1024;
 
-    // Parse a full request (headers + body) contained entirely in `request`.
-    HttpResult<HttpRequest> parse(const std::string& request);
-
-    // Parse a request where the first `headerByteCount` bytes of `request`
-    // are the header block (terminated by "\r\n\r\n") and the body follows
-    // at offset `headerByteCount`. `request.size()` must be
-    // `headerByteCount + bodyLen`; the parser verifies this and returns
-    // a "request body incomplete" error otherwise, so the caller can read
-    // more bytes and retry.
-    HttpResult<HttpRequest> parse(const std::string& request,
-                                  std::size_t        headerByteCount);
-
     // Incremental parse: try to extract a complete HTTP/1.1 request from
     // `buffer`. Returns Incomplete if the buffer does not yet contain a full
     // request (need more bytes), Complete with the parsed request and the
