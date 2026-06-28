@@ -6,6 +6,7 @@
 #include <string_view>
 #include <utility>
 
+#include <Skirnir/Common.hpp>
 #include <Skirnir/Common/Namespace.hpp>
 #include <trantor/net/TcpConnection.h>
 #include <trantor/utils/MsgBuffer.h>
@@ -28,6 +29,7 @@ class HttpConnection
         mRouter(serviceProvider->GetService<Router>()),
         mMiddlewareProvider(serviceProvider->GetService<MiddlewareProvider>()),
         mLogger(serviceProvider->GetService<skr::Logger<HttpConnection>>()),
+        mParser(serviceProvider->GetService<HttpRequestParser>()),
         mConnection(conn),
         mClientIp(conn->peerAddr().toIp())
     {
