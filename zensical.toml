@@ -1,0 +1,85 @@
+[project]
+site_name = "Baldr"
+site_description = "A C++ microframework for the web with native support for dependency injection and logging."
+site_author = "gilmar-sales"
+site_url = "https://gilmar-sales.github.io/Baldr/"
+repo_url = "https://github.com/gilmar-sales/Baldr"
+repo_name = "gilmar-sales/Baldr"
+edit_uri = "edit/main/docs/"
+copyright = "Copyright &copy; gilmar-sales"
+docs_dir = "docs"
+site_dir = "site"
+
+[project.theme]
+variant = "modern"
+language = "en"
+features = [
+    "navigation.tabs",
+    "navigation.sections",
+    "navigation.top",
+    "navigation.path",
+    "toc.follow",
+    "content.action.edit",
+    "content.action.view",
+    "content.code.copy"
+]
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+edit = "material/pencil"
+view = "material/eye"
+
+[project.markdown_extensions]
+attr_list = {}
+admonition = {}
+md_in_html = {}
+footnotes = {}
+fenced_code = {}
+tables = {}
+toc = { permalink = true }
+codehilite = { guess_lang = false }
+
+[project.markdown_extensions.pymdownx.emoji]
+emoji_index = "material.extensions.emoji.twemoji"
+emoji_generator = "material.extensions.emoji.to_svg"
+
+[[project.nav]]
+Home = "index.md"
+
+[[project.nav]]
+"Get started" = "get-started.md"
+
+[[project.nav]]
+Usage = [
+    "usage/overview.md",
+    "usage/routing.md",
+    "usage/dependency-injection.md",
+    "usage/middleware.md",
+]
+
+[[project.nav]]
+Setup = [
+    "setup/build.md",
+    "setup/project-structure.md",
+]
+
+[[project.nav]]
+Extensions = [
+    "extensions/overview.md",
+    "extensions/logging.md",
+    "extensions/rate-limit.md",
+]
+
+[[project.nav]]
+Authoring = [
+    "authoring/examples.md",
+]
+
+[[project.nav]]
+Community = [
+    "community/contributing.md",
+    "community/license.md",
+] 
+
+[project.extra]
+generator = true

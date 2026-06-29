@@ -16,3 +16,5 @@ build
 .cache
 out
 .vs
+site
+.venv
