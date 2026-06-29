@@ -40,8 +40,10 @@ jobs:
       - name: Build site
         run: zensical build --clean
 
-      - name: Configure Pages
+      - name: Enable GitHub Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -58,3 +60,8 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          enablement: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifact_name: github-pages
+          publication_branch: gh-pages
