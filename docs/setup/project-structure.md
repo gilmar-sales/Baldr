@@ -28,7 +28,7 @@ This is a generalization of the [`examples/HelloService`](https://github.com/gil
 
 Always include Baldr through the umbrella header:
 
-```cpp
+```cpp  title="src/main.cpp"
 #include <Baldr/Baldr.hpp>
 ```
 

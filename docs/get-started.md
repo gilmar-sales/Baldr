@@ -52,7 +52,7 @@ set_target_properties(my_app PROPERTIES
 
 Create a `src/main.cpp` with the following content:
 
-```cpp
+```cpp title="src/main.cpp" linenums="1"
 #include <Baldr/Baldr.hpp>
 
 struct Payload

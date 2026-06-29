@@ -6,7 +6,7 @@ Baldr is built on [Skirnir](https://github.com/gilmar-sales/Skirnir)'s dependenc
 
 Use the builder's service collection to register your own services:
 
-```cpp
+```cpp title="src/main.cpp" linenums="1"
 #include <Baldr/Baldr.hpp>
 #include "HelloService.hpp"
 

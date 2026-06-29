@@ -34,10 +34,12 @@ attr_list = {}
 admonition = {}
 md_in_html = {}
 footnotes = {}
-fenced_code = {}
 tables = {}
 toc = { permalink = true }
 codehilite = { guess_lang = false }
+
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [] 
 
 [project.markdown_extensions.pymdownx.emoji]
 emoji_index = "material.extensions.emoji.twemoji"

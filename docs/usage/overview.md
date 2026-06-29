@@ -10,7 +10,7 @@ A Baldr application is built around three concepts:
 
 The smallest possible Baldr application looks like this:
 
-```cpp
+```cpp title="src/main.cpp" linenums="1"
 #include <Baldr/Baldr.hpp>
 
 struct Payload
