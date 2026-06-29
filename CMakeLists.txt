@@ -28,7 +28,7 @@ FetchContent_MakeAvailable(trantor)
 FetchContent_Declare(
   skirnir
   GIT_REPOSITORY "https://github.com/gilmar-sales/Skirnir.git"
-  GIT_TAG        "refactor/cpp-reflection"
+  GIT_TAG        "v0.21.0"
 )
 FetchContent_MakeAvailable(skirnir)
 
