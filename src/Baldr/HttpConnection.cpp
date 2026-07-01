@@ -5,6 +5,40 @@
 
 #include <trantor/net/TcpConnection.h>
 
+void HttpConnection::runMiddlewareChain(
+    MiddlewareFactoryList&                  factories,
+    const skr::Arc<skr::ServiceProvider>&   scopedProvider,
+    HttpRequest&                            request,
+    HttpResponse&                           response,
+    const RouteHandler&                     finalHandler)
+{
+    const size_t factoryCount = factories.size();
+    size_t       index       = 0;
+    bool         nextCalled  = false;
+
+    std::function<void()> next = [&]() { nextCalled = true; };
+
+    while (true)
+    {
+        nextCalled = false;
+        if (index < factoryCount)
+        {
+            auto factory = factories.begin() + index;
+            ++index;
+            (*factory)(scopedProvider)->Handle(request, response, next);
+        }
+        else
+        {
+            finalHandler(request, response, scopedProvider);
+            return;
+        }
+        if (!nextCalled)
+        {
+            return;
+        }
+    }
+}
+
 void HttpConnection::onMessage(trantor::MsgBuffer* buffer)
 {
     mAccumulator.append(buffer->peek(), buffer->readableBytes());
@@ -27,9 +61,16 @@ void HttpConnection::onMessage(trantor::MsgBuffer* buffer)
     HttpRequest request = std::move(status.request);
     request.clientIp    = mClientIp;
     if (mAccumulator.size() >= status.consumedBytes)
-        mAccumulator.erase(0, status.consumedBytes);
+    {
+        if (mAccumulator.size() < 4096)
+            mAccumulator.erase(0, status.consumedBytes);
+        else
+            mAccumulator = mAccumulator.substr(status.consumedBytes);
+    }
     else
+    {
         mAccumulator.clear();
+    }
 
     handle(std::move(request));
 }
@@ -63,25 +104,10 @@ void HttpConnection::handle(HttpRequest request)
 
         auto scope          = mServiceProvider->CreateServiceScope();
         auto scopedProvider = scope->GetServiceProvider();
-        auto current        = mMiddlewareProvider->begin();
 
-        std::function<void()> next;
-        next = [&]() {
-            auto nextIt = current + 1;
-            if (nextIt != mMiddlewareProvider->end())
-            {
-                ++current;
-                (*nextIt)(scopedProvider)
-                    ->Handle(request, httpResponse, next);
-            }
-            else
-            {
-                routeEntry.value().handler(request, httpResponse,
-                                            scopedProvider);
-            }
-        };
-
-        (*current)(scopedProvider)->Handle(request, httpResponse, next);
+        auto factories = mMiddlewareProvider->Factories();
+        runMiddlewareChain(factories, scopedProvider, request, httpResponse,
+                           routeEntry.value().handler);
 
         if (httpResponse.body.empty() &&
             httpResponse.headers.find("Content-Length") ==
@@ -144,7 +170,14 @@ void HttpConnection::sendResponse(const HttpResponse& response,
         return;
 
     std::string out;
-    out.reserve(128 + response.body.size());
+    size_t      headersBytes = 0;
+    for (const auto& [name, value] : response.headers)
+    {
+        if (name == "Connection")
+            continue;
+        headersBytes += name.size() + 2 + value.size() + 2;
+    }
+    out.reserve(response.body.size() + headersBytes + 128);
     out.append("HTTP/1.1 ");
     out.append(std::to_string(static_cast<int>(response.statusCode)));
     out.push_back(' ');
@@ -160,9 +193,9 @@ void HttpConnection::sendResponse(const HttpResponse& response,
         {
             contentLengthEmitted = true;
         }
-        out.append(name);
+        out.append(name.data(), name.size());
         out.append(": ");
-        out.append(value);
+        out.append(value.data(), value.size());
         out.append("\r\n");
     }
 
@@ -182,7 +215,7 @@ void HttpConnection::sendResponse(const HttpResponse& response,
         if (cookieOptions.maxAge)
             cookie += "; Max-Age=" + std::to_string(cookieOptions.maxAge);
         out.append("Set-Cookie: ");
-        out.append(cookie);
+        out.append(cookie.data(), cookie.size());
         out.append("\r\n");
     }
 
@@ -197,7 +230,7 @@ void HttpConnection::sendResponse(const HttpResponse& response,
     }
 
     out.append("\r\n");
-    out.append(response.body);
+    out.append(response.body.data(), response.body.size());
 
     mConnection->send(std::move(out));
 

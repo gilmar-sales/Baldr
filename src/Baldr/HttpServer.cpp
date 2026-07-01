@@ -6,21 +6,17 @@
 #include <trantor/net/TcpConnection.h>
 #include <trantor/utils/MsgBuffer.h>
 
-namespace
+int resolveThreadCount(int configured)
 {
-    int resolveThreadCount(int configured)
-    {
-        return configured > 0
-                   ? configured
-                   : static_cast<int>(std::thread::hardware_concurrency());
-    }
+    return configured > 0
+               ? configured
+               : static_cast<int>(std::thread::hardware_concurrency());
 }
 
 HttpServer::HttpServer(const skr::Arc<HttpServerOptions>&    httpServerOptions,
                        const skr::Arc<skr::ServiceProvider>& serviceProvider,
                        const skr::Arc<skr::Logger<HttpServer>>& logger) :
-    mServiceProvider(serviceProvider),
-    mLogger(logger),
+    mServiceProvider(serviceProvider), mLogger(logger),
     mHttpServerOptions(httpServerOptions),
     mResolvedThreadCount(
         std::max(1, resolveThreadCount(mHttpServerOptions->threadCount)))
@@ -57,8 +53,8 @@ void HttpServer::Run()
         [serviceProvider](const trantor::TcpConnectionPtr& conn) {
             if (conn->connected())
             {
-                auto handler = std::make_shared<HttpConnection>(
-                    serviceProvider, conn);
+                auto handler =
+                    std::make_shared<HttpConnection>(serviceProvider, conn);
                 conn->setContext(handler);
             }
             else

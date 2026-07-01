@@ -18,13 +18,20 @@ struct RouteEntry
 {
     std::regex               extractParamsRegex;
     std::vector<std::string> paramsNames = {};
+    bool                     hasParams   = true;
     RouteHandler             handler;
 
     std::unordered_map<std::string, std::string> extractRouteParams(
         const std::string& path) const
     {
-        std::smatch                                  match;
         std::unordered_map<std::string, std::string> params;
+
+        if (!hasParams)
+        {
+            return params;
+        }
+
+        std::smatch match;
 
         if (std::regex_match(path, match, extractParamsRegex))
         {
@@ -34,7 +41,7 @@ struct RouteEntry
             }
         }
 
-        return std::move(params);
+        return params;
     }
 };
 

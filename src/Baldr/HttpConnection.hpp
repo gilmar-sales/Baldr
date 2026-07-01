@@ -37,6 +37,12 @@ class HttpConnection
 
     void onMessage(trantor::MsgBuffer* buffer);
 
+    static void runMiddlewareChain(MiddlewareFactoryList&       factories,
+                                   const skr::Arc<skr::ServiceProvider>& scopedProvider,
+                                   HttpRequest&                  request,
+                                   HttpResponse&                 response,
+                                   const RouteHandler&           finalHandler);
+
   private:
     void handle(HttpRequest request);
 

@@ -40,8 +40,8 @@ class HttpServer
     skr::Arc<HttpServerOptions>       mHttpServerOptions;
     int                               mResolvedThreadCount;
 
-    std::unique_ptr<trantor::EventLoop>         mAcceptorLoop;
+    std::unique_ptr<trantor::EventLoop>           mAcceptorLoop;
     std::shared_ptr<trantor::EventLoopThreadPool> mIoLoopPool;
-    std::unique_ptr<trantor::TcpServer>          mServer;
-    std::atomic<bool>                            mRunning { false };
+    std::unique_ptr<trantor::TcpServer>           mServer;
+    std::atomic<bool>                             mRunning { false };
 };

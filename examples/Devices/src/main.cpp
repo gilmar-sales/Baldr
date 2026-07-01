@@ -52,7 +52,7 @@ int main()
             },
         };
 
-        return std::move(devices);
+        return devices;
     });
 
     app->Run();

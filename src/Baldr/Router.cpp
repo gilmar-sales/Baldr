@@ -7,7 +7,11 @@ void Router::insert(HttpMethod method, std::string path,
                     const RouteHandler& routeHandler) const
 {
     TrieNode*  current = mMethodsMap.at(method);
-    RouteEntry routeEntry { .paramsNames = {}, .handler = routeHandler };
+    RouteEntry routeEntry {
+        .paramsNames = {},
+        .hasParams   = !path.empty() && path.find(':') != std::string::npos,
+        .handler     = routeHandler
+    };
 
     auto pathSegments =
         path | std::views::split('/') |

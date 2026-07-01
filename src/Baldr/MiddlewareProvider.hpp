@@ -25,6 +25,8 @@ class MiddlewareProvider
 
     size_t Size() { return mMiddlewareFactories.size(); }
 
+    MiddlewareFactoryList& Factories() { return mMiddlewareFactories; }
+
   private:
     MiddlewareFactoryList mMiddlewareFactories;
 };
