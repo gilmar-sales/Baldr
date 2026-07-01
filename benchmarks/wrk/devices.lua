@@ -10,14 +10,15 @@ response = function(status, headers, body)
     end
 end
 
-done = function(summary)
+done = function(summary, latency, requests)
     io.write(string.format(
-        "latency avg=%.2fms p99=%.2fms req/s=%.1f errors=connect:%d read:%d write:%d timeout:%d\n",
-        summary.latency.mean / 1000,
-        summary.latency["99%"] / 1000,
-        summary.requests / summary.duration * 1e9,
+        "latency avg=%.2fms p99=%.2fms req/s=%.2f errors=connect:%d read:%d write:%d status:%d timeout:%d\n",
+        latency.mean / 1000,
+        latency:percentile(99) / 1000,
+        summary.requests / (summary.duration / 1e6),
         summary.errors.connect,
         summary.errors.read,
         summary.errors.write,
+        summary.errors.status,
         summary.errors.timeout))
 end
