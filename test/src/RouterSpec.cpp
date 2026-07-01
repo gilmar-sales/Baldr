@@ -165,3 +165,92 @@ TEST_F(RouterSpec, RouterShouldHandleDeeplyNestedPaths)
 
     ASSERT_TRUE(result.has_value());
 }
+
+// ============================================================================
+// Multi-segment literal paths (request/response behaviour parity)
+// ============================================================================
+//
+// These tests pin down the matching behaviour for the literal, multi-segment
+// routes used by the example applications (e.g. Devices exposes
+// GET /api/devices). They guarantee that registering a literal path returns
+// a route entry and that a request with the same path resolves to it.
+
+TEST_F(RouterSpec, RouterShouldMatchLiteralMultiSegmentPath)
+{
+    mRouter->insert(
+        HttpMethod::Get, "/api/devices",
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+
+    auto matched = mRouter->match(HttpMethod::Get, "/api/devices");
+
+    ASSERT_TRUE(matched.has_value());
+    EXPECT_FALSE(matched->hasParams);
+    EXPECT_TRUE(matched->paramsNames.empty());
+}
+
+TEST_F(RouterSpec, RouterMatchesLiteralMultiSegmentPathWithTrailingSlash)
+{
+    // The router inserts each segment with an optional trailing slash, so
+    // registering "/api/devices" also matches "/api/devices/". This is
+    // intentional behaviour shared by the trie traversal and the param
+    // extraction regex (Router::insert builds `^/api/?devices/?$`).
+    // Pin it so that any future change to that normalization is a
+    // deliberate, reviewed decision rather than a silent regression.
+    mRouter->insert(
+        HttpMethod::Get, "/api/devices",
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+
+    EXPECT_TRUE(mRouter->match(HttpMethod::Get, "/api/devices").has_value());
+    EXPECT_TRUE(mRouter->match(HttpMethod::Get, "/api/devices/").has_value());
+}
+
+TEST_F(RouterSpec, RouterShouldNotMatchSuperstringOfLiteralPath)
+{
+    mRouter->insert(
+        HttpMethod::Get, "/api/devices",
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+
+    EXPECT_FALSE(
+        mRouter->match(HttpMethod::Get, "/api/devicesExtra").has_value());
+    EXPECT_FALSE(
+        mRouter->match(HttpMethod::Get, "/api/devices/v2").has_value());
+}
+
+TEST_F(RouterSpec,
+       RouterShouldPreferExactMatchOverParametricMatchForSamePath)
+{
+    // Insert parametric first; then a literal that is a prefix of a
+    // parametric match candidate. Both must remain individually
+    // addressable.
+    mRouter->insert(
+        HttpMethod::Get, "/api/devices/:id",
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+    mRouter->insert(
+        HttpMethod::Get, "/api/devices",
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+
+    auto literal = mRouter->match(HttpMethod::Get, "/api/devices");
+    auto byId    = mRouter->match(HttpMethod::Get, "/api/devices/42");
+
+    ASSERT_TRUE(literal.has_value());
+    ASSERT_TRUE(byId.has_value());
+
+    EXPECT_FALSE(literal->hasParams);
+
+    ASSERT_TRUE(byId->hasParams);
+    EXPECT_STREQ(byId->extractRouteParams("/api/devices/42")["id"].c_str(),
+                 "42");
+}
+
+TEST_F(RouterSpec, RouterShouldExtractParamFromLiteralMultiSegmentContext)
+{
+    mRouter->insert(
+        HttpMethod::Get, "/api/devices/:id",
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+
+    auto matched = mRouter->match(HttpMethod::Get, "/api/devices/abc");
+
+    ASSERT_TRUE(matched.has_value());
+    EXPECT_STREQ(
+        matched->extractRouteParams("/api/devices/abc")["id"].c_str(), "abc");
+}

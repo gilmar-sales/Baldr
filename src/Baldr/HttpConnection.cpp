@@ -14,29 +14,23 @@ void HttpConnection::runMiddlewareChain(
 {
     const size_t factoryCount = factories.size();
     size_t       index       = 0;
-    bool         nextCalled  = false;
 
-    std::function<void()> next = [&]() { nextCalled = true; };
+    std::function<void()> runRest;
 
-    while (true)
-    {
-        nextCalled = false;
+    runRest = [&]() {
         if (index < factoryCount)
         {
             auto factory = factories.begin() + index;
             ++index;
-            (*factory)(scopedProvider)->Handle(request, response, next);
+            (*factory)(scopedProvider)->Handle(request, response, runRest);
         }
         else
         {
             finalHandler(request, response, scopedProvider);
-            return;
         }
-        if (!nextCalled)
-        {
-            return;
-        }
-    }
+    };
+
+    runRest();
 }
 
 void HttpConnection::onMessage(trantor::MsgBuffer* buffer)
