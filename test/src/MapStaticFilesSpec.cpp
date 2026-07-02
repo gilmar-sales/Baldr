@@ -1,5 +1,6 @@
 #include "Baldr/StaticFilesInternal.hpp"
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 
@@ -44,6 +45,51 @@ namespace
     };
 
     using Baldr::Detail::resolveStaticFile;
+    using Baldr::Detail::makeEtag;
+    using Baldr::Detail::formatHttpDate;
+    using Baldr::Detail::parseHttpDate;
+}
+
+TEST_F(MapStaticFilesSpec, ETagEncodesSizeAndLastWriteTime)
+{
+    using namespace std::chrono;
+    auto tp = system_clock::time_point { seconds(1700000000) };
+    auto et = makeEtag(42, tp);
+
+    EXPECT_EQ(et, "\"2a-6553f100\"");
+}
+
+TEST_F(MapStaticFilesSpec, HttpDateRoundTrip)
+{
+    using namespace std::chrono;
+    auto tp = system_clock::time_point { seconds(1700000000) };
+    auto s  = formatHttpDate(tp);
+    auto tp2 = parseHttpDate(s);
+    EXPECT_EQ(system_clock::to_time_t(tp), system_clock::to_time_t(tp2));
+}
+
+TEST_F(MapStaticFilesSpec, HttpDateHandlesRfc850)
+{
+    using namespace std::chrono;
+    auto tp = parseHttpDate("Sunday, 06-Nov-94 08:49:37 GMT");
+    EXPECT_NE(system_clock::to_time_t(tp), 0);
+}
+
+TEST_F(MapStaticFilesSpec, HttpDateReturnsZeroOnGarbage)
+{
+    using namespace std::chrono;
+    auto tp = parseHttpDate("not a date");
+    EXPECT_EQ(system_clock::to_time_t(tp), 0);
+}
+
+TEST_F(MapStaticFilesSpec, ResolvedFileCarriesEtagAndLastModified)
+{
+    auto r = resolveStaticFile("index.html", mRoot.string());
+    EXPECT_EQ(r.status, StatusCode::OK);
+    EXPECT_FALSE(r.etag.empty());
+    EXPECT_GT(r.fileSize, 0u);
+    EXPECT_NE(formatHttpDate(r.lastModified).find("GMT"),
+              std::string::npos);
 }
 
 TEST_F(MapStaticFilesSpec, ServesRootIndexHtml)

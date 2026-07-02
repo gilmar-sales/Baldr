@@ -2,6 +2,7 @@
 
 #include "HttpRequestParser.hpp"
 #include "HttpServer.hpp"
+#include "InFlightTracker.hpp"
 #include "LoggingMiddleware.hpp"
 #include "RateLimitMiddleware.hpp"
 #include "Skirnir/Common.hpp"
@@ -13,6 +14,7 @@ void BaldrExtension::ConfigureServices(skr::ServiceCollection& services)
     services.AddSingleton<MiddlewareProvider>();
     services.AddSingleton<Router>();
     services.AddSingleton<HttpServerOptions>();
+    services.AddSingleton<InFlightTracker>();
     services.AddSingleton<HttpServer>();
     services.AddSingleton(skr::MakeArc<WorkerPool>(
         std::max<std::size_t>(1, std::thread::hardware_concurrency())));

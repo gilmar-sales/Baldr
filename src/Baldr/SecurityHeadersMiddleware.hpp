@@ -13,7 +13,8 @@ struct SecurityHeadersOptions
     // X-Frame-Options: DENY | SAMEORIGIN | (empty to disable)
     std::optional<std::string> frameOptions = "DENY";
 
-    // Referrer-Policy: no-referrer | same-origin | strict-origin-when-cross-origin | ...
+    // Referrer-Policy: no-referrer | same-origin |
+    // strict-origin-when-cross-origin | ...
     std::optional<std::string> referrerPolicy =
         "strict-origin-when-cross-origin";
 
@@ -39,8 +40,7 @@ struct SecurityHeadersOptions
 class SecurityHeadersMiddleware final : public IMiddleware
 {
   public:
-    explicit SecurityHeadersMiddleware(
-        SecurityHeadersOptions options = {}) :
+    explicit SecurityHeadersMiddleware(SecurityHeadersOptions options = {}) :
         mOptions(std::move(options))
     {
     }
@@ -51,7 +51,7 @@ class SecurityHeadersMiddleware final : public IMiddleware
                 HttpResponse&         response,
                 const NextMiddleware& next) override
     {
-        (void)request;
+        (void) request;
 
         const auto& o = mOptions;
         if (o.contentTypeOptions)

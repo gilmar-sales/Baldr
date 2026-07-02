@@ -80,7 +80,36 @@ TEST_F(MiddlewareSpec, ExceptionHandlerCatchesStdException)
 
     EXPECT_EQ(static_cast<int>(mResponse.statusCode),
               static_cast<int>(StatusCode::InternalServerError));
+    EXPECT_EQ(mResponse.body, "Internal Server Error");
+}
+
+TEST_F(MiddlewareSpec, ExceptionHandlerIncludesDetailsWhenEnabled)
+{
+    ExceptionHandlerOptions opts;
+    opts.includeDetailsInDev = true;
+    ExceptionHandlerMiddleware mw(opts);
+    mw.Handle(
+        mRequest, mResponse, []() {
+            throw std::runtime_error("boom");
+        });
+
     EXPECT_EQ(mResponse.body, "boom");
+}
+
+TEST_F(MiddlewareSpec, ExceptionHandlerUsesCustomMapper)
+{
+    ExceptionHandlerOptions opts;
+    opts.mapper = [](const std::exception&) {
+        return std::string("custom-mapped");
+    };
+    ExceptionHandlerMiddleware mw(opts);
+    mw.Handle(
+        mRequest, mResponse, []() {
+            throw std::runtime_error("boom");
+        });
+
+    EXPECT_EQ(mResponse.body, "custom-mapped");
+    EXPECT_EQ(mResponse.headers.at("Content-Type"), "text/plain");
 }
 
 TEST_F(MiddlewareSpec, ExceptionHandlerCatchesUnknownException)
@@ -93,4 +122,5 @@ TEST_F(MiddlewareSpec, ExceptionHandlerCatchesUnknownException)
 
     EXPECT_EQ(static_cast<int>(mResponse.statusCode),
               static_cast<int>(StatusCode::InternalServerError));
+    EXPECT_EQ(mResponse.body, "Internal Server Error");
 }

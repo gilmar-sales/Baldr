@@ -90,6 +90,19 @@ void HttpConnection::handle(HttpRequest request)
     mLogger->LogDebug("onRequest method={} path={}",
                       refl::enum_to_string(request.method), request.path);
     ++mRequestCount;
+    if (mInFlightTracker)
+        mInFlightTracker->enter();
+
+    struct LeaveGuard
+    {
+        skr::Arc<InFlightTracker>& t;
+        ~LeaveGuard()
+        {
+            if (t)
+                t->leave();
+        }
+    } _guard { mInFlightTracker };
+
     try
     {
         HttpResponse httpResponse(request);

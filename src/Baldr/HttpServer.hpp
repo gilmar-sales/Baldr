@@ -12,13 +12,15 @@
 
 #include "HttpConnection.hpp"
 #include "HttpServerOptions.hpp"
+#include "InFlightTracker.hpp"
 
 class HttpServer
 {
   public:
-    HttpServer(const skr::Arc<HttpServerOptions>&       httpServerOptions,
-               const skr::Arc<skr::ServiceProvider>&    serviceProvider,
-               const skr::Arc<skr::Logger<HttpServer>>& logger);
+    HttpServer(const skr::Arc<HttpServerOptions>&        httpServerOptions,
+               const skr::Arc<skr::ServiceProvider>&     serviceProvider,
+               const skr::Arc<skr::Logger<HttpServer>>&  logger,
+               const skr::Arc<InFlightTracker>&          inFlightTracker);
 
     ~HttpServer();
 
@@ -33,6 +35,7 @@ class HttpServer
     skr::Arc<skr::Logger<HttpServer>> mLogger;
     skr::Arc<skr::ServiceProvider>    mServiceProvider;
     skr::Arc<HttpServerOptions>       mHttpServerOptions;
+    skr::Arc<InFlightTracker>         mInFlightTracker;
     int                               mResolvedThreadCount;
 
     std::unique_ptr<trantor::EventLoop>           mAcceptorLoop;

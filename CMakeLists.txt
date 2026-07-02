@@ -32,15 +32,11 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(skirnir)
 
-# simdjson is brought in by skirnir (link is public on the skirnir
-# target in this version) and the include directory is exposed through
-# that link. The baldr target can therefore use simdjson headers
-# without an extra fetch — the public link on skirnir propagates the
-# include path transitively.
-#
-# We still need to link simdjson::simdjson into baldr so the linker
-# resolves the symbols referenced by simdjson::to_json in
-# WebApplication.hpp and the new JsonBody helper.
+# CompressionMiddleware uses libz (zlib) for gzip. AGENTS.md prefers
+# FetchContent for external dependencies, but zlib is small and
+# ubiquitous; locate it on the host system first.
+find_package(ZLIB QUIET)
+
 file(GLOB_RECURSE BALDR_SOURCES
         src/*.cpp
 )
@@ -50,6 +46,11 @@ add_library(baldr ${BALDR_SOURCES})
 add_library(baldr::baldr ALIAS baldr)
 
 target_link_libraries(baldr trantor skirnir::skirnir simdjson::simdjson)
+if (ZLIB_FOUND)
+  target_link_libraries(baldr ZLIB::ZLIB)
+else ()
+  message(FATAL_ERROR "zlib was not found; CompressionMiddleware requires it")
+endif ()
 
 target_include_directories(baldr PUBLIC src/)
 

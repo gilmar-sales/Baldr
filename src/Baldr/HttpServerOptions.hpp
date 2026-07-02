@@ -22,4 +22,10 @@ struct HttpServerOptions
     // response. The framework always honours an explicit `Connection:
     // close` from the peer and always closes HTTP/1.0 connections.
     bool enableHttp11KeepAlive = true;
+
+    // On `Stop()`, the server stops accepting new connections and waits
+    // up to this many seconds for in-flight handlers to complete
+    // before force-closing remaining connections. Set to a negative
+    // value to skip the drain and force-close immediately.
+    int gracefulShutdownTimeoutSeconds = 30;
 };

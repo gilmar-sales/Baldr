@@ -19,6 +19,7 @@
 #include "Baldr/StringHelpers.hpp"
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
+#include "InFlightTracker.hpp"
 #include "Router.hpp"
 
 class HttpConnection
@@ -32,6 +33,7 @@ class HttpConnection
         mLogger(serviceProvider->GetService<skr::Logger<HttpConnection>>()),
         mParser(serviceProvider->GetService<HttpRequestParser>()),
         mServerOptions(serviceProvider->GetService<HttpServerOptions>()),
+        mInFlightTracker(serviceProvider->GetService<InFlightTracker>()),
         mConnection(conn),
         mClientIp(conn->peerAddr().toIp())
     {
@@ -157,6 +159,7 @@ class HttpConnection
     skr::Arc<MiddlewareProvider>           mMiddlewareProvider;
     skr::Arc<skr::Logger<HttpConnection>>  mLogger;
     skr::Arc<HttpServerOptions>            mServerOptions;
+    skr::Arc<InFlightTracker>              mInFlightTracker;
     trantor::TcpConnectionPtr              mConnection;
     std::string                            mClientIp;
     std::string                            mAccumulator;

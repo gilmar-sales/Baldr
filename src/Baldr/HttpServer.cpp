@@ -1,5 +1,6 @@
 #include "HttpServer.hpp"
 
+#include <chrono>
 #include <csignal>
 #include <stdexcept>
 #include <thread>
@@ -30,11 +31,13 @@ int resolveThreadCount(int configured)
                : static_cast<int>(std::thread::hardware_concurrency());
 }
 
-HttpServer::HttpServer(const skr::Arc<HttpServerOptions>&    httpServerOptions,
-                       const skr::Arc<skr::ServiceProvider>& serviceProvider,
-                       const skr::Arc<skr::Logger<HttpServer>>& logger) :
+HttpServer::HttpServer(const skr::Arc<HttpServerOptions>&       httpServerOptions,
+                       const skr::Arc<skr::ServiceProvider>&    serviceProvider,
+                       const skr::Arc<skr::Logger<HttpServer>>& logger,
+                       const skr::Arc<InFlightTracker>&         inFlightTracker) :
     mServiceProvider(serviceProvider), mLogger(logger),
     mHttpServerOptions(httpServerOptions),
+    mInFlightTracker(inFlightTracker),
     mResolvedThreadCount(
         std::max(1, resolveThreadCount(mHttpServerOptions->threadCount)))
 {
@@ -108,6 +111,25 @@ void HttpServer::Run()
         mHttpServerOptions->port, mResolvedThreadCount);
 
     mAcceptorLoop->loop();
+
+    // After acceptor loop exits, drain in-flight handlers before
+    // tearing the IO loops down. The drain runs on the main thread;
+    // the wait is bounded by `gracefulShutdownTimeoutSeconds`.
+    int  timeoutSec = mHttpServerOptions->gracefulShutdownTimeoutSeconds;
+    bool immediate = timeoutSec < 0;
+    if (mInFlightTracker &&
+        mInFlightTracker->outstanding() > 0 &&
+        !immediate)
+    {
+        mLogger->LogInformation(
+            "Draining {} in-flight requests (timeout {}s)...",
+            mInFlightTracker->outstanding(), timeoutSec);
+        mInFlightTracker->waitDrained(
+            std::chrono::seconds(timeoutSec));
+        mLogger->LogInformation(
+            "Drained ({} in-flight remaining)",
+            mInFlightTracker->outstanding());
+    }
 
     mLogger->LogInformation("Server stopped.");
     mServer.reset();

@@ -37,7 +37,7 @@ TEST_F(ResultSpec, StatusResultAppliesStatus)
 TEST_F(ResultSpec, ResultsFactoryFunctions)
 {
     auto ok    = Results::Ok("body");
-    auto json  = Results::Json(R"({})");
+    auto json  = Results::Json(std::string(R"({})"));
     auto notF  = Results::NotFound();
     auto stat  = Results::Status(StatusCode::Accepted);
 
@@ -46,9 +46,9 @@ TEST_F(ResultSpec, ResultsFactoryFunctions)
     EXPECT_EQ(response.body, "body");
     EXPECT_EQ(response.headers.at("Content-Type"), "text/plain");
 
-    response = HttpResponse();
+  response = HttpResponse();
     json.Apply(response);
-    EXPECT_EQ(response.body, "{}");
+    EXPECT_EQ(response.body, "\"{}\"");
     EXPECT_EQ(response.headers.at("Content-Type"), "application/json");
 
     response = HttpResponse();
@@ -59,6 +59,7 @@ TEST_F(ResultSpec, ResultsFactoryFunctions)
 
     response = HttpResponse();
     stat.Apply(response);
+    EXPECT_TRUE(response.body.empty());
     EXPECT_EQ(static_cast<int>(response.statusCode),
               static_cast<int>(StatusCode::Accepted));
 }
