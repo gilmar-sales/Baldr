@@ -112,7 +112,7 @@ namespace Baldr
                 StatusCode::BadRequest, "Empty request body");
         }
 
-        simdjson::dom::parser parser;
+        static thread_local simdjson::dom::parser parser;
         simdjson::dom::element doc;
         auto                  err = parser.parse(request.body).get(doc);
         if (err)
