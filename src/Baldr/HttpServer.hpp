@@ -11,16 +11,7 @@
 #include <trantor/net/TcpServer.h>
 
 #include "HttpConnection.hpp"
-
-struct HttpServerOptions
-{
-    // NOTE: TLS is not currently supported. Baldr builds with
-    // TRANTOR_USE_TLS=none, so https cannot be served. Adding TLS would
-    // require either enabling OpenSSL in trantor (and wiring certificate
-    // paths here) or terminating TLS upstream (e.g. via a reverse proxy).
-    short port        = 8080;
-    int   threadCount = static_cast<int>(std::thread::hardware_concurrency());
-};
+#include "HttpServerOptions.hpp"
 
 class HttpServer
 {

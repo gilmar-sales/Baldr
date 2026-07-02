@@ -5,6 +5,7 @@
 #include "MiddlewareProvider.hpp"
 #include "Result.hpp"
 #include "Router.hpp"
+#include "StreamingResult.hpp"
 #include "Tuple.hpp"
 
 class WebApplication : public skr::IApplication
@@ -119,7 +120,14 @@ class WebApplication : public skr::IApplication
                 {
                     auto result = std::move(std::apply(handler, args));
 
-                    if constexpr (std::is_base_of_v<IResult, ResultType>)
+                    if constexpr (std::is_base_of_v<IStreamingResult,
+                                                    ResultType> &&
+                                  !std::is_base_of_v<IResult, ResultType>)
+                    {
+                        response.streaming = std::make_shared<ResultType>(
+                            std::move(result));
+                    }
+                    else if constexpr (std::is_base_of_v<IResult, ResultType>)
                     {
                         result.Apply(response);
                     }

@@ -1,8 +1,12 @@
 #pragma once
 
+#include <memory>
+
 #include "CookieOptions.hpp"
 #include "HttpRequest.hpp"
 #include "StatusCode.hpp"
+
+class IStreamingResult;
 
 struct HttpResponse {
     HttpResponse() = default;
@@ -20,4 +24,10 @@ struct HttpResponse {
     std::unordered_map<std::string, std::string> headers;
     std::unordered_map<std::string, CookieOptions> cookies;
     std::string body;
+
+    // When a handler returns an IStreamingResult, MapRoute stores it
+    // here. HttpConnection::handle checks for this and bypasses the
+    // buffered body path to write the response directly to the socket
+    // (e.g. with chunked transfer-encoding).
+    std::shared_ptr<const IStreamingResult> streaming;
 };

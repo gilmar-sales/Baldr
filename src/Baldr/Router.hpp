@@ -91,7 +91,24 @@ class Router
     [[nodiscard]] std::optional<RouteEntry> match(HttpMethod,
                                                   std::string path) const;
 
+    // Like match(), but for HEAD requests it also considers a registered
+    // GET route as a fallback. The result still includes the requested
+    // method's trie. `resolvedMethod` is the method of the matched entry
+    // (HttpMethod::Get when HEAD fell back to GET, otherwise `method`).
+    struct MatchResult
+    {
+        std::optional<RouteEntry> entry;
+        std::vector<HttpMethod>   allowedMethodsOnPath;
+        HttpMethod                resolvedMethod = HttpMethod::Get;
+    };
+
+    [[nodiscard]] MatchResult matchWithAllow(HttpMethod method,
+                                             std::string path) const;
+
   private:
+    [[nodiscard]] std::optional<RouteEntry> matchInTrie(
+        HttpMethod method, std::string_view path) const;
+
     mutable std::shared_mutex                mMutex {};
     std::map<HttpMethod, std::unique_ptr<TrieNode>> mMethodsMap;
 };

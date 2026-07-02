@@ -87,15 +87,14 @@ void Router::insert(HttpMethod method, std::string path,
     current->isEndOfPath = true;
 }
 
-std::optional<RouteEntry> Router::match(HttpMethod  method,
-                                        std::string path) const
+std::optional<RouteEntry> Router::matchInTrie(HttpMethod         method,
+                                                std::string_view path) const
 {
-    std::shared_lock lock(mMutex);
+    auto root = mMethodsMap.at(method).get();
+
     auto pathSegments =
         path | std::views::split('/') |
         std::views::filter([](const auto& s) { return s.size() > 0; });
-
-    auto root = mMethodsMap.at(method).get();
 
     if (pathSegments.empty())
     {
@@ -151,4 +150,48 @@ std::optional<RouteEntry> Router::match(HttpMethod  method,
     }
 
     return {};
+}
+
+std::optional<RouteEntry> Router::match(HttpMethod  method,
+                                        std::string path) const
+{
+    std::shared_lock lock(mMutex);
+    return matchInTrie(method, path);
+}
+
+Router::MatchResult Router::matchWithAllow(HttpMethod  method,
+                                           std::string path) const
+{
+    std::shared_lock lock(mMutex);
+
+    MatchResult result;
+    result.entry = matchInTrie(method, path);
+
+    // HEAD falls back to GET when no HEAD route is registered.
+    if (!result.entry.has_value() && method == HttpMethod::Head)
+    {
+        auto getEntry = matchInTrie(HttpMethod::Get, path);
+        if (getEntry.has_value())
+        {
+            result.entry          = getEntry;
+            result.resolvedMethod = HttpMethod::Get;
+        }
+    }
+    else
+    {
+        result.resolvedMethod = method;
+    }
+
+    if (result.entry.has_value())
+        return result;
+
+    for (const auto& [m, _] : mMethodsMap)
+    {
+        if (m == method)
+            continue;
+        if (matchInTrie(m, path).has_value())
+            result.allowedMethodsOnPath.push_back(m);
+    }
+
+    return result;
 }

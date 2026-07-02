@@ -13,6 +13,7 @@
 
 #include "Baldr/HttpMethod.hpp"
 #include "Baldr/HttpRequestParser.hpp"
+#include "Baldr/HttpServerOptions.hpp"
 #include "Baldr/MiddlewareProvider.hpp"
 #include "Baldr/StatusCode.hpp"
 #include "Baldr/StringHelpers.hpp"
@@ -30,6 +31,7 @@ class HttpConnection
         mMiddlewareProvider(serviceProvider->GetService<MiddlewareProvider>()),
         mLogger(serviceProvider->GetService<skr::Logger<HttpConnection>>()),
         mParser(serviceProvider->GetService<HttpRequestParser>()),
+        mServerOptions(serviceProvider->GetService<HttpServerOptions>()),
         mConnection(conn),
         mClientIp(conn->peerAddr().toIp())
     {
@@ -51,6 +53,11 @@ class HttpConnection
     void sendErrorResponse(StatusCode statusCode, const std::string& body);
 
     void sendResponse(const HttpResponse& response, bool closeConnection);
+
+    void sendStreamingResponse(
+        const IStreamingResult& result,
+        const std::string&      version,
+        const std::unordered_map<std::string, CookieOptions>& cookies);
 
     static HttpMethod parseMethod(std::string_view method)
     {
@@ -149,8 +156,10 @@ class HttpConnection
     skr::Arc<Router>                       mRouter;
     skr::Arc<MiddlewareProvider>           mMiddlewareProvider;
     skr::Arc<skr::Logger<HttpConnection>>  mLogger;
+    skr::Arc<HttpServerOptions>            mServerOptions;
     trantor::TcpConnectionPtr              mConnection;
     std::string                            mClientIp;
     std::string                            mAccumulator;
     skr::Arc<HttpRequestParser>            mParser;
+    int                                    mRequestCount { 0 };
 };

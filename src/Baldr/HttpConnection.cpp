@@ -5,6 +5,8 @@
 
 #include <trantor/net/TcpConnection.h>
 
+#include "Baldr/StreamingResult.hpp"
+
 void HttpConnection::runMiddlewareChain(
     MiddlewareFactoryList&                  factories,
     const skr::Arc<skr::ServiceProvider>&   scopedProvider,
@@ -87,19 +89,43 @@ void HttpConnection::handle(HttpRequest request)
 {
     mLogger->LogDebug("onRequest method={} path={}",
                       refl::enum_to_string(request.method), request.path);
+    ++mRequestCount;
     try
     {
         HttpResponse httpResponse(request);
 
-        const auto& routeEntry =
-            mRouter->match(request.method, request.path);
-        if (!routeEntry.has_value())
+        const auto matchResult =
+            mRouter->matchWithAllow(request.method, request.path);
+
+        if (!matchResult.entry.has_value())
         {
+            if (!matchResult.allowedMethodsOnPath.empty())
+            {
+                std::string allowList;
+                for (auto m : matchResult.allowedMethodsOnPath)
+                {
+                    if (!allowList.empty())
+                        allowList += ", ";
+                    allowList += refl::enum_to_string(m);
+                }
+                mLogger->LogWarning("method not allowed: {} {} (Allow: {})",
+                                    refl::enum_to_string(request.method),
+                                    request.path, allowList);
+                httpResponse.statusCode         = StatusCode::MethodNotAllowed;
+                httpResponse.body               = "Method Not Allowed";
+                httpResponse.headers["Content-Type"]   = "text/plain";
+                httpResponse.headers["Content-Length"] =
+                    std::to_string(httpResponse.body.size());
+                httpResponse.headers["Allow"]    = allowList;
+                sendResponse(httpResponse, /*closeConnection=*/true);
+                return;
+            }
+
             mLogger->LogWarning("no route for {} {}",
                                 refl::enum_to_string(request.method),
                                 request.path);
-            httpResponse.statusCode = StatusCode::NotFound;
-            httpResponse.body = "Not Found";
+            httpResponse.statusCode         = StatusCode::NotFound;
+            httpResponse.body               = "Not Found";
             httpResponse.headers["Content-Type"]   = "plain/text";
             httpResponse.headers["Content-Length"] =
                 std::to_string(httpResponse.body.size());
@@ -108,14 +134,29 @@ void HttpConnection::handle(HttpRequest request)
         }
 
         request.params =
-            routeEntry.value().extractRouteParams(request.path);
+            matchResult.entry.value().extractRouteParams(request.path);
 
         auto scope          = mServiceProvider->CreateServiceScope();
         auto scopedProvider = scope->GetServiceProvider();
 
         auto factories = mMiddlewareProvider->Factories();
         runMiddlewareChain(factories, scopedProvider, request, httpResponse,
-                           routeEntry.value().handler);
+                           matchResult.entry.value().handler);
+
+        if (httpResponse.streaming)
+        {
+            sendStreamingResponse(*httpResponse.streaming,
+                                  httpResponse.version,
+                                  httpResponse.cookies);
+            return;
+        }
+
+        // HEAD responses must not include a body, even if the handler
+        // wrote one (we transparently routed to the GET handler).
+        if (request.method == HttpMethod::Head)
+        {
+            httpResponse.body.clear();
+        }
 
         if (httpResponse.body.empty() &&
             httpResponse.headers.find("Content-Length") ==
@@ -130,6 +171,13 @@ void HttpConnection::handle(HttpRequest request)
                 std::to_string(httpResponse.body.size());
         }
 
+        // Determine connection lifetime.
+        //
+        // 1. Handler may have explicitly set Connection: close.
+        // 2. Peer-supplied `Connection: close` forces close.
+        // 3. HTTP/1.0 defaults to close.
+        // 4. Server policy may disable keep-alive globally.
+        // 5. Per-connection request cap forces close when reached.
         bool closeConnection = false;
         if (auto it = httpResponse.headers.find("Connection");
             it != httpResponse.headers.end())
@@ -142,6 +190,27 @@ void HttpConnection::handle(HttpRequest request)
             }
             if (lowered == "close")
                 closeConnection = true;
+        }
+        if (auto it = request.headers.find("connection");
+            it != request.headers.end())
+        {
+            std::string lowered(it->second);
+            for (auto& c : lowered)
+            {
+                if (c >= 'A' && c <= 'Z')
+                    c = static_cast<char>(c + 32);
+            }
+            if (lowered == "close")
+                closeConnection = true;
+        }
+        if (request.version == "HTTP/1.0")
+            closeConnection = true;
+        if (!mServerOptions->enableHttp11KeepAlive)
+            closeConnection = true;
+        if (mServerOptions->maxRequestsPerConnection > 0 &&
+            mRequestCount >= mServerOptions->maxRequestsPerConnection)
+        {
+            closeConnection = true;
         }
 
         sendResponse(httpResponse, closeConnection);
@@ -244,4 +313,50 @@ void HttpConnection::sendResponse(const HttpResponse& response,
 
     if (closeConnection)
         mConnection->forceClose();
+}
+
+void HttpConnection::sendStreamingResponse(
+    const IStreamingResult& result,
+    const std::string&      version,
+    const std::unordered_map<std::string, CookieOptions>& cookies)
+{
+    if (!mConnection || !mConnection->connected())
+        return;
+
+    std::vector<std::pair<std::string, std::string>> headers;
+    result.headers(headers);
+    headers.emplace_back("Content-Type", "application/octet-stream");
+
+    std::vector<std::pair<std::string, std::string>> cookieStrings;
+    cookieStrings.reserve(cookies.size());
+    for (const auto& [cookieName, cookieOptions] : cookies)
+    {
+        std::string cookie = cookieName + "=" + cookieOptions.value;
+        switch (cookieOptions.sameSite)
+        {
+            case SameSite::None:   cookie += "; SameSite=None";   break;
+            case SameSite::Lax:    cookie += "; SameSite=Lax";    break;
+            case SameSite::Strict: cookie += "; SameSite=Strict"; break;
+        }
+        if (cookieOptions.domain.has_value())
+            cookie += "; Domain=" + cookieOptions.domain.value();
+        if (cookieOptions.secure)  cookie += "; Secure";
+        if (cookieOptions.httpOnly) cookie += "; HttpOnly";
+        if (cookieOptions.maxAge)
+            cookie += "; Max-Age=" + std::to_string(cookieOptions.maxAge);
+        cookieStrings.emplace_back(cookieName, std::move(cookie));
+    }
+
+    std::string out = formatStreamingHead(
+        result.statusCode(), version.empty() ? "HTTP/1.1" : version,
+        headers, cookieStrings, &HttpConnection::reasonPhrase);
+
+    mConnection->send(std::move(out));
+
+    std::string chunk;
+    while (result.nextChunk(chunk))
+    {
+        mConnection->send(formatChunk(chunk));
+    }
+    mConnection->send(formatChunkTrailer());
 }

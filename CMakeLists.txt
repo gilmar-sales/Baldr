@@ -32,6 +32,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(skirnir)
 
+# simdjson is brought in by skirnir (link is public on the skirnir
+# target in this version) and the include directory is exposed through
+# that link. The baldr target can therefore use simdjson headers
+# without an extra fetch — the public link on skirnir propagates the
+# include path transitively.
+#
+# We still need to link simdjson::simdjson into baldr so the linker
+# resolves the symbols referenced by simdjson::to_json in
+# WebApplication.hpp and the new JsonBody helper.
 file(GLOB_RECURSE BALDR_SOURCES
         src/*.cpp
 )
@@ -40,7 +49,7 @@ add_library(baldr ${BALDR_SOURCES})
 
 add_library(baldr::baldr ALIAS baldr)
 
-target_link_libraries(baldr trantor skirnir::skirnir)
+target_link_libraries(baldr trantor skirnir::skirnir simdjson::simdjson)
 
 target_include_directories(baldr PUBLIC src/)
 
