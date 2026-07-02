@@ -98,9 +98,10 @@ class Results
         return TextResult(std::move(body), StatusCode::OK);
     }
 
-    static JsonResult Json(std::string body)
+    template <typename T>
+    static JsonResult Json(const T& value)
     {
-        return JsonResult(std::move(body), StatusCode::OK);
+        return JsonResult(simdjson::to_json_string(value), StatusCode::OK);
     }
 
     static StatusResult Status(StatusCode status)
