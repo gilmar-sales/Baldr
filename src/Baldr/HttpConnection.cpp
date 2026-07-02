@@ -35,6 +35,20 @@ void HttpConnection::runMiddlewareChain(
 
 void HttpConnection::onMessage(trantor::MsgBuffer* buffer)
 {
+    if (mAccumulator.size() + buffer->readableBytes() > kMaxAccumulatorBytes)
+    {
+        mLogger->LogError(
+            "accumulator overflow ({} bytes); closing connection",
+            mAccumulator.size() + buffer->readableBytes());
+        buffer->retrieveAll();
+        sendErrorResponse(StatusCode::BadRequest,
+                          "Request too large");
+        if (mConnection && mConnection->connected())
+            mConnection->forceClose();
+        mAccumulator.clear();
+        return;
+    }
+
     mAccumulator.append(buffer->peek(), buffer->readableBytes());
     buffer->retrieveAll();
 

@@ -6,7 +6,7 @@
 void Router::insert(HttpMethod method, std::string path,
                     const RouteHandler& routeHandler) const
 {
-    TrieNode*  current = mMethodsMap.at(method);
+    TrieNode*  current = mMethodsMap.at(method).get();
     RouteEntry routeEntry {
         .paramsNames = {},
         .hasParams   = !path.empty() && path.find(':') != std::string::npos,
@@ -23,9 +23,9 @@ void Router::insert(HttpMethod method, std::string path,
         {
             if (!current->children.contains(segment))
             {
-                current->children[segment] = new TrieNode();
+                current->children[segment] = std::make_unique<TrieNode>();
             }
-            current = current->children[segment];
+            current = current->children[segment].get();
         }
         current->routeEntry  = routeEntry;
         current->isEndOfPath = true;
@@ -52,9 +52,9 @@ void Router::insert(HttpMethod method, std::string path,
 
         if (!current->children.contains(sv))
         {
-            current->children[sv] = new TrieNode();
+            current->children[sv] = std::make_unique<TrieNode>();
         }
-        current = current->children[sv];
+        current = current->children[sv].get();
     }
 
     routeEntry.extractParamsRegex = std::regex(regexStr + "$");
@@ -70,7 +70,7 @@ std::optional<RouteEntry> Router::match(HttpMethod  method,
         path | std::views::split('/') |
         std::views::filter([](const auto& s) { return s.size() > 0; });
 
-    auto root = mMethodsMap.at(method);
+    auto root = mMethodsMap.at(method).get();
 
     if (pathSegments.empty())
     {
@@ -105,12 +105,12 @@ std::optional<RouteEntry> Router::match(HttpMethod  method,
 
         if (node->children.contains(segment))
         {
-            stack.emplace(node->children[segment], ++index);
+            stack.emplace(node->children[segment].get(), std::next(index));
         }
 
         if (node->children.contains("*"))
         {
-            stack.emplace(node->children["*"], ++index);
+            stack.emplace(node->children["*"].get(), std::next(index));
         }
     }
 

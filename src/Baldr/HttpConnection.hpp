@@ -37,6 +37,8 @@ class HttpConnection
 
     void onMessage(trantor::MsgBuffer* buffer);
 
+    static constexpr std::size_t kMaxAccumulatorBytes = 10 * 1024 * 1024;
+
     static void runMiddlewareChain(MiddlewareFactoryList&       factories,
                                    const skr::Arc<skr::ServiceProvider>& scopedProvider,
                                    HttpRequest&                  request,

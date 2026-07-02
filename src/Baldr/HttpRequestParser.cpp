@@ -1,8 +1,9 @@
 #include "Baldr/StringHelpers.hpp"
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <ranges>
-#include <sstream>
+#include <string_view>
 
 #include "Baldr/HttpRequestParser.hpp"
 #include "Baldr/StatusCode.hpp"
@@ -25,28 +26,32 @@ namespace
         return false;
     }
 
-    std::optional<HttpMethod> parseMethodString(std::string_view method)
+    bool isLws(char c)
     {
-        if (method == "GET")
-            return HttpMethod::Get;
-        if (method == "POST")
-            return HttpMethod::Post;
-        if (method == "PUT")
-            return HttpMethod::Put;
-        if (method == "DELETE")
-            return HttpMethod::Delete;
-        if (method == "PATCH")
-            return HttpMethod::Patch;
-        if (method == "OPTIONS")
-            return HttpMethod::Options;
-        if (method == "HEAD")
-            return HttpMethod::Head;
-        if (method == "TRACE")
-            return HttpMethod::Trace;
-        if (method == "CONNECT")
-            return HttpMethod::Connect;
+        return c == ' ' || c == '\t';
+    }
 
-        return std::nullopt;
+    std::size_t skipLws(std::string_view s, std::size_t pos)
+    {
+        while (pos < s.size() && isLws(s[pos]))
+            ++pos;
+        return pos;
+    }
+
+    // Returns the index just past the final \n of \r\n\r\n, i.e. the byte
+    // count of the header section. Returns npos when no complete header
+    // terminator is present yet.
+    std::size_t findHeaderEnd(std::string_view buffer)
+    {
+        for (std::size_t i = 0; i + 3 < buffer.size(); ++i)
+        {
+            if (buffer[i] == '\r' && buffer[i + 1] == '\n' &&
+                buffer[i + 2] == '\r' && buffer[i + 3] == '\n')
+            {
+                return i + 4;
+            }
+        }
+        return std::string_view::npos;
     }
 
     struct ParseResult
@@ -58,67 +63,104 @@ namespace
         std::size_t     consumedBytes = 0;
     };
 
-    // Core parser operating on a contiguous read-only view.
-    // `buffer` is the entire accumulated bytes so far; we figure out how
-    // many bytes the next complete request consumed and report it via
-    // `out.consumedBytes`. Used both for full-buffer tests and incremental
-    // server parsing.
-    ParseResult parseCore(std::string_view buffer, bool strictHeaders,
-                       std::size_t maxBodySize)
+    // Token parser operating on `buffer` with explicit offset tracking.
+    // On error returns ParseResult with success=false; on success populates
+    // `out`.
+    ParseResult parseCore(std::string_view buffer, std::size_t maxBodySize)
     {
         ParseResult out;
 
-        auto headerEnd = buffer.find("\r\n\r\n");
-        std::size_t headerByteCount;
+        auto headerEnd = findHeaderEnd(buffer);
         if (headerEnd == std::string_view::npos)
         {
-            if (strictHeaders)
-            {
-                out.error      = "Incomplete request";
-                out.statusCode = StatusCode::BadRequest;
-                return out;
-            }
-            headerByteCount = buffer.size();
-        }
-        else
-        {
-            headerByteCount = headerEnd + 4;
+            out.error      = "Incomplete request";
+            out.statusCode = StatusCode::BadRequest;
+            return out;
         }
 
-        std::string_view headerView(buffer.data(), headerByteCount);
+        std::size_t pos = 0;
 
-        std::istringstream requestStream{std::string(headerView)};
-
-        std::string httpMethod;
-        requestStream >> httpMethod;
-
-        auto parsedHttpMethod = parseMethodString(httpMethod);
-        if (!parsedHttpMethod.has_value())
+        // Request line: METHOD SP PATH SP HTTP/version CRLF
+        std::size_t methodStart = pos;
+        while (pos < headerEnd && buffer[pos] != ' ' && buffer[pos] != '\r')
+            ++pos;
+        if (pos == methodStart || pos >= headerEnd || buffer[pos] != ' ')
         {
             out.error      = "Malformed HTTP method";
             out.statusCode = StatusCode::BadRequest;
             return out;
         }
-        out.request.method = parsedHttpMethod.value();
+        std::string_view methodView(buffer.data() + methodStart,
+                                    pos - methodStart);
 
-        requestStream.get();
-        if (static_cast<std::size_t>(requestStream.tellg()) < headerView.size() &&
-            buffer[static_cast<std::size_t>(requestStream.tellg())] == ' ')
+        std::optional<HttpMethod> parsedMethod;
+        if (methodView == "GET")
+            parsedMethod = HttpMethod::Get;
+        else if (methodView == "POST")
+            parsedMethod = HttpMethod::Post;
+        else if (methodView == "PUT")
+            parsedMethod = HttpMethod::Put;
+        else if (methodView == "DELETE")
+            parsedMethod = HttpMethod::Delete;
+        else if (methodView == "PATCH")
+            parsedMethod = HttpMethod::Patch;
+        else if (methodView == "OPTIONS")
+            parsedMethod = HttpMethod::Options;
+        else if (methodView == "HEAD")
+            parsedMethod = HttpMethod::Head;
+        else if (methodView == "TRACE")
+            parsedMethod = HttpMethod::Trace;
+        else if (methodView == "CONNECT")
+            parsedMethod = HttpMethod::Connect;
+
+        if (!parsedMethod.has_value())
+        {
+            out.error      = "Malformed HTTP method";
+            out.statusCode = StatusCode::BadRequest;
+            return out;
+        }
+        out.request.method = parsedMethod.value();
+
+        // Reject double-space (extra whitespace) in method position.
+        if (pos + 1 < headerEnd && buffer[pos + 1] == ' ')
         {
             out.error      = "Extra whitespace in method";
             out.statusCode = StatusCode::BadRequest;
             return out;
         }
 
-        requestStream >> out.request.path;
-        if (out.request.path.size() > 2048)
+        ++pos; // consume SP
+        std::size_t pathStart = pos;
+        while (pos < headerEnd && buffer[pos] != ' ' && buffer[pos] != '\r')
+            ++pos;
+        if (pos >= headerEnd)
+        {
+            out.error      = "HTTP version is missing or invalid";
+            out.statusCode = StatusCode::BadRequest;
+            return out;
+        }
+        if (buffer[pos] == '\r')
+        {
+            out.error      = "HTTP version is missing or invalid";
+            out.statusCode = StatusCode::BadRequest;
+            return out;
+        }
+        if (pos == pathStart || buffer[pos] != ' ')
+        {
+            out.error      = "Malformed request path";
+            out.statusCode = StatusCode::BadRequest;
+            return out;
+        }
+        std::string_view pathView(buffer.data() + pathStart, pos - pathStart);
+
+        if (pathView.size() > 2048)
         {
             out.error      = "Path is too long";
             out.statusCode = StatusCode::BadRequest;
             return out;
         }
 
-        auto decodedPath = decode_path(out.request.path);
+        auto decodedPath = decode_path(std::string(pathView));
         if (!decodedPath.has_value())
         {
             out.error      = "Invalid URL encoding in path";
@@ -133,31 +175,50 @@ namespace
         }
         out.request.path = decodedPath.value();
 
-        requestStream.get();
-        if (static_cast<std::size_t>(requestStream.tellg()) < headerView.size() &&
-            buffer[static_cast<std::size_t>(requestStream.tellg())] == ' ')
+        // Reject extra whitespace after path.
+        if (pos + 1 < headerEnd && buffer[pos + 1] == ' ')
         {
             out.error      = "Extra whitespace in path";
             out.statusCode = StatusCode::BadRequest;
             return out;
         }
 
-        requestStream >> out.request.version;
-        if (!out.request.version.starts_with("HTTP/1.1"))
+        ++pos; // consume SP
+        std::size_t versionStart = pos;
+        while (pos < headerEnd && buffer[pos] != ' ' && buffer[pos] != '\r')
+            ++pos;
+        if (pos >= headerEnd)
         {
             out.error      = "HTTP version is missing or invalid";
             out.statusCode = StatusCode::BadRequest;
             return out;
         }
-
-        if (static_cast<std::size_t>(requestStream.tellg()) < headerView.size() &&
-            buffer[static_cast<std::size_t>(requestStream.tellg())] == ' ')
+        if (buffer[pos] == ' ')
         {
             out.error      = "Extra whitespace in version";
             out.statusCode = StatusCode::BadRequest;
             return out;
         }
+        if (pos == versionStart || buffer[pos] != '\r' ||
+            pos + 1 >= headerEnd || buffer[pos + 1] != '\n')
+        {
+            out.error      = "HTTP version is missing or invalid";
+            out.statusCode = StatusCode::BadRequest;
+            return out;
+        }
+        std::string_view versionView(buffer.data() + versionStart,
+                                     pos - versionStart);
+        if (!versionView.starts_with("HTTP/1.1"))
+        {
+            out.error      = "HTTP version is missing or invalid";
+            out.statusCode = StatusCode::BadRequest;
+            return out;
+        }
+        out.request.version = std::string(versionView);
 
+        pos += 2; // consume CRLF after request line
+
+        // Query string handling.
         auto queryIndex = out.request.path.find('?');
         if (queryIndex != std::string::npos)
         {
@@ -195,9 +256,29 @@ namespace
             out.request.path.resize(queryIndex);
         }
 
-        std::string line;
-        while (std::getline(requestStream, line) && requestStream.good())
+        // Header lines, bounded by \r\n\r\n at headerEnd.
+        std::size_t contentLength      = 0;
+        bool        hasContentLength   = false;
+        bool        hasTransferEncoding = false;
+
+        while (pos < headerEnd)
         {
+            // End-of-headers line: bare "\r\n".
+            if (buffer[pos] == '\r' && pos + 1 < headerEnd &&
+                buffer[pos + 1] == '\n')
+            {
+                pos += 2;
+                break;
+            }
+
+            // Header folding: line begins with SP/HTAB.
+            if (isLws(buffer[pos]))
+            {
+                out.error      = "Header folding is not allowed in HTTP/1.1";
+                out.statusCode = StatusCode::BadRequest;
+                return out;
+            }
+
             if (out.request.headers.size() > 100)
             {
                 out.error      = "Too many headers";
@@ -205,117 +286,134 @@ namespace
                 return out;
             }
 
-            if (auto colon = line.find(':'); colon != std::string::npos)
+            std::size_t lineStart = pos;
+            while (pos < headerEnd && buffer[pos] != '\r')
+                ++pos;
+            if (pos >= headerEnd || pos + 1 >= headerEnd ||
+                buffer[pos + 1] != '\n')
             {
-                auto key = trim(line.substr(0, colon));
-                if (key.size() > 64)
-                {
-                    out.error      = "Header key is too long";
-                    out.statusCode = StatusCode::BadRequest;
-                    return out;
-                }
-                std::transform(key.begin(), key.end(), key.begin(),
-                               [](unsigned char c) { return std::tolower(c); });
-
-                if (out.request.headers.contains(key))
-                {
-                    out.error      = "Duplicate headers are not allowed";
-                    out.statusCode = StatusCode::BadRequest;
-                    return out;
-                }
-
-                auto value = trim(line.substr(colon + 1));
-                if (value.size() > 4096)
-                {
-                    out.error      = "Header value is too large";
-                    out.statusCode = StatusCode::BadRequest;
-                    return out;
-                }
-
-                out.request.headers[std::move(key)] = std::move(value);
-                continue;
+                out.error      = "Malformed header line";
+                out.statusCode = StatusCode::BadRequest;
+                return out;
             }
+            std::string_view line(buffer.data() + lineStart, pos - lineStart);
 
-            if (out.request.headers.contains("content-length"))
+            auto colon = line.find(':');
+            if (colon == std::string_view::npos)
             {
-                // Header block ends here. Body handling is done below.
-                break;
-            }
-            else
-            {
-                if (!(line == "\r"))
-                {
-                    out.error      = "Header folding is not allowed in HTTP/1.1";
-                    out.statusCode = StatusCode::BadRequest;
-                    return out;
-                }
-            }
-        }
-
-        if (line.size() > 0 && out.request.headers.empty())
-        {
-            out.error      = "Missing end of request line";
-            out.statusCode = StatusCode::BadRequest;
-            return out;
-        }
-
-        if (out.request.headers.contains("content-length"))
-        {
-            if (out.request.headers.contains("transfer-encoding"))
-            {
-                out.error =
-                    "Conflicting Content-Length and Transfer-Encoding headers";
+                out.error      = "Malformed header line";
                 out.statusCode = StatusCode::BadRequest;
                 return out;
             }
 
-            const auto& clValue = out.request.headers["content-length"];
-            std::size_t contentLength = 0;
-            if (clValue.empty())
+            std::string key(line.substr(0, colon));
+            std::transform(key.begin(), key.end(), key.begin(),
+                           [](unsigned char c) { return std::tolower(c); });
+
+            if (key.empty() || key.size() > 64)
             {
-                out.error      = "Invalid Content-Length header";
+                out.error      = "Header key is too long";
                 out.statusCode = StatusCode::BadRequest;
                 return out;
             }
-            for (char c : clValue)
+            if (out.request.headers.contains(key))
             {
-                if (c < '0' || c > '9')
+                out.error      = "Duplicate headers are not allowed";
+                out.statusCode = StatusCode::BadRequest;
+                return out;
+            }
+
+            auto valueSv =
+                line.substr(colon + 1);
+            auto begin = skipLws(valueSv, 0);
+            std::size_t end = valueSv.size();
+            while (end > begin && isLws(valueSv[end - 1]))
+                --end;
+            std::string value(valueSv.substr(begin, end - begin));
+
+            if (value.size() > 4096)
+            {
+                out.error      = "Header value is too large";
+                out.statusCode = StatusCode::BadRequest;
+                return out;
+            }
+
+            if (key == "content-length")
+            {
+                if (value.empty())
                 {
                     out.error      = "Invalid Content-Length header";
                     out.statusCode = StatusCode::BadRequest;
                     return out;
                 }
-                contentLength = contentLength * 10 + static_cast<std::size_t>(c - '0');
+                std::size_t parsed = 0;
+                for (char c : value)
+                {
+                    if (c < '0' || c > '9')
+                    {
+                        out.error      = "Invalid Content-Length header";
+                        out.statusCode = StatusCode::BadRequest;
+                        return out;
+                    }
+                    parsed = parsed * 10 + static_cast<std::size_t>(c - '0');
+                }
+                if (parsed == 0)
+                {
+                    out.error      = "Invalid Content-Length header";
+                    out.statusCode = StatusCode::BadRequest;
+                    return out;
+                }
+                if (parsed > maxBodySize)
+                {
+                    out.error =
+                        "Content-Length exceeds maximum allowed body size";
+                    out.statusCode = StatusCode::BadRequest;
+                    return out;
+                }
+                contentLength    = parsed;
+                hasContentLength = true;
             }
-
-            if (contentLength == 0)
+            else if (key == "transfer-encoding")
             {
-                out.error      = "Invalid Content-Length header";
-                out.statusCode = StatusCode::BadRequest;
-                return out;
+                hasTransferEncoding = true;
             }
 
-            if (contentLength > maxBodySize)
-            {
-                out.error =
-                    "Content-Length exceeds maximum allowed body size";
-                out.statusCode = StatusCode::BadRequest;
-                return out;
-            }
+            out.request.headers.emplace(std::move(key), std::move(value));
 
-            if (headerByteCount + contentLength > buffer.size())
+            pos += 2; // consume CRLF
+        }
+
+        if (hasContentLength && hasTransferEncoding)
+        {
+            out.error =
+                "Conflicting Content-Length and Transfer-Encoding headers";
+            out.statusCode = StatusCode::BadRequest;
+            return out;
+        }
+
+        if (hasTransferEncoding)
+        {
+            out.error      = "Transfer-Encoding is not supported";
+            out.statusCode = StatusCode::BadRequest;
+            return out;
+        }
+
+        if (hasContentLength)
+        {
+            if (headerEnd + contentLength > buffer.size())
             {
                 out.error =
                     "Request body incomplete; need more bytes from the socket";
                 out.statusCode = StatusCode::BadRequest;
                 return out;
             }
-
-            out.request.body.assign(buffer.data() + headerByteCount,
+            out.request.body.assign(buffer.data() + headerEnd,
                                     contentLength);
-            out.consumedBytes = headerByteCount + contentLength;
+            out.consumedBytes = headerEnd + contentLength;
         }
-        else if (out.request.method == HttpMethod::Post)
+        else if (out.request.method == HttpMethod::Post ||
+                 out.request.method == HttpMethod::Put ||
+                 out.request.method == HttpMethod::Patch)
         {
             out.error      = "Missing Content-Length header";
             out.statusCode = StatusCode::BadRequest;
@@ -323,7 +421,7 @@ namespace
         }
         else
         {
-            out.consumedBytes = headerByteCount;
+            out.consumedBytes = headerEnd;
         }
 
         if (!out.request.headers.contains("host"))
@@ -343,17 +441,16 @@ HttpParseStatus HttpRequestParser::tryParse(std::string_view buffer) const
 {
     HttpParseStatus out;
 
-    auto headerEnd = buffer.find("\r\n\r\n");
+auto headerEnd = findHeaderEnd(buffer);
     if (headerEnd == std::string_view::npos)
     {
         out.kind       = HttpParseStatus::Kind::Incomplete;
         out.statusCode = StatusCode::BadRequest;
         return out;
     }
-    std::size_t headerByteCount = headerEnd + 4;
 
-    // The remaining bytes are the body. If Content-Length is declared and we
-    // don't yet have that many bytes, we are incomplete.
+    // Quick Content-Length peek to determine whether we have enough body
+    // bytes for an Incomplete result before running the full parser.
     enum class ContentLengthLookup
     {
         Absent,
@@ -370,10 +467,10 @@ HttpParseStatus HttpRequestParser::tryParse(std::string_view buffer) const
         [&]() -> ContentLengthResult {
             ContentLengthResult result;
             std::size_t        pos = 0;
-            while (pos < headerByteCount)
+            while (pos < headerEnd)
             {
                 auto eol = buffer.find("\r\n", pos);
-                if (eol == std::string_view::npos || eol > headerByteCount)
+                if (eol == std::string_view::npos || eol > headerEnd)
                     break;
                 std::string_view line(buffer.data() + pos, eol - pos);
                 pos = eol + 2;
@@ -381,7 +478,6 @@ HttpParseStatus HttpRequestParser::tryParse(std::string_view buffer) const
                 if (colon == std::string_view::npos)
                     continue;
                 std::string_view key = line.substr(0, colon);
-                // Lowercase compare.
                 if (key.size() == 14)
                 {
                     bool match = true;
@@ -400,16 +496,17 @@ HttpParseStatus HttpRequestParser::tryParse(std::string_view buffer) const
                     if (match)
                     {
                         std::string_view value = line.substr(colon + 1);
-                        // Trim whitespace.
-                        auto begin = value.find_first_not_of(" \t");
-                        auto end   = value.find_last_not_of(" \t");
-                        if (begin == std::string_view::npos)
+                        auto begin = skipLws(value, 0);
+                        std::size_t end = value.size();
+                        while (end > begin && isLws(value[end - 1]))
+                            --end;
+                        if (begin >= end)
                         {
                             result.kind  = ContentLengthLookup::Invalid;
                             result.value = 0;
                             return result;
                         }
-                        value = value.substr(begin, end - begin + 1);
+                        value = value.substr(begin, end - begin);
 
                         std::size_t parsed = 0;
                         for (char c : value)
@@ -458,7 +555,7 @@ HttpParseStatus HttpRequestParser::tryParse(std::string_view buffer) const
 
     if (contentLengthResult.kind == ContentLengthLookup::Valid)
     {
-        std::size_t needed = headerByteCount + contentLengthResult.value;
+        std::size_t needed = headerEnd + contentLengthResult.value;
         if (buffer.size() < needed)
         {
             out.kind       = HttpParseStatus::Kind::Incomplete;
@@ -467,7 +564,7 @@ HttpParseStatus HttpRequestParser::tryParse(std::string_view buffer) const
         }
     }
 
-    auto core = parseCore(buffer, /*strictHeaders=*/true, maxBodySize);
+    auto core = parseCore(buffer, maxBodySize);
     if (!core.success)
     {
         out.kind          = HttpParseStatus::Kind::Error;
@@ -478,7 +575,7 @@ HttpParseStatus HttpRequestParser::tryParse(std::string_view buffer) const
 
     out.kind          = HttpParseStatus::Kind::Complete;
     out.request       = std::move(core.request);
-    out.consumedBytes = core.consumedBytes ? core.consumedBytes : headerByteCount;
+    out.consumedBytes = core.consumedBytes ? core.consumedBytes : headerEnd;
     out.statusCode    = StatusCode::OK;
     return out;
 }

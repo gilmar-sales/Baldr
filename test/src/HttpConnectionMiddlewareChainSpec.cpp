@@ -18,7 +18,7 @@ class FakeMiddleware : public IMiddleware
     {
     }
 
-    void Handle(const HttpRequest&    request,
+    void Handle(HttpRequest&          request,
                 HttpResponse&         response,
                 const NextMiddleware& next) override
     {

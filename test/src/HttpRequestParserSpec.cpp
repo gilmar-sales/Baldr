@@ -290,10 +290,20 @@ TEST_F(HttpRequestParserSpec, HttpRequestParserShouldRejectInvalidEncoding)
 TEST_F(HttpRequestParserSpec, HttpRequestParserShouldTrimInHeaders)
 {
     auto status = mHttpRequestParser->tryParse(
-        "GET /hello HTTP/1.1\r\n Host : x\r\n\r\n");
+        "GET /hello HTTP/1.1\r\nHost:  x  \r\n\r\n");
 
     ASSERT_EQ(status.kind, HttpParseStatus::Kind::Complete);
     ASSERT_STREQ(status.request.headers["host"].c_str(), "x");
+}
+
+TEST_F(HttpRequestParserSpec, HttpRequestParserShouldRejectHeaderFolding)
+{
+    auto status = mHttpRequestParser->tryParse(
+        "GET /hello HTTP/1.1\r\n Host: x\r\n\r\n");
+
+    ASSERT_EQ(status.kind, HttpParseStatus::Kind::Error);
+    ASSERT_STREQ(status.errorMessage.c_str(),
+                 "Header folding is not allowed in HTTP/1.1");
 }
 
 TEST_F(HttpRequestParserSpec, HttpRequestParserShouldDecodePath)

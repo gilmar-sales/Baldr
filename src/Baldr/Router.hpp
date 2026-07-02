@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <map>
+#include <memory>
 #include <regex>
 #include <string>
 #include <unordered_map>
@@ -47,9 +48,17 @@ struct RouteEntry
 
 struct TrieNode
 {
-    std::unordered_map<std::string, TrieNode*> children;
-    std::optional<RouteEntry>                  routeEntry;
-    bool                                       isEndOfPath = false;
+    std::unordered_map<std::string, std::unique_ptr<TrieNode>> children;
+    std::optional<RouteEntry>                                 routeEntry;
+    bool                                                      isEndOfPath = false;
+
+    TrieNode() = default;
+    TrieNode(TrieNode&&) noexcept = default;
+    TrieNode& operator=(TrieNode&&) noexcept = default;
+    TrieNode(const TrieNode&)                = delete;
+    TrieNode& operator=(const TrieNode&)     = delete;
+
+    ~TrieNode() = default;
 };
 
 class Router
@@ -57,18 +66,22 @@ class Router
   public:
     Router()
     {
-        mMethodsMap = {
-            { HttpMethod::Get, new TrieNode() },
-            { HttpMethod::Post, new TrieNode() },
-            { HttpMethod::Put, new TrieNode() },
-            { HttpMethod::Delete, new TrieNode() },
-            { HttpMethod::Patch, new TrieNode() },
-            { HttpMethod::Options, new TrieNode() },
-            { HttpMethod::Head, new TrieNode() },
-            { HttpMethod::Trace, new TrieNode() },
-            { HttpMethod::Connect, new TrieNode() },
-        };
+        mMethodsMap[HttpMethod::Get]      = std::make_unique<TrieNode>();
+        mMethodsMap[HttpMethod::Post]     = std::make_unique<TrieNode>();
+        mMethodsMap[HttpMethod::Put]      = std::make_unique<TrieNode>();
+        mMethodsMap[HttpMethod::Delete]   = std::make_unique<TrieNode>();
+        mMethodsMap[HttpMethod::Patch]    = std::make_unique<TrieNode>();
+        mMethodsMap[HttpMethod::Options]  = std::make_unique<TrieNode>();
+        mMethodsMap[HttpMethod::Head]     = std::make_unique<TrieNode>();
+        mMethodsMap[HttpMethod::Trace]    = std::make_unique<TrieNode>();
+        mMethodsMap[HttpMethod::Connect]  = std::make_unique<TrieNode>();
     }
+
+    ~Router() = default;
+    Router(const Router&)                = delete;
+    Router& operator=(const Router&)     = delete;
+    Router(Router&&) noexcept            = default;
+    Router& operator=(Router&&) noexcept = default;
 
     void insert(HttpMethod, std::string path,
                 const RouteHandler& routeHandler) const;
@@ -77,5 +90,5 @@ class Router
                                                   std::string path) const;
 
   private:
-    std::map<HttpMethod, TrieNode*> mMethodsMap;
+    std::map<HttpMethod, std::unique_ptr<TrieNode>> mMethodsMap;
 };

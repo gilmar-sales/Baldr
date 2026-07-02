@@ -1,10 +1,27 @@
 #include "HttpServer.hpp"
 
+#include <csignal>
 #include <stdexcept>
 #include <thread>
 
 #include <trantor/net/TcpConnection.h>
 #include <trantor/utils/MsgBuffer.h>
+
+namespace
+{
+    HttpServer* gHttpServerInstance = nullptr;
+
+    extern "C" void handleShutdownSignal(int signo)
+    {
+        if (gHttpServerInstance != nullptr)
+        {
+            // Async-signal-safe: only call Stop() which queues work on the
+            // acceptor loop. Do not log or allocate from a signal handler.
+            (void)signo;
+            gHttpServerInstance->Stop();
+        }
+    }
+}
 
 int resolveThreadCount(int configured)
 {
@@ -32,6 +49,10 @@ void HttpServer::Run()
 {
     if (mRunning.exchange(true))
         return;
+
+    gHttpServerInstance = this;
+    std::signal(SIGINT, handleShutdownSignal);
+    std::signal(SIGTERM, handleShutdownSignal);
 
     mAcceptorLoop = std::make_unique<trantor::EventLoop>();
     mIoLoopPool   = std::make_shared<trantor::EventLoopThreadPool>(
@@ -84,6 +105,12 @@ void HttpServer::Run()
     mIoLoopPool.reset();
     mAcceptorLoop.reset();
     mRunning.store(false);
+    if (gHttpServerInstance == this)
+    {
+        gHttpServerInstance = nullptr;
+        std::signal(SIGINT, SIG_DFL);
+        std::signal(SIGTERM, SIG_DFL);
+    }
 }
 
 void HttpServer::Stop()

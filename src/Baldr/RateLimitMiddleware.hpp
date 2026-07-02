@@ -13,7 +13,7 @@ class RateLimitMiddleware : public IMiddleware
     {
     }
 
-    void Handle(const HttpRequest& request, HttpResponse& response,
+    void Handle(HttpRequest& request, HttpResponse& response,
                 const NextMiddleware& next) override
     {
         if (!mRateLimiter->isAllowed(request.clientIp))

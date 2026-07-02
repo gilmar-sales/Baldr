@@ -17,7 +17,7 @@ class LoggingMiddleware final : public IMiddleware
 
     ~LoggingMiddleware() = default;
 
-    void Handle(const HttpRequest&    request,
+    void Handle(HttpRequest&          request,
                 HttpResponse&         response,
                 const NextMiddleware& next) override
     {

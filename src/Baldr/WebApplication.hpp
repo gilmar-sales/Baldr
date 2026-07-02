@@ -77,9 +77,16 @@ class WebApplication : public skr::IApplication
                 {
                     auto result = std::move(std::apply(handler, args));
 
-                    if constexpr (std::is_assignable_v<std::string, ResultType>)
+                    if constexpr (std::is_same_v<const char*, ResultType> ||
+                                  std::is_same_v<char*, ResultType>)
                     {
-                        response.headers["Content-Type"] = "plain/text";
+                        response.headers["Content-Type"] = "text/plain";
+                        response.body = std::string(result);
+                    }
+                    else if constexpr (std::is_assignable_v<std::string,
+                                                             ResultType>)
+                    {
+                        response.headers["Content-Type"] = "text/plain";
                         response.body                    = result;
                     }
                     else
@@ -92,6 +99,16 @@ class WebApplication : public skr::IApplication
                             response.body = std::move(json).take_value();
                             response.headers["Content-Type"] =
                                 "application/json";
+                        }
+                        else
+                        {
+                            response.headers["Content-Type"] = "text/plain";
+                            response.body =
+                                "Handler returned a value that could not be "
+                                "serialized to JSON or std::string.";
+                            response.statusCode =
+                                StatusCode::InternalServerError;
+                            return;
                         }
                     }
 
