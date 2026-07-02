@@ -3,6 +3,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "CookieOptions.hpp"
 #include "HttpMethod.hpp"
 
 struct HttpRequest
@@ -14,6 +15,7 @@ struct HttpRequest
     std::unordered_map<std::string, std::string> headers;
     std::unordered_map<std::string, std::string> query;
     std::unordered_map<std::string, std::string> params;
+    std::unordered_map<std::string, std::string> cookies;
     std::string                                  body;
 
     HttpRequest() = default;

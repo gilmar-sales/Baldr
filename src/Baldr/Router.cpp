@@ -6,6 +6,7 @@
 void Router::insert(HttpMethod method, std::string path,
                     const RouteHandler& routeHandler) const
 {
+    std::unique_lock lock(mMutex);
     TrieNode*  current = mMethodsMap.at(method).get();
     RouteEntry routeEntry {
         .paramsNames = {},
@@ -66,6 +67,7 @@ void Router::insert(HttpMethod method, std::string path,
 std::optional<RouteEntry> Router::match(HttpMethod  method,
                                         std::string path) const
 {
+    std::shared_lock lock(mMutex);
     auto pathSegments =
         path | std::views::split('/') |
         std::views::filter([](const auto& s) { return s.size() > 0; });

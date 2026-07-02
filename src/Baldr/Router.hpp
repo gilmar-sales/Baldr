@@ -3,7 +3,9 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <regex>
+#include <shared_mutex>
 #include <string>
 #include <unordered_map>
 
@@ -90,5 +92,6 @@ class Router
                                                   std::string path) const;
 
   private:
+    mutable std::shared_mutex                mMutex {};
     std::map<HttpMethod, std::unique_ptr<TrieNode>> mMethodsMap;
 };

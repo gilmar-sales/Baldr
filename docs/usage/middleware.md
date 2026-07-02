@@ -104,6 +104,26 @@ app->Use<TimingMiddleware>();
 
 Middleware runs in registration order on the way **in**, and in reverse order on the way **out**. Register cross-cutting concerns (logging, request IDs) first, and request-specific concerns (auth, rate limiting) closer to the handler.
 
+## Built-in middleware
+
+| Middleware | Header | Purpose |
+| ---------- | ------ | ------- |
+| `LoggingMiddleware` | `LoggingMiddleware.hpp` | Logs request/response with elapsed microseconds. |
+| `RateLimitMiddleware` | `RateLimitMiddleware.hpp` | Per-client throttling backed by `RateLimiter`. |
+| `CorsMiddleware` | `CorsMiddleware.hpp` | CORS headers + `OPTIONS` preflight short-circuit. |
+| `RequestIdMiddleware` | `RequestIdMiddleware.hpp` | Echoes or generates `X-Request-ID` for log correlation. |
+| `ExceptionHandlerMiddleware` | `ExceptionHandlerMiddleware.hpp` | Maps thrown exceptions to a 500 response. |
+
+Example wiring:
+
+```cpp title="src/main.cpp"
+app->Use<RequestIdMiddleware>()
+   ->Use<LoggingMiddleware>()
+   ->Use<CorsMiddleware>()
+   ->Use<ExceptionHandlerMiddleware>()
+   ->Use<RateLimitMiddleware>();
+```
+
 ## Next steps
 
 - See a complete example that uses both built-in middleware in the [Examples walkthrough](../authoring/examples.md).

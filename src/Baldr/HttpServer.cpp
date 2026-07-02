@@ -17,11 +17,11 @@ namespace
         {
             // Async-signal-safe: only call Stop() which queues work on the
             // acceptor loop. Do not log or allocate from a signal handler.
-            (void)signo;
+            (void) signo;
             gHttpServerInstance->Stop();
         }
     }
-}
+} // namespace
 
 int resolveThreadCount(int configured)
 {
@@ -53,6 +53,15 @@ void HttpServer::Run()
     gHttpServerInstance = this;
     std::signal(SIGINT, handleShutdownSignal);
     std::signal(SIGTERM, handleShutdownSignal);
+
+    auto middlewareProvider =
+        mServiceProvider->GetService<MiddlewareProvider>();
+    if (middlewareProvider && !middlewareProvider->IsSealed())
+    {
+        middlewareProvider->Seal();
+        mLogger->LogInformation("MiddlewareProvider sealed with {} factories",
+                                middlewareProvider->Size());
+    }
 
     mAcceptorLoop = std::make_unique<trantor::EventLoop>();
     mIoLoopPool   = std::make_shared<trantor::EventLoopThreadPool>(

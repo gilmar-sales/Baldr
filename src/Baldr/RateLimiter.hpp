@@ -11,9 +11,14 @@
 class RateLimiter
 {
   public:
-    RateLimiter(size_t maxRequests, std::chrono::seconds timeWindow,
+    template <typename Rep, typename Period>
+    RateLimiter(size_t maxRequests,
+                std::chrono::duration<Rep, Period>
+                       timeWindow,
                 size_t maxTrackedClients = 10000) :
-        mMaxRequests(maxRequests), mTimeWindow(timeWindow),
+        mMaxRequests(maxRequests),
+        mTimeWindow(
+            std::chrono::duration_cast<std::chrono::milliseconds>(timeWindow)),
         mMaxTrackedClients(maxTrackedClients)
     {
     }
@@ -45,14 +50,14 @@ class RateLimiter
             mLruOrder.splice(mLruOrder.begin(), mLruOrder, it->second.lruIt);
         }
 
-        auto& data    = it->second;
-        auto& tokens  = data.tokens;
-        auto& lastTs  = data.lastTimestamp;
+        auto& data   = it->second;
+        auto& tokens = data.tokens;
+        auto& lastTs = data.lastTimestamp;
 
-        const auto elapsedMs = std::chrono::duration_cast<
-            std::chrono::milliseconds>(now - lastTs).count();
-        const auto windowMs = std::chrono::duration_cast<
-            std::chrono::milliseconds>(mTimeWindow).count();
+        const auto elapsedMs =
+            std::chrono::duration_cast<std::chrono::milliseconds>(now - lastTs)
+                .count();
+        const auto windowMs = mTimeWindow.count();
 
         if (windowMs > 0)
         {
@@ -83,11 +88,11 @@ class RateLimiter
         size_t                                tokens = 0;
         std::chrono::steady_clock::time_point lastTimestamp =
             std::chrono::steady_clock::now();
-        std::list<std::string>::iterator      lruIt {};
+        std::list<std::string>::iterator lruIt {};
     };
 
     size_t                                      mMaxRequests;
-    std::chrono::seconds                        mTimeWindow {};
+    std::chrono::milliseconds                   mTimeWindow {};
     size_t                                      mMaxTrackedClients;
     std::unordered_map<std::string, ClientData> mClientsData;
     std::list<std::string>                      mLruOrder;

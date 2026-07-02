@@ -6,6 +6,7 @@
 #include "RateLimitMiddleware.hpp"
 #include "Skirnir/Common.hpp"
 #include "WebApplication.hpp"
+#include "WorkerPool.hpp"
 
 void BaldrExtension::ConfigureServices(skr::ServiceCollection& services)
 {
@@ -13,6 +14,8 @@ void BaldrExtension::ConfigureServices(skr::ServiceCollection& services)
     services.AddSingleton<Router>();
     services.AddSingleton<HttpServerOptions>();
     services.AddSingleton<HttpServer>();
+    services.AddSingleton(skr::MakeArc<WorkerPool>(
+        std::max<std::size_t>(1, std::thread::hardware_concurrency())));
 
     services.AddTransient<skr::Logger<HttpConnection>>();
     services.AddTransient<skr::Logger<WebApplication>>();

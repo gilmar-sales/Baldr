@@ -26,6 +26,25 @@ TEST_F(RouterSpec, RouterShouldRegisterGET)
     ASSERT_TRUE(mRouter->match(HttpMethod::Get, "/hello_world").has_value());
 }
 
+TEST_F(RouterSpec, RouterShouldMatchPrefixedRoutes)
+{
+    // Simulates the path that MapGroup("/api/v1", ...) produces.
+    mRouter->insert(
+        HttpMethod::Get, "/api/v1/users",
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+    mRouter->insert(
+        HttpMethod::Get, "/api/v1/orders/:id",
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+
+    ASSERT_TRUE(
+        mRouter->match(HttpMethod::Get, "/api/v1/users").has_value());
+    auto orderMatch =
+        mRouter->match(HttpMethod::Get, "/api/v1/orders/42");
+    ASSERT_TRUE(orderMatch.has_value());
+    auto params = orderMatch->extractRouteParams("/api/v1/orders/42");
+    EXPECT_EQ(params.at("id"), "42");
+}
+
 TEST_F(RouterSpec, RouterShouldRegisterMultipleGETs)
 {
     // Arrange

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <stdexcept>
+#include <vector>
+
 #include "IMiddleware.hpp"
 
 using MiddlewareFactory =
@@ -13,20 +16,34 @@ class MiddlewareProvider
     template <typename TMiddleware>
     void AddMiddleware()
     {
+        if (IsSealed())
+            throw std::logic_error(
+                "MiddlewareProvider is sealed; cannot add more middleware.");
+
         mMiddlewareFactories.push_back(
             [](const skr::Arc<skr::ServiceProvider>& serviceProvider) {
                 return serviceProvider->GetService<TMiddleware>();
             });
     }
 
-    const auto begin() { return mMiddlewareFactories.begin(); }
+    // Snapshot the factory list and forbid further AddMiddleware calls.
+    // Intended to be called once during application startup, before the
+    // HTTP server starts serving requests. After Seal(), Factories()
+    // returns the immutable snapshot, removing per-request contention on
+    // the underlying container.
+    void Seal() { mSealedFactories = mMiddlewareFactories; }
 
-    const auto end() { return mMiddlewareFactories.end(); }
+    bool IsSealed() const { return !mSealedFactories.empty(); }
 
-    size_t Size() { return mMiddlewareFactories.size(); }
+    const auto begin() { return Factories().begin(); }
 
-    MiddlewareFactoryList& Factories() { return mMiddlewareFactories; }
+    const auto end() { return Factories().end(); }
+
+    size_t Size() { return Factories().size(); }
+
+    MiddlewareFactoryList& Factories() { return mSealedFactories; }
 
   private:
     MiddlewareFactoryList mMiddlewareFactories;
+    MiddlewareFactoryList mSealedFactories;
 };
