@@ -2,6 +2,7 @@
 
 #include <ranges>
 #include <stack>
+#include <stdexcept>
 
 void Router::insert(HttpMethod method, std::string path,
                     const RouteHandler& routeHandler) const
@@ -10,7 +11,9 @@ void Router::insert(HttpMethod method, std::string path,
     TrieNode*  current = mMethodsMap.at(method).get();
     RouteEntry routeEntry {
         .paramsNames = {},
-        .hasParams   = !path.empty() && path.find(':') != std::string::npos,
+        .hasParams   = !path.empty() &&
+                     (path.find(':') != std::string::npos ||
+                      path.find("**") != std::string::npos),
         .handler     = routeHandler
     };
 
@@ -33,20 +36,40 @@ void Router::insert(HttpMethod method, std::string path,
         return;
     }
 
-    std::string regexStr = "^/";
+    std::string regexStr  = "^/";
+    bool        greedySet = false;
 
     for (auto segment : pathSegments)
     {
         auto sv = std::string(segment.begin(), segment.end());
 
-        if (sv.starts_with(':'))
+        if (sv == "**")
         {
+            if (greedySet)
+                throw std::invalid_argument(
+                    "Router: '**' may only appear once per route");
+
+            greedySet = true;
+            routeEntry.paramsNames.emplace_back("filepath");
+            regexStr += "(?:/(.*))?";
+            sv = "**";
+        }
+        else if (sv.starts_with(':'))
+        {
+            if (greedySet)
+                throw std::invalid_argument(
+                    "Router: '**' must be the final segment");
+
             routeEntry.paramsNames.emplace_back(sv.substr(1));
             regexStr += "([^/]+)/?";
             sv = "*";
         }
         else
         {
+            if (greedySet)
+                throw std::invalid_argument(
+                    "Router: '**' must be the final segment");
+
             regexStr += sv;
             regexStr += "/?";
         }
@@ -100,10 +123,21 @@ std::optional<RouteEntry> Router::match(HttpMethod  method,
                 return node->routeEntry;
             }
 
+            if (node->children.contains("**") &&
+                node->children["**"]->isEndOfPath)
+            {
+                return node->children["**"]->routeEntry;
+            }
+
             continue;
         }
 
         const auto& segment = std::string((*index).begin(), (*index).end());
+
+        if (node->children.contains("**") && node->children["**"]->isEndOfPath)
+        {
+            stack.emplace(node->children["**"].get(), pathSegments.end());
+        }
 
         if (node->children.contains(segment))
         {

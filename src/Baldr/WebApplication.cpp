@@ -4,11 +4,14 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 #include "Baldr/HttpServer.hpp"
 #include "Baldr/Result.hpp"
+#include "StaticFilesInternal.hpp"
 
 namespace
 {
@@ -38,13 +41,93 @@ namespace
         return "application/octet-stream";
     }
 
-    bool isPathSafe(const std::string& path)
+    std::vector<std::string> splitSegments(const std::string& s)
     {
-        if (path.empty() || path[0] == '/')
-            return false;
-        if (path.find("..") != std::string::npos)
-            return false;
-        return true;
+        std::vector<std::string> out;
+        std::string              cur;
+        for (char c : s)
+        {
+            if (c == '/')
+            {
+                if (!cur.empty())
+                {
+                    out.push_back(cur);
+                    cur.clear();
+                }
+            }
+            else
+            {
+                cur.push_back(c);
+            }
+        }
+        if (!cur.empty())
+            out.push_back(cur);
+        return out;
+    }
+}
+
+namespace Baldr::Detail
+{
+    StaticResolve resolveStaticFile(const std::string& filepath,
+                                    const std::string& root)
+    {
+        if (filepath.find('\0') != std::string::npos ||
+            filepath.find('\\') != std::string::npos)
+        {
+            return { StatusCode::BadRequest, {}, {}, {} };
+        }
+
+        for (const auto& seg : splitSegments(filepath))
+        {
+            if (seg == ".." || seg == ".")
+                return { StatusCode::BadRequest, {}, {}, {} };
+        }
+
+        std::error_code ec;
+        const auto      rootCanonical =
+            std::filesystem::weakly_canonical(root, ec);
+        if (ec)
+            return { StatusCode::InternalServerError, {}, {}, {} };
+
+        std::filesystem::path requested =
+            std::filesystem::path(root) / filepath;
+        const auto            canonical =
+            std::filesystem::weakly_canonical(requested, ec);
+        if (ec)
+            return { StatusCode::NotFound, {}, {}, {} };
+
+        const std::string rootStr = rootCanonical.string();
+        const std::string fileStr = canonical.string();
+        const bool        exactRoot = (fileStr == rootStr);
+        const bool        underRoot =
+            fileStr.size() > rootStr.size() &&
+            fileStr.compare(0, rootStr.size(), rootStr) == 0 &&
+            (fileStr[rootStr.size()] == '/' ||
+             fileStr[rootStr.size()] == std::filesystem::path::preferred_separator);
+
+        if (!exactRoot && !underRoot)
+            return { StatusCode::Forbidden, {}, {}, {} };
+
+        std::filesystem::path fileToServe = canonical;
+
+        std::error_code isDirEc;
+        if (std::filesystem::is_directory(canonical, isDirEc))
+        {
+            fileToServe = canonical / "index.html";
+        }
+
+        if (!std::filesystem::is_regular_file(fileToServe, ec))
+            return { StatusCode::NotFound, {}, {}, {} };
+
+        std::ifstream file(fileToServe, std::ios::binary);
+        if (!file)
+            return { StatusCode::InternalServerError, {}, {}, {} };
+
+        std::ostringstream ss;
+        ss << file.rdbuf();
+
+        return { StatusCode::OK, fileToServe, detectMimeType(fileToServe),
+                 ss.str() };
     }
 }
 
@@ -54,49 +137,19 @@ void WebApplication::MapStaticFiles(const std::string& urlPrefix,
     const std::string prefix = urlPrefix;
     const std::string root   = rootPath;
 
-    MapGet(prefix + "/:filepath", [prefix, root](HttpRequest& request,
-                                                  HttpResponse&)
-                                        -> ContentResult {
-               auto it = request.params.find("filepath");
-               if (it == request.params.end())
-                   return ContentResult("", "text/plain",
-                                        StatusCode::NotFound);
-               const auto& filepath = it->second;
+    MapGet(prefix + "/**", [prefix, root](HttpRequest& request,
+                                          HttpResponse&) -> ContentResult {
+        (void)prefix;
+        auto it = request.params.find("filepath");
+        std::string filepath =
+            (it != request.params.end()) ? it->second : std::string {};
 
-               if (!isPathSafe(filepath))
-                   return ContentResult("", "text/plain",
-                                        StatusCode::BadRequest);
-
-               std::filesystem::path filePath =
-                   std::filesystem::path(root) / filepath;
-               std::error_code       ec;
-               const auto            canonical =
-                   std::filesystem::weakly_canonical(filePath, ec);
-               if (ec)
-                   return ContentResult("", "text/plain",
-                                        StatusCode::NotFound);
-
-               const auto rootCanonical =
-                   std::filesystem::weakly_canonical(root, ec);
-               if (ec ||
-                   canonical.string().find(rootCanonical.string()) != 0)
-                   return ContentResult("", "text/plain",
-                                        StatusCode::Forbidden);
-
-               if (!std::filesystem::is_regular_file(canonical, ec))
-                   return ContentResult("", "text/plain",
-                                        StatusCode::NotFound);
-
-               std::ifstream file(canonical, std::ios::binary);
-               if (!file)
-                   return ContentResult("", "text/plain",
-                                        StatusCode::InternalServerError);
-
-               std::ostringstream ss;
-               ss << file.rdbuf();
-
-               return ContentResult(ss.str(), detectMimeType(canonical));
-           });
+        auto resolved = Baldr::Detail::resolveStaticFile(filepath, root);
+        if (resolved.status == StatusCode::OK)
+            return ContentResult(resolved.body, resolved.mimeType,
+                                 StatusCode::OK);
+        return ContentResult("", "text/plain", resolved.status);
+    });
 }
 
 void WebApplication::Run()

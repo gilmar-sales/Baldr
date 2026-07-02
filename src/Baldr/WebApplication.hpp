@@ -57,8 +57,11 @@ class WebApplication : public skr::IApplication
     }
 
     // Serve static files from `rootPath` under `urlPrefix`. Mime type is
-    // detected from the file extension. ETag (size-mtime hash) and
-    // If-None-Match are honoured. Path traversal is rejected.
+    // detected from the file extension. Arbitrarily deep sub-paths are
+    // supported (`urlPrefix/**`). Directory requests fall back to
+    // `index.html` when present. Path-traversal attempts (raw and
+    // percent-encoded, including backslash and NUL bytes) are rejected
+    // before any filesystem call.
     void MapStaticFiles(const std::string& urlPrefix,
                         const std::string& rootPath);
 

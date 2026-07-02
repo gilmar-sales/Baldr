@@ -1,0 +1,1 @@
+console.log("loaded from /static/assets/app.js");

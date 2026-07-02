@@ -5,6 +5,8 @@ All notable changes to Baldr are documented here. The format is based on [Keep a
 ## [Unreleased]
 
 ### Added
+- Router: `**` greedy catch-all segment. Registering `prefix/**` matches `prefix`, `prefix/`, and any nested path under `prefix`; the remainder is captured into `params["filepath"]` (without the leading `/`).
+- `MapStaticFilesSpec` covering nested serving, directory index fallback, and rejection of raw / percent-encoded / backslash / NUL traversal vectors.
 - `IResult` interface with `TextResult`, `JsonResult`, `ContentResult`, `StatusResult` and `Results` factory functions in `src/Baldr/Result.hpp`. Handlers may return any `IResult` subclass by value.
 - `WebApplication::MapGroup(prefix, setup)` for nested route prefixes via `RouteBuilder`.
 - `WebApplication::MapStaticFiles(urlPrefix, rootPath)` with mime detection, path-traversal guard, and `weakly_canonical` root confinement.
@@ -18,6 +20,7 @@ All notable changes to Baldr are documented here. The format is based on [Keep a
 - Streamed-buffer integration tests (byte-by-byte feed, pipelining, arbitrary 3-byte chunking).
 
 ### Changed
+- `WebApplication::MapStaticFiles` rewritten to support arbitrary depth (`urlPrefix/**`), fall back to `index.html` on directory requests, and reject path-traversal attempts (raw `..`, percent-encoded `..`, backslashes, NUL) before any filesystem call. The canonical-target prefix check now requires the next byte to be a path separator, blocking sibling directories whose names share the root prefix.
 - `HttpRequestParser` rewritten as a single-pass parser with explicit byte offsets; rejects header folding, extra whitespace, duplicate `Content-Length`; enforces size caps for headers, header values, paths, and bodies.
 - `Router` migrated from raw `new`/`TrieNode*` to `std::unique_ptr<TrieNode>` (recursive); guarded by `std::shared_mutex` for concurrent reads.
 - `MiddlewareProvider` gained `Seal()` — `HttpServer::Run` snapshots the factory list before serving, eliminating per-request contention.

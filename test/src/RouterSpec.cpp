@@ -273,3 +273,96 @@ TEST_F(RouterSpec, RouterShouldExtractParamFromLiteralMultiSegmentContext)
     EXPECT_STREQ(
         matched->extractRouteParams("/api/devices/abc")["id"].c_str(), "abc");
 }
+
+// ============================================================================
+// Greedy catch-all (`**`) — multi-segment static-files support.
+// ============================================================================
+
+TEST_F(RouterSpec, RouterMatchesGreedyCatchAll)
+{
+    mRouter->insert(
+        HttpMethod::Get, "/static/**",
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+
+    EXPECT_TRUE(mRouter->match(HttpMethod::Get, "/static").has_value());
+    EXPECT_TRUE(mRouter->match(HttpMethod::Get, "/static/").has_value());
+    EXPECT_TRUE(mRouter->match(HttpMethod::Get, "/static/a").has_value());
+    EXPECT_TRUE(
+        mRouter->match(HttpMethod::Get, "/static/css/site.css").has_value());
+}
+
+TEST_F(RouterSpec, RouterGreedyCatchAllCapturesRemainderWithoutLeadingSlash)
+{
+    mRouter->insert(
+        HttpMethod::Get, "/static/**",
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+
+    auto one = mRouter->match(HttpMethod::Get, "/static/a");
+    ASSERT_TRUE(one.has_value());
+    EXPECT_STREQ(
+        one->extractRouteParams("/static/a")["filepath"].c_str(), "a");
+
+    auto many = mRouter->match(HttpMethod::Get, "/static/css/site.css");
+    ASSERT_TRUE(many.has_value());
+    EXPECT_STREQ(
+        many->extractRouteParams("/static/css/site.css")["filepath"].c_str(),
+        "css/site.css");
+
+    auto bare = mRouter->match(HttpMethod::Get, "/static");
+    ASSERT_TRUE(bare.has_value());
+    EXPECT_TRUE(
+        bare->extractRouteParams("/static")["filepath"].empty());
+
+    auto trailing = mRouter->match(HttpMethod::Get, "/static/");
+    ASSERT_TRUE(trailing.has_value());
+    EXPECT_TRUE(
+        trailing->extractRouteParams("/static/")["filepath"].empty());
+}
+
+TEST_F(RouterSpec, RouterRejectsGreedyCatchAllNotTerminal)
+{
+    EXPECT_THROW(
+        mRouter->insert(
+            HttpMethod::Get, "/static/**/x",
+            [](HttpRequest&, HttpResponse&,
+               skr::Arc<skr::ServiceProvider>) {}),
+        std::invalid_argument);
+
+    EXPECT_THROW(
+        mRouter->insert(
+            HttpMethod::Get, "/static/**/:name",
+            [](HttpRequest&, HttpResponse&,
+               skr::Arc<skr::ServiceProvider>) {}),
+        std::invalid_argument);
+}
+
+TEST_F(RouterSpec, RouterLiteralSegmentTakesPrecedenceOverGreedyCatchAll)
+{
+    mRouter->insert(
+        HttpMethod::Get, "/static/**",
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+    mRouter->insert(
+        HttpMethod::Get, "/static/index",
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+
+    auto exact = mRouter->match(HttpMethod::Get, "/static/index");
+    ASSERT_TRUE(exact.has_value());
+    EXPECT_FALSE(exact->hasParams);
+
+    auto nested = mRouter->match(HttpMethod::Get, "/static/index/nested");
+    ASSERT_TRUE(nested.has_value());
+    EXPECT_STREQ(
+        nested->extractRouteParams("/static/index/nested")["filepath"].c_str(),
+        "index/nested");
+}
+
+TEST_F(RouterSpec, RouterGreedyCatchAllIsIsolatedToItsMethod)
+{
+    mRouter->insert(
+        HttpMethod::Get, "/static/**",
+        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+
+    EXPECT_TRUE(mRouter->match(HttpMethod::Get, "/static/a/b").has_value());
+    EXPECT_FALSE(mRouter->match(HttpMethod::Post, "/static/a/b").has_value());
+    EXPECT_FALSE(mRouter->match(HttpMethod::Delete, "/static/a").has_value());
+}
