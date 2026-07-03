@@ -5,6 +5,7 @@
 
 #include "CookieOptions.hpp"
 #include "HttpMethod.hpp"
+#include "RouteOptions.hpp"
 
 struct HttpRequest
 {
@@ -17,6 +18,7 @@ struct HttpRequest
     std::unordered_map<std::string, std::string> params;
     std::unordered_map<std::string, std::string> cookies;
     std::string                                  body;
+    Baldr::RouteInfo                             route;
 
     HttpRequest() = default;
 };

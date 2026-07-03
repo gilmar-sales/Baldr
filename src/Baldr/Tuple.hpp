@@ -42,6 +42,22 @@ struct LambdaTraits<Ret (T::*)(Args...) const> : LambdaTraits<Ret(Args...)>
 {
 };
 
+template <typename T, typename Ret, typename... Args>
+struct LambdaTraits<Ret (T::*)(Args...) const noexcept>
+    : LambdaTraits<Ret(Args...)>
+{
+};
+
+template <typename T, typename Ret, typename... Args>
+struct LambdaTraits<Ret (T::*)(Args...)> : LambdaTraits<Ret(Args...)>
+{
+};
+
+template <typename T, typename Ret, typename... Args>
+struct LambdaTraits<Ret (T::*)(Args...) noexcept> : LambdaTraits<Ret(Args...)>
+{
+};
+
 template <typename TLambda>
 using LambdaArgs =
     typename LambdaTraits<std::remove_reference_t<TLambda>>::ArgsTuple;

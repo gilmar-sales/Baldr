@@ -36,9 +36,11 @@ void MapMetrics(WebApplication& app, MetricsOptions options)
 {
     if (options.endpointPath.empty())
         return;
+
     const std::string path = options.endpointPath;
+
     app.MapGet(path, [path](HttpResponse& response) -> ContentResult {
-        (void)path;
+        (void) path;
         auto body = Baldr::MetricsRegistry::instance().renderPrometheus();
         ContentResult r(body, "text/plain; version=0.0.4", StatusCode::OK);
         return r;

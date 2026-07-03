@@ -149,6 +149,14 @@ void HttpConnection::handle(HttpRequest request)
         request.params =
             matchResult.entry.value().extractRouteParams(request.path);
 
+        const auto& entry = matchResult.entry.value();
+        request.route.path = entry.pathTemplate.empty()
+                                 ? request.path
+                                 : entry.pathTemplate;
+        request.route.group    = entry.groupPrefix;
+        request.route.method   = matchResult.resolvedMethod;
+        request.route.options  = entry.options;
+
         auto scope          = mServiceProvider->CreateServiceScope();
         auto scopedProvider = scope->GetServiceProvider();
 

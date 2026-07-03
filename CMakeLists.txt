@@ -61,6 +61,7 @@ if (BALDR_BUILD_EXAMPLES)
   add_subdirectory(examples/Devices)
   add_subdirectory(examples/StaticFiles)
   add_subdirectory(examples/FileStream)
+  add_subdirectory(examples/OpenApiExample)
 endif ()
 
 

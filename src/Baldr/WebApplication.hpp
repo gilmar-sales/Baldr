@@ -4,7 +4,8 @@
 
 #include "MiddlewareProvider.hpp"
 #include "Result.hpp"
-#include "Router.hpp"
+#include "RouteOptions.hpp"
+#include "RouteRegistration.hpp"
 #include "StreamingResult.hpp"
 #include "Tuple.hpp"
 
@@ -19,50 +20,62 @@ class WebApplication : public skr::IApplication
     {
     }
 
+    Baldr::RouteRegistration MapGet(const std::string& route)
+    {
+        return Baldr::RouteRegistration(*mRouter, HttpMethod::Get, route);
+    }
+
     void MapGet(const std::string& route, auto&& handler)
     {
-        MapRoute(HttpMethod::Get, route, handler);
+        MapGet(route).Handle(std::forward<decltype(handler)>(handler));
+    }
+
+    Baldr::RouteRegistration MapPost(const std::string& route)
+    {
+        return Baldr::RouteRegistration(*mRouter, HttpMethod::Post, route);
     }
 
     void MapPost(const std::string& route, auto&& handler)
     {
-        MapRoute(HttpMethod::Post, route, handler);
+        MapPost(route).Handle(std::forward<decltype(handler)>(handler));
+    }
+
+    Baldr::RouteRegistration MapPut(const std::string& route)
+    {
+        return Baldr::RouteRegistration(*mRouter, HttpMethod::Put, route);
     }
 
     void MapPut(const std::string& route, auto&& handler)
     {
-        MapRoute(HttpMethod::Put, route, handler);
+        MapPut(route).Handle(std::forward<decltype(handler)>(handler));
+    }
+
+    Baldr::RouteRegistration MapDelete(const std::string& route)
+    {
+        return Baldr::RouteRegistration(*mRouter, HttpMethod::Delete, route);
     }
 
     void MapDelete(const std::string& route, auto&& handler)
     {
-        MapRoute(HttpMethod::Delete, route, handler);
+        MapDelete(route).Handle(std::forward<decltype(handler)>(handler));
+    }
+
+    Baldr::RouteRegistration MapPatch(const std::string& route)
+    {
+        return Baldr::RouteRegistration(*mRouter, HttpMethod::Patch, route);
     }
 
     void MapPatch(const std::string& route, auto&& handler)
     {
-        MapRoute(HttpMethod::Patch, route, handler);
+        MapPatch(route).Handle(std::forward<decltype(handler)>(handler));
     }
 
-    // Route groups: apply a prefix to all routes registered inside `setup`.
-    // The callback receives a `RouteBuilder` that exposes the same
-    // MapGet/MapPost/... methods, so call sites read naturally:
-    //
-    //   app.MapGroup("/api/v1", [](auto& group) {
-    //       group.MapGet("/users", ...);
-    //   });
     void MapGroup(const std::string& prefix, auto setup)
     {
-        RouteBuilder builder(*this, prefix);
+        RouteBuilder builder(*mRouter, prefix);
         setup(builder);
     }
 
-    // Serve static files from `rootPath` under `urlPrefix`. Mime type is
-    // detected from the file extension. Arbitrarily deep sub-paths are
-    // supported (`urlPrefix/**`). Directory requests fall back to
-    // `index.html` when present. Path-traversal attempts (raw and
-    // percent-encoded, including backslash and NUL bytes) are rejected
-    // before any filesystem call.
     void MapStaticFiles(const std::string& urlPrefix,
                         const std::string& rootPath);
 
@@ -76,17 +89,40 @@ class WebApplication : public skr::IApplication
 
     void Run() override;
 
+    // Public so RouteBuilder and RouteRegistration can call into it for
+    // grouped routes and per-route fluent options. Forwards to MapRoute.
+    template <typename Handler>
+    void BindRoute(HttpMethod method, const std::string& route,
+                   const std::string&         groupPrefix,
+                   const Baldr::RouteOptions& options,
+                   const std::string&         requestSchemaJson,
+                   const std::string& responseSchemaJson, Handler&& handler)
+    {
+        MapRoute(method, route, groupPrefix, options, handler);
+    }
+
     // Public so RouteBuilder can call into it for grouped routes.
     template <typename Handler>
     void MapRoute(HttpMethod method, const std::string& route,
-                  Handler&&   handler)
+                  Handler&& handler)
+    {
+        MapRoute(method, route, std::string {}, Baldr::RouteOptions {},
+                 std::forward<Handler>(handler));
+    }
+
+    template <typename Handler>
+    void MapRoute(HttpMethod method, const std::string& route,
+                  const std::string&         groupPrefix,
+                  const Baldr::RouteOptions& options, Handler&& handler)
     {
         mRouter->insert(
             method,
             route,
+            options,
+            groupPrefix,
             [handler = std::forward<Handler>(handler), this](
-                HttpRequest&                       request,
-                HttpResponse&                      response,
+                HttpRequest&                          request,
+                HttpResponse&                         response,
                 const skr::Arc<skr::ServiceProvider>& serviceProvider) mutable {
                 using HandlerArgsTuple = typename LambdaTraits<
                     std::remove_reference_t<decltype(handler)>>::ArgsTuple;
@@ -124,26 +160,27 @@ class WebApplication : public skr::IApplication
                                                     ResultType> &&
                                   !std::is_base_of_v<IResult, ResultType>)
                     {
-                        response.streaming = std::make_shared<ResultType>(
-                            std::move(result));
+                        response.streaming =
+                            std::make_shared<ResultType>(std::move(result));
                     }
                     else if constexpr (std::is_base_of_v<IResult, ResultType>)
                     {
                         result.Apply(response);
                     }
-                    else if constexpr (std::is_same_v<const char*, ResultType> ||
-                                        std::is_same_v<char*, ResultType>)
+                    else if constexpr (std::is_same_v<const char*,
+                                                      ResultType> ||
+                                       std::is_same_v<char*, ResultType>)
                     {
                         response.headers["Content-Type"] = "text/plain";
-                        response.body = std::string(result);
-                        response.statusCode = StatusCode::OK;
+                        response.body                    = std::string(result);
+                        response.statusCode              = StatusCode::OK;
                     }
                     else if constexpr (std::is_assignable_v<std::string,
-                                                             ResultType>)
+                                                            ResultType>)
                     {
                         response.headers["Content-Type"] = "text/plain";
                         response.body                    = result;
-                        response.statusCode = StatusCode::OK;
+                        response.statusCode              = StatusCode::OK;
                     }
                     else
                     {
@@ -178,34 +215,64 @@ class WebApplication : public skr::IApplication
     class RouteBuilder
     {
       public:
-        RouteBuilder(WebApplication& app, std::string prefix) :
-            mApp(app), mPrefix(std::move(prefix))
+        RouteBuilder(Router& router, std::string prefix) :
+            mRouter(router), mPrefix(std::move(prefix))
         {
+        }
+
+        Baldr::RouteRegistration MapGet(const std::string& route)
+        {
+            return Baldr::RouteRegistration(
+                mRouter, HttpMethod::Get, join(mPrefix, route), mPrefix);
         }
 
         void MapGet(const std::string& route, auto&& handler)
         {
-            mApp.MapRoute(HttpMethod::Get, join(mPrefix, route), handler);
+            MapGet(route).Handle(std::forward<decltype(handler)>(handler));
+        }
+
+        Baldr::RouteRegistration MapPost(const std::string& route)
+        {
+            return Baldr::RouteRegistration(
+                mRouter, HttpMethod::Post, join(mPrefix, route), mPrefix);
         }
 
         void MapPost(const std::string& route, auto&& handler)
         {
-            mApp.MapRoute(HttpMethod::Post, join(mPrefix, route), handler);
+            MapPost(route).Handle(std::forward<decltype(handler)>(handler));
+        }
+
+        Baldr::RouteRegistration MapPut(const std::string& route)
+        {
+            return Baldr::RouteRegistration(
+                mRouter, HttpMethod::Put, join(mPrefix, route), mPrefix);
         }
 
         void MapPut(const std::string& route, auto&& handler)
         {
-            mApp.MapRoute(HttpMethod::Put, join(mPrefix, route), handler);
+            MapPut(route).Handle(std::forward<decltype(handler)>(handler));
+        }
+
+        Baldr::RouteRegistration MapDelete(const std::string& route)
+        {
+            return Baldr::RouteRegistration(
+                mRouter, HttpMethod::Delete, join(mPrefix, route), mPrefix);
         }
 
         void MapDelete(const std::string& route, auto&& handler)
         {
-            mApp.MapRoute(HttpMethod::Delete, join(mPrefix, route), handler);
+            MapDelete(route).Handle(std::forward<decltype(handler)>(handler));
+        }
+
+        Baldr::RouteRegistration MapPatch(const std::string& route)
+        {
+            return Baldr::RouteRegistration(
+                mRouter, HttpMethod::Patch, join(mPrefix, route), mPrefix);
         }
 
         void MapPatch(const std::string& route, auto&& handler)
         {
-            mApp.MapRoute(HttpMethod::Patch, join(mPrefix, route), handler);
+            MapPatch(route).Handle(std::forward<decltype(handler)>(handler));
         }
 
       private:
@@ -222,11 +289,14 @@ class WebApplication : public skr::IApplication
             return a + "/" + b;
         }
 
-        WebApplication& mApp;
-        std::string     mPrefix;
+        Router&     mRouter;
+        std::string mPrefix;
     };
 
   private:
     skr::Arc<Router>             mRouter;
     skr::Arc<MiddlewareProvider> mMiddlewareProvider;
+
+  public:
+    skr::Arc<Router> GetRouter() const { return mRouter; }
 };
