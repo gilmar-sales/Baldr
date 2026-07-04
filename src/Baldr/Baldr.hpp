@@ -1,12 +1,13 @@
 #pragma once
 
-#include <Baldr/BaldrExtension.hpp>
 #include <Baldr/Application/WebApplication.hpp>
+#include <Baldr/BaldrExtension.hpp>
 #include <Baldr/Http/Request.hpp>
 #include <Baldr/Http/Response.hpp>
 #include <Baldr/Http/Results/JsonBody.hpp>
 #include <Baldr/Http/Router.hpp>
 #include <Baldr/Http/Server.hpp>
+#include <Baldr/Http/TraceContext.hpp>
 #include <Baldr/Metrics/Registry.hpp>
 #include <Baldr/Middleware/Cors.hpp>
 #include <Baldr/Middleware/Csrf.hpp>

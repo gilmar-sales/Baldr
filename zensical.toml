@@ -60,6 +60,7 @@ Usage = [
     "usage/streaming-results.md",
     "usage/static-files.md",
     "usage/middleware.md",
+    "usage/tracing.md",
     "usage/dependency-injection.md",
 ]
 

@@ -70,7 +70,7 @@ Baldr ships with the following middleware out of the box:
 | Middleware | Header | Purpose |
 | --- | --- | --- |
 | `LoggingMiddleware` | `<Baldr/Middleware/Logging.hpp>` | Logs request/response with elapsed microseconds. |
-| `RequestIdMiddleware` | `<Baldr/Middleware/RequestId.hpp>` | Echoes or generates `X-Request-ID` for log correlation. |
+| `RequestIdMiddleware` | `<Baldr/Middleware/RequestId.hpp>` | Echoes or generates `X-Request-ID`; parses W3C `traceparent` and exposes `request.traceContext`. |
 | `ExceptionHandlerMiddleware` | `<Baldr/Middleware/ExceptionHandler.hpp>` | Catches exceptions and maps them to a 500 response. |
 | `RateLimitMiddleware` | `<Baldr/Middleware/RateLimit/Middleware.hpp>` | Per-client throttling backed by `RateLimiter`. |
 | `CorsMiddleware` | `<Baldr/Middleware/Cors.hpp>` | CORS headers + `OPTIONS` preflight short-circuit. |
@@ -134,9 +134,9 @@ Middleware runs in registration order on the way **in**, and in reverse order on
 
 Typical order, outermost first:
 
-1. `RequestIdMiddleware` — assigns an id before anything else so it appears in every log.
+1. `RequestIdMiddleware` — assigns an id before anything else so it appears in every log. Also parses the W3C `traceparent` header and populates `request.traceContext`, so it must run **before** `LoggingMiddleware` for log enrichment to work.
 2. `ExceptionHandlerMiddleware` — wraps the rest of the pipeline so uncaught exceptions become 500s.
-3. `LoggingMiddleware` — measures elapsed time including everything below.
+3. `LoggingMiddleware` — measures elapsed time including everything below. Reads `request.traceContext` to append `trace=` (and `span=` when sampled) to each log line. See [Tracing](tracing.md).
 4. `CompressionMiddleware` — only relevant for response bodies, so position relative to `LoggingMiddleware` does not matter for ordering correctness.
 5. `SecurityHeadersMiddleware` — adds headers regardless of response.
 6. `CorsMiddleware` — must run before the handler to short-circuit preflight `OPTIONS`.
@@ -146,3 +146,4 @@ Typical order, outermost first:
 
 - Browse per-middleware pages under [Middleware overview](../middleware/overview.md).
 - See runnable programs that combine middleware in the [Examples walkthrough](../authoring/examples.md).
+- Configure distributed tracing with [Tracing](tracing.md).

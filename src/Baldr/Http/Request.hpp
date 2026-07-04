@@ -6,6 +6,7 @@
 #include <Baldr/Http/CookieOptions.hpp>
 #include <Baldr/Http/Method.hpp>
 #include <Baldr/Http/RouteOptions.hpp>
+#include <Baldr/Http/TraceContext.hpp>
 
 struct HttpRequest
 {
@@ -19,6 +20,7 @@ struct HttpRequest
     std::unordered_map<std::string, std::string> cookies;
     std::string                                  body;
     Baldr::RouteInfo                             route;
+    Baldr::TraceContext                          traceContext;
 
     HttpRequest() = default;
 };

@@ -1,37 +1,101 @@
 #pragma once
 
 #include <chrono>
-#include <cstdint>
 #include <cstdio>
 #include <string>
 
+#include <Baldr/Http/TraceContext.hpp>
 #include <Baldr/Middleware/IMiddleware.hpp>
+
+struct RequestIdOptions
+{
+    bool propagateTraceparentResponse  = true;
+    bool useTraceIdAsRequestIdFallback = true;
+};
 
 class RequestIdMiddleware final : public IMiddleware
 {
   public:
     RequestIdMiddleware() = default;
+    explicit RequestIdMiddleware(RequestIdOptions opts) : mOptions(opts) {}
     ~RequestIdMiddleware() override = default;
 
-    static constexpr const char* kHeaderName = "X-Request-ID";
+    static constexpr const char* kHeaderName        = "X-Request-ID";
+    static constexpr const char* kTraceparentHeader = "traceparent";
 
     void Handle(HttpRequest&          request,
                 HttpResponse&         response,
                 const NextMiddleware& next) override
     {
-        auto it = request.headers.find("x-request-id");
-        std::string id;
-        if (it != request.headers.end() && !it->second.empty())
+        auto populateTraceContext = [&](const std::string& incomingTraceId,
+                                        std::uint8_t       flags,
+                                        bool               keepIncoming) {
+            request.traceContext.version = 0;
+            request.traceContext.traceId =
+                keepIncoming ? incomingTraceId : Baldr::NewTraceId();
+            request.traceContext.spanId     = Baldr::NewSpanId();
+            request.traceContext.traceFlags = flags;
+            request.traceContext.valid      = true;
+        };
+
+        const auto tpIt = request.headers.find(kTraceparentHeader);
+        if (tpIt != request.headers.end() && !tpIt->second.empty())
         {
-            id = it->second;
+            Baldr::TraceContext parsed;
+            if (Baldr::TryParseTraceparent(tpIt->second, parsed))
+            {
+                populateTraceContext(parsed.traceId, parsed.traceFlags, true);
+            }
+            else
+            {
+                request.traceContext.valid = true;
+                request.traceContext       = Baldr::TraceContext {
+                    0, Baldr::NewTraceId(), Baldr::NewSpanId(), 0, true
+                };
+            }
         }
         else
         {
-            id = generate();
+            request.traceContext.valid = true;
+            request.traceContext       = Baldr::TraceContext {
+                0, Baldr::NewTraceId(), Baldr::NewSpanId(), 0, true
+            };
         }
 
-        request.headers[kHeaderName] = id;
-        response.headers[kHeaderName] = id;
+        const auto  ridIt = request.headers.find("x-request-id");
+        std::string rid;
+        bool        ridExplicit = false;
+        if (ridIt != request.headers.end() && !ridIt->second.empty())
+        {
+            rid         = ridIt->second;
+            ridExplicit = true;
+        }
+        else if (mOptions.useTraceIdAsRequestIdFallback &&
+                 request.traceContext.valid)
+        {
+            rid = request.traceContext.traceId;
+        }
+        else
+        {
+            rid = generate();
+        }
+
+        request.headers[kHeaderName]  = rid;
+        response.headers[kHeaderName] = rid;
+
+        if (mOptions.propagateTraceparentResponse && request.traceContext.valid)
+        {
+            char out[128];
+            std::snprintf(
+                out,
+                sizeof(out),
+                "%02x-%s-%s-%02x",
+                static_cast<unsigned>(request.traceContext.version),
+                request.traceContext.traceId.c_str(),
+                request.traceContext.spanId.c_str(),
+                static_cast<unsigned>(request.traceContext.traceFlags));
+            response.headers[kTraceparentHeader] = out;
+        }
 
         next();
     }
@@ -39,15 +103,15 @@ class RequestIdMiddleware final : public IMiddleware
   private:
     static std::string generate()
     {
-        // Lightweight random hex string derived from time + address hash;
-        // not cryptographically strong, but stable enough for correlation.
         static thread_local std::uint64_t counter = 0;
-        const auto now = static_cast<std::uint64_t>(
+        const auto                        now     = static_cast<std::uint64_t>(
             std::chrono::system_clock::now().time_since_epoch().count());
         const auto mix = now ^ (++counter * 0x9E3779B97F4A7C15ULL);
-        char buf[17];
+        char       buf[17];
         std::snprintf(buf, sizeof(buf), "%016llx",
                       static_cast<unsigned long long>(mix));
         return buf;
     }
+
+    RequestIdOptions mOptions;
 };
