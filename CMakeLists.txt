@@ -57,32 +57,8 @@ if (NOT TARGET ZLIB::ZLIB)
   add_library(ZLIB::ZLIB ALIAS zlib)
 endif ()
 
-set(BALDR_SOURCES
-    # Top-level
-    src/Baldr/BaldrExtension.cpp
-
-    # Http/
-    src/Baldr/Http/Connection.cpp
-    src/Baldr/Http/RequestParser.cpp
-    src/Baldr/Http/Router.cpp
-    src/Baldr/Http/Server.cpp
-
-    # Middleware/Compression/
-    src/Baldr/Middleware/Compression/Internal.cpp
-    src/Baldr/Middleware/Compression/Middleware.cpp
-
-    # Metrics/
-    src/Baldr/Metrics/Registry.cpp
-    src/Baldr/Metrics/Middleware.cpp
-
-    # Application/
-    src/Baldr/Application/WebApplication.cpp
-
-    # OpenApi/
-    src/Baldr/OpenApi/JsonSchemaEmitter.cpp
-    src/Baldr/OpenApi/OpenApiSpecService.cpp
-    src/Baldr/OpenApi/RouteIntrospector.cpp
-    src/Baldr/OpenApi/SpecBuilder.cpp
+file(GLOB_RECURSE BALDR_SOURCES
+        "src/**.cpp"
 )
 
 add_library(baldr ${BALDR_SOURCES})
