@@ -19,4 +19,9 @@ target_precompile_headers(Tests_run
       <gtest/gtest.h>
 )
 
+set_target_properties(Tests_run PROPERTIES
+    UNITY_BUILD ON
+    UNITY_BUILD_BATCH_SIZE 4
+)
+
 gtest_discover_tests(Tests_run)
