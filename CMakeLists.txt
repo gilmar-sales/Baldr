@@ -46,6 +46,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(skirnir)
 
+set(ZLIB_BUILD_TESTING OFF)
 FetchContent_Declare(
   zlib
   GIT_REPOSITORY "https://github.com/madler/zlib.git"
