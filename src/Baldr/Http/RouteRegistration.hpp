@@ -8,12 +8,15 @@
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
+#include <cstddef>
 #include <meta>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include <Skirnir/Skirnir.hpp>
 
+#include <Baldr/Http/FromBody.hpp>
 #include <Baldr/Http/Method.hpp>
 #include <Baldr/Http/RouteOptions.hpp>
 #include <Baldr/Http/Router.hpp>
@@ -201,7 +204,9 @@ namespace BALDR_NAMESPACE
         /**
          * @brief Finalise the registration and bind @p handler.
          *
-         * If the handler's return type is reflectable and no response
+         * If the handler declares a @c FromBody<T> parameter and no request
+         * schema was supplied, the framework derives one automatically from
+         * @c T. If the handler's return type is reflectable and no response
          * schema was supplied, the framework derives one automatically.
          * The route is inserted into the router and becomes dispatchable
          * immediately.
@@ -211,6 +216,16 @@ namespace BALDR_NAMESPACE
         {
             using ResultType = typename LambdaTraits<
                 std::remove_reference_t<decltype(handler)>>::RetType;
+
+            if (mRequestSchemaJson.empty())
+            {
+                using HandlerArgsTuple = typename LambdaTraits<
+                    std::remove_reference_t<decltype(handler)>>::ArgsTuple;
+                [&]<std::size_t... I>(std::index_sequence<I...>) {
+                    (DeriveRequestSchemaFromBody<I, HandlerArgsTuple>(), ...);
+                }(std::make_index_sequence<
+                    std::tuple_size_v<HandlerArgsTuple>> {});
+            }
 
             if (mResponseSchemaJson.empty())
             {
@@ -242,6 +257,32 @@ namespace BALDR_NAMESPACE
 
             mRouter.MapRoute(mMethod, mPath, mGroupPrefix, mOptions,
                              std::forward<Handler>(handler));
+        }
+
+        /// @brief If handler arg slot @c I is @c FromBody<U>, derive a
+        /// request schema for @c U and stash it. No-op for non-body args
+        /// or when a request schema was already supplied.
+        template <std::size_t I, typename HandlerArgsTuple>
+        void DeriveRequestSchemaFromBody()
+        {
+            using Arg     = std::tuple_element_t<I, HandlerArgsTuple>;
+            using BareArg = std::remove_cvref_t<Arg>;
+            if constexpr (isFromBody_v<BareArg>)
+            {
+                using Payload = typename BareArg::ValueType;
+                static_assert(
+                    IsAutoDerivable<Payload> ||
+                        Detail::IsVectorOfAutoDerivableV<Payload>,
+                    "FromBody<T> payload type T must be reflectable with "
+                    "auto-derivable non-static data members "
+                    "(std::string, std::string_view, integral, "
+                    "double/float, bool).");
+                auto& reg = *mRouter.SchemaRegistrySlot();
+                if (auto ref = TryEmitRefFor<Payload>(reg))
+                {
+                    mRequestSchemaJson = std::move(*ref);
+                }
+            }
         }
 
       private:
