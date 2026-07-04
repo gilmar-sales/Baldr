@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include <Baldr/Router.hpp>
+#include <Baldr/Http/Router.hpp>
 
     // Maps an HttpMethod enum to its lowercase OpenAPI verb.
     const char* MethodToString(HttpMethod m);

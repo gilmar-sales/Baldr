@@ -1,5 +1,5 @@
-#include "Baldr/HttpRequestParser.hpp"
-#include "Baldr/StatusCode.hpp"
+#include <Baldr/Http/RequestParser.hpp>
+#include <Baldr/Http/StatusCode.hpp>
 #include "Skirnir/Common.hpp"
 
 class HttpRequestParserSpec : public ::testing::Test

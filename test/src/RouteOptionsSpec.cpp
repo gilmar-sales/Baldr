@@ -1,6 +1,6 @@
-#include "Baldr/RouteOptions.hpp"
-#include "Baldr/Router.hpp"
-#include "Baldr/WebApplication.hpp"
+#include <Baldr/Http/RouteOptions.hpp>
+#include <Baldr/Http/Router.hpp>
+#include <Baldr/Application/WebApplication.hpp>
 
 #include <gtest/gtest.h>
 

@@ -1,6 +1,6 @@
-#include "Baldr/HttpResponse.hpp"
-#include "Baldr/Result.hpp"
-#include "Baldr/StatusCode.hpp"
+#include <Baldr/Http/Response.hpp>
+#include <Baldr/Http/Results/Result.hpp>
+#include <Baldr/Http/StatusCode.hpp>
 
 class ResultSpec : public ::testing::Test {};
 

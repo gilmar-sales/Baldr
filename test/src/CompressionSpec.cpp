@@ -1,9 +1,9 @@
-#include "Baldr/CompressionInternal.hpp"
-#include "Baldr/CompressionMiddleware.hpp"
+#include <Baldr/Middleware/Compression/Internal.hpp>
+#include <Baldr/Middleware/Compression/Middleware.hpp>
 
-#include "Baldr/HttpMethod.hpp"
-#include "Baldr/HttpRequest.hpp"
-#include "Baldr/HttpResponse.hpp"
+#include <Baldr/Http/Method.hpp>
+#include <Baldr/Http/Request.hpp>
+#include <Baldr/Http/Response.hpp>
 
 #include <string>
 #include <string_view>

@@ -1,4 +1,4 @@
-#include "Baldr/StreamingResult.hpp"
+#include <Baldr/Http/Results/StreamingResult.hpp>
 
 #include <string>
 #include <vector>

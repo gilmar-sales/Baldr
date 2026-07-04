@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <Baldr/Router.hpp>
+#include <Baldr/Http/Router.hpp>
 
 #include "JsonSchemaEmitter.hpp"
 #include "OpenApiOptions.hpp"

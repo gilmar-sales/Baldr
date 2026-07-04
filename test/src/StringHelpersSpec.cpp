@@ -1,4 +1,4 @@
-#include "Baldr/StringHelpers.hpp"
+#include <Baldr/Hosting/StringHelpers.hpp>
 
 class StringHelpersTests : public ::testing::Test
 {};

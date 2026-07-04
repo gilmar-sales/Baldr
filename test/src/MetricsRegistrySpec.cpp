@@ -1,4 +1,4 @@
-#include "Baldr/MetricsRegistry.hpp"
+#include <Baldr/Metrics/Registry.hpp>
 
 #include <memory>
 #include <string>

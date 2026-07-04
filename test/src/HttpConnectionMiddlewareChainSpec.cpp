@@ -1,9 +1,9 @@
-#include "Baldr/HttpConnection.hpp"
-#include "Baldr/HttpRequest.hpp"
-#include "Baldr/HttpResponse.hpp"
-#include "Baldr/IMiddleware.hpp"
-#include "Baldr/MiddlewareProvider.hpp"
-#include "Baldr/Router.hpp"
+#include <Baldr/Http/Connection.hpp>
+#include <Baldr/Http/Request.hpp>
+#include <Baldr/Http/Response.hpp>
+#include <Baldr/Middleware/IMiddleware.hpp>
+#include <Baldr/Middleware/MiddlewareProvider.hpp>
+#include <Baldr/Http/Router.hpp>
 
 #include <atomic>
 #include <vector>

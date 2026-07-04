@@ -1,5 +1,5 @@
 #include <Baldr/Baldr.hpp>
-#include <Baldr/RateLimitMiddleware.hpp>
+#include <Baldr/Middleware/RateLimit/Middleware.hpp>
 #include <random>
 
 struct WeatherForecast

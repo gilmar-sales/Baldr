@@ -1,7 +1,7 @@
-#include "Baldr/HttpRequest.hpp"
-#include "Baldr/HttpRequestParser.hpp"
-#include "Baldr/HttpResponse.hpp"
-#include "Baldr/StatusCode.hpp"
+#include <Baldr/Http/Request.hpp>
+#include <Baldr/Http/RequestParser.hpp>
+#include <Baldr/Http/Response.hpp>
+#include <Baldr/Http/StatusCode.hpp>
 
 #include <string>
 

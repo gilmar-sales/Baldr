@@ -1,8 +1,8 @@
-#include "Baldr/CsrfMiddleware.hpp"
-#include "Baldr/HttpMethod.hpp"
-#include "Baldr/HttpRequest.hpp"
-#include "Baldr/HttpResponse.hpp"
-#include "Baldr/StatusCode.hpp"
+#include <Baldr/Middleware/Csrf.hpp>
+#include <Baldr/Http/Method.hpp>
+#include <Baldr/Http/Request.hpp>
+#include <Baldr/Http/Response.hpp>
+#include <Baldr/Http/StatusCode.hpp>
 
 class CsrfMiddlewareSpec : public ::testing::Test
 {

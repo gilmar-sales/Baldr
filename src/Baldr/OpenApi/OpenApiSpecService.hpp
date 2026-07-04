@@ -2,7 +2,7 @@
 
 #include <Skirnir/Skirnir.hpp>
 
-#include <Baldr/Router.hpp>
+#include <Baldr/Http/Router.hpp>
 
 #include "JsonSchemaEmitter.hpp"
 #include "OpenApiOptions.hpp"

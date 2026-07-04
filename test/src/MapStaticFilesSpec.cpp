@@ -1,4 +1,4 @@
-#include "Baldr/StaticFilesInternal.hpp"
+#include <Baldr/Http/StaticFilesInternal.hpp>
 
 #include <chrono>
 #include <filesystem>

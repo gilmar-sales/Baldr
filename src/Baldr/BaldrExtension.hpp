@@ -2,7 +2,7 @@
 
 #include <Skirnir/Skirnir.hpp>
 
-#include "WebApplication.hpp"
+#include <Baldr/Application/WebApplication.hpp>
 
 class BaldrExtension : public skr::IExtension
 {

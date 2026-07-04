@@ -1,9 +1,9 @@
-#include "Baldr/CorsMiddleware.hpp"
-#include "Baldr/ExceptionHandlerMiddleware.hpp"
-#include "Baldr/HttpRequest.hpp"
-#include "Baldr/HttpResponse.hpp"
-#include "Baldr/RequestIdMiddleware.hpp"
-#include "Baldr/StatusCode.hpp"
+#include <Baldr/Middleware/Cors.hpp>
+#include <Baldr/Middleware/ExceptionHandler.hpp>
+#include <Baldr/Http/Request.hpp>
+#include <Baldr/Http/Response.hpp>
+#include <Baldr/Middleware/RequestId.hpp>
+#include <Baldr/Http/StatusCode.hpp>
 
 #include <stdexcept>
 

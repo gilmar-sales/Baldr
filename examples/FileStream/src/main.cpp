@@ -1,5 +1,5 @@
 #include <Baldr/Baldr.hpp>
-#include <Baldr/FileStreamResult.hpp>
+#include <Baldr/Http/Results/FileStreamResult.hpp>
 
 #include <chrono>
 #include <cstdint>

@@ -1,7 +1,7 @@
 #include <Baldr/OpenApi/OpenApiSpecService.hpp>
 #include <Baldr/OpenApi/RouteIntrospector.hpp>
 
-#include <Baldr/Router.hpp>
+#include <Baldr/Http/Router.hpp>
 
 #include <gtest/gtest.h>
 

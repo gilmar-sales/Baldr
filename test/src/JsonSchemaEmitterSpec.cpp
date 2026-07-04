@@ -3,8 +3,8 @@
 #include <Baldr/OpenApi/SpecBuilder.hpp>
 #include <Baldr/OpenApi/OpenApiOptions.hpp>
 
-#include <Baldr/Router.hpp>
-#include <Baldr/RouteRegistration.hpp>
+#include <Baldr/Http/Router.hpp>
+#include <Baldr/Http/RouteRegistration.hpp>
 
 #include <gtest/gtest.h>
 

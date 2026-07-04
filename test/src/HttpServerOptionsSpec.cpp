@@ -1,4 +1,4 @@
-#include "Baldr/HttpServerOptions.hpp"
+#include <Baldr/Http/ServerOptions.hpp>
 
 TEST(HttpServerOptionsTest, DefaultKeepAlivePolicyIsHttp11KeepAlive)
 {

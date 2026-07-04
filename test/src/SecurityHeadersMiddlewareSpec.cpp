@@ -1,8 +1,8 @@
-#include "Baldr/SecurityHeadersMiddleware.hpp"
+#include <Baldr/Middleware/SecurityHeaders.hpp>
 
-#include "Baldr/HttpMethod.hpp"
-#include "Baldr/HttpRequest.hpp"
-#include "Baldr/HttpResponse.hpp"
+#include <Baldr/Http/Method.hpp>
+#include <Baldr/Http/Request.hpp>
+#include <Baldr/Http/Response.hpp>
 
 class SecurityHeadersMiddlewareSpec : public ::testing::Test
 {
