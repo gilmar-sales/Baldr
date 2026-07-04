@@ -27,13 +27,14 @@ std::filesystem::path resolveWebRoot()
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
+    auto builder =
+        skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
 
     auto app = builder.Build<baldr::WebApplication>();
 
     const std::filesystem::path webRoot = resolveWebRoot();
 
-app->MapGet("/", [](baldr::HttpRequest&, baldr::HttpResponse&) {
+    app->MapGet("/", [](baldr::HttpRequest&, baldr::HttpResponse&) {
         return baldr::ContentResult(
             "<!doctype html><meta charset=\"utf-8\">"
             "<title>Static files</title>"
@@ -44,7 +45,8 @@ app->MapGet("/", [](baldr::HttpRequest&, baldr::HttpResponse&) {
             "<li><a "
             "href=\"/static/assets/app.js\">/static/assets/app.js</a></li>"
             "<li><a "
-            "href=\"/static/assets/img/logo.svg\">/static/assets/img/logo.svg</a></"
+            "href=\"/static/assets/img/logo.svg\">/static/assets/img/logo.svg</"
+            "a></"
             "li>"
             "<li><a "
             "href=\"/static/assets/hello.txt\">/static/assets/hello.txt</a></"

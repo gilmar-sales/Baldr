@@ -7,7 +7,8 @@ struct Payload
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
+    auto builder =
+        skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
 
     auto app = builder.Build<baldr::WebApplication>();
 

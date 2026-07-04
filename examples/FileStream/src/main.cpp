@@ -54,8 +54,10 @@ std::int64_t nowMillis()
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
-    auto app     = builder.Build<baldr::WebApplication>();
+    auto builder =
+        skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
+
+    auto app = builder.Build<baldr::WebApplication>();
 
     const auto      assets  = assetsDir();
     const auto      pdfPath = assets / "baldr.pdf";
@@ -65,7 +67,9 @@ int main()
 
     app->MapGet("/files/baldr.pdf", [pdfPath] {
         std::ifstream in(pdfPath, std::ios::binary);
-        return baldr::FileStreamResult(std::move(in), "application/pdf", "baldr.pdf");
+        return baldr::FileStreamResult(std::move(in),
+                                       "application/pdf",
+                                       "baldr.pdf");
     });
 
     app->MapPost(
