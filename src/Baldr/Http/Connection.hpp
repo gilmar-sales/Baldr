@@ -11,22 +11,22 @@
 #include <trantor/net/TcpConnection.h>
 #include <trantor/utils/MsgBuffer.h>
 
-#include <Baldr/Http/Method.hpp>
-#include <Baldr/Http/RequestParser.hpp>
-#include <Baldr/Http/ServerOptions.hpp>
-#include <Baldr/Middleware/MiddlewareProvider.hpp>
-#include <Baldr/Http/StatusCode.hpp>
-#include <Baldr/Hosting/StringHelpers.hpp>
-#include <Baldr/Http/Request.hpp>
-#include <Baldr/Http/Response.hpp>
 #include <Baldr/Application/InFlightTracker.hpp>
+#include <Baldr/Hosting/StringHelpers.hpp>
+#include <Baldr/Http/Method.hpp>
+#include <Baldr/Http/Request.hpp>
+#include <Baldr/Http/RequestParser.hpp>
+#include <Baldr/Http/Response.hpp>
 #include <Baldr/Http/Router.hpp>
+#include <Baldr/Http/ServerOptions.hpp>
+#include <Baldr/Http/StatusCode.hpp>
+#include <Baldr/Middleware/MiddlewareProvider.hpp>
 
 class HttpConnection
 {
   public:
     HttpConnection(const skr::Arc<skr::ServiceProvider>& serviceProvider,
-                   const trantor::TcpConnectionPtr&     conn) :
+                   const trantor::TcpConnectionPtr&      conn) :
         mServiceProvider(serviceProvider),
         mRouter(serviceProvider->GetService<Router>()),
         mMiddlewareProvider(serviceProvider->GetService<MiddlewareProvider>()),
@@ -34,8 +34,7 @@ class HttpConnection
         mParser(serviceProvider->GetService<HttpRequestParser>()),
         mServerOptions(serviceProvider->GetService<HttpServerOptions>()),
         mInFlightTracker(serviceProvider->GetService<InFlightTracker>()),
-        mConnection(conn),
-        mClientIp(conn->peerAddr().toIp())
+        mConnection(conn), mClientIp(conn->peerAddr().toIp())
     {
     }
 
@@ -43,11 +42,12 @@ class HttpConnection
 
     static constexpr std::size_t kMaxAccumulatorBytes = 10 * 1024 * 1024;
 
-    static void runMiddlewareChain(MiddlewareFactoryList&       factories,
-                                   const skr::Arc<skr::ServiceProvider>& scopedProvider,
-                                   HttpRequest&                  request,
-                                   HttpResponse&                 response,
-                                   const RouteHandler&           finalHandler);
+    static void runMiddlewareChain(
+        MiddlewareFactoryList&                factories,
+        const skr::Arc<skr::ServiceProvider>& scopedProvider,
+        HttpRequest&                          request,
+        HttpResponse&                         response,
+        const RouteHandler&                   finalHandler);
 
   private:
     void handle(HttpRequest request);
@@ -57,8 +57,8 @@ class HttpConnection
     void sendResponse(const HttpResponse& response, bool closeConnection);
 
     void sendStreamingResponse(
-        const IStreamingResult& result,
-        const std::string&      version,
+        const IStreamingResult&                               result,
+        const std::string&                                    version,
         const std::unordered_map<std::string, CookieOptions>& cookies);
 
     static HttpMethod parseMethod(std::string_view method)
@@ -130,39 +130,60 @@ class HttpConnection
     {
         switch (status)
         {
-            case StatusCode::OK: return "OK";
-            case StatusCode::Created: return "Created";
-            case StatusCode::Accepted: return "Accepted";
-            case StatusCode::NoContent: return "No Content";
-            case StatusCode::MovedPermanently: return "Moved Permanently";
-            case StatusCode::Found: return "Found";
-            case StatusCode::SeeOther: return "See Other";
-            case StatusCode::NotModified: return "Not Modified";
-            case StatusCode::TemporaryRedirect: return "Temporary Redirect";
-            case StatusCode::BadRequest: return "Bad Request";
-            case StatusCode::Unauthorized: return "Unauthorized";
-            case StatusCode::Forbidden: return "Forbidden";
-            case StatusCode::NotFound: return "Not Found";
-            case StatusCode::MethodNotAllowed: return "Method Not Allowed";
-            case StatusCode::Conflict: return "Conflict";
-            case StatusCode::TooManyRequests: return "Too Many Requests";
-            case StatusCode::InternalServerError: return "Internal Server Error";
-            case StatusCode::NotImplemented: return "Not Implemented";
-            case StatusCode::BadGateway: return "Bad Gateway";
-            case StatusCode::ServiceUnavailable: return "Service Unavailable";
-            default: return "OK";
+            case StatusCode::OK:
+                return "OK";
+            case StatusCode::Created:
+                return "Created";
+            case StatusCode::Accepted:
+                return "Accepted";
+            case StatusCode::NoContent:
+                return "No Content";
+            case StatusCode::MovedPermanently:
+                return "Moved Permanently";
+            case StatusCode::Found:
+                return "Found";
+            case StatusCode::SeeOther:
+                return "See Other";
+            case StatusCode::NotModified:
+                return "Not Modified";
+            case StatusCode::TemporaryRedirect:
+                return "Temporary Redirect";
+            case StatusCode::BadRequest:
+                return "Bad Request";
+            case StatusCode::Unauthorized:
+                return "Unauthorized";
+            case StatusCode::Forbidden:
+                return "Forbidden";
+            case StatusCode::NotFound:
+                return "Not Found";
+            case StatusCode::MethodNotAllowed:
+                return "Method Not Allowed";
+            case StatusCode::Conflict:
+                return "Conflict";
+            case StatusCode::TooManyRequests:
+                return "Too Many Requests";
+            case StatusCode::InternalServerError:
+                return "Internal Server Error";
+            case StatusCode::NotImplemented:
+                return "Not Implemented";
+            case StatusCode::BadGateway:
+                return "Bad Gateway";
+            case StatusCode::ServiceUnavailable:
+                return "Service Unavailable";
+            default:
+                return "OK";
         }
     }
 
-    skr::Arc<skr::ServiceProvider>         mServiceProvider;
-    skr::Arc<Router>                       mRouter;
-    skr::Arc<MiddlewareProvider>           mMiddlewareProvider;
-    skr::Arc<skr::Logger<HttpConnection>>  mLogger;
-    skr::Arc<HttpServerOptions>            mServerOptions;
-    skr::Arc<InFlightTracker>              mInFlightTracker;
-    trantor::TcpConnectionPtr              mConnection;
-    std::string                            mClientIp;
-    std::string                            mAccumulator;
-    skr::Arc<HttpRequestParser>            mParser;
-    int                                    mRequestCount { 0 };
+    skr::Arc<skr::ServiceProvider>        mServiceProvider;
+    skr::Arc<Router>                      mRouter;
+    skr::Arc<MiddlewareProvider>          mMiddlewareProvider;
+    skr::Arc<skr::Logger<HttpConnection>> mLogger;
+    skr::Arc<HttpServerOptions>           mServerOptions;
+    skr::Arc<InFlightTracker>             mInFlightTracker;
+    trantor::TcpConnectionPtr             mConnection;
+    std::string                           mClientIp;
+    std::string                           mAccumulator;
+    skr::Arc<HttpRequestParser>           mParser;
+    int                                   mRequestCount { 0 };
 };

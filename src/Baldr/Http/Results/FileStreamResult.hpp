@@ -17,14 +17,13 @@ class FileStreamResult final : public IStreamingResult
     FileStreamResult(std::ifstream file,
                      std::string   contentType,
                      std::string   fileName) :
-        mFile(std::move(file)),
-        mContentType(std::move(contentType)),
+        mFile(std::move(file)), mContentType(std::move(contentType)),
         mFileName(std::move(fileName))
     {
     }
 
-    void headers(std::vector<std::pair<std::string, std::string>>& out)
-        const override
+    void headers(
+        std::vector<std::pair<std::string, std::string>>& out) const override
     {
         out.clear();
         out.emplace_back("Content-Type", mContentType);
@@ -37,9 +36,8 @@ class FileStreamResult final : public IStreamingResult
         if (!mFile || mFile.eof())
             return false;
 
-        std::array<char, kDefaultChunkBytes> buffer{};
-        mFile.read(buffer.data(),
-                   static_cast<std::streamsize>(buffer.size()));
+        std::array<char, kDefaultChunkBytes> buffer {};
+        mFile.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
         auto got = mFile.gcount();
         if (got <= 0)
             return false;

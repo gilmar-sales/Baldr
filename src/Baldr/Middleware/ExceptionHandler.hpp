@@ -36,13 +36,12 @@ class ExceptionHandlerMiddleware final : public IMiddleware
     {
         if (!mOptions.mapper)
         {
-            mOptions.mapper =
-                [includeDetails =
-                     mOptions.includeDetailsInDev](const std::exception& e) {
-                    if (includeDetails)
-                        return std::string(e.what());
-                    return std::string("Internal Server Error");
-                };
+            mOptions.mapper = [includeDetails = mOptions.includeDetailsInDev](
+                                  const std::exception& e) {
+                if (includeDetails)
+                    return std::string(e.what());
+                return std::string("Internal Server Error");
+            };
         }
     }
 
@@ -52,7 +51,7 @@ class ExceptionHandlerMiddleware final : public IMiddleware
                 HttpResponse&         response,
                 const NextMiddleware& next) override
     {
-        (void)request;
+        (void) request;
         try
         {
             next();
@@ -66,10 +65,9 @@ class ExceptionHandlerMiddleware final : public IMiddleware
         catch (...)
         {
             response.statusCode              = mOptions.status;
-            response.body =
-                mOptions.includeDetailsInDev
-                    ? "Unknown error"
-                    : "Internal Server Error";
+            response.body                    = mOptions.includeDetailsInDev
+                                                   ? "Unknown error"
+                                                   : "Internal Server Error";
             response.headers["Content-Type"] = mOptions.contentType;
         }
     }

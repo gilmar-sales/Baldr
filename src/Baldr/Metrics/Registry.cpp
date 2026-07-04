@@ -10,13 +10,13 @@ namespace Baldr::detail
 {
     struct MetricsRegistryImpl
     {
-        mutable std::mutex mMutex;
+        mutable std::mutex                             mMutex;
         std::unordered_map<std::string, std::uint64_t> mStatusCounts;
         std::unordered_map<std::string, std::uint64_t> mMethodCounts;
         std::unordered_map<MetricsRegistry::HistogramKey,
                            MetricsRegistry::HistogramSnapshot,
                            MetricsRegistry::HistogramKeyHash>
-            mLatency;
+                                   mLatency;
         std::atomic<std::uint64_t> mRequestCount { 0 };
         std::atomic<std::int64_t>  mInFlight { 0 };
     };
@@ -31,10 +31,14 @@ namespace Baldr
                (std::hash<std::string> {}(k.path) << 1);
     }
 
-    MetricsRegistry::MetricsRegistry() : mImpl(new detail::MetricsRegistryImpl) {}
+    MetricsRegistry::MetricsRegistry() : mImpl(new detail::MetricsRegistryImpl)
+    {
+    }
 
     MetricsRegistry::MetricsRegistry(TestOnlyTag) :
-        mImpl(new detail::MetricsRegistryImpl) {}
+        mImpl(new detail::MetricsRegistryImpl)
+    {
+    }
 
     MetricsRegistry& MetricsRegistry::instance()
     {
@@ -47,15 +51,14 @@ namespace Baldr
         mImpl->mRequestCount.fetch_add(1, std::memory_order_relaxed);
 
         std::lock_guard<std::mutex> lock(mImpl->mMutex);
-        std::string m(method);
-        std::string s = std::to_string(status);
+        std::string                 m(method);
+        std::string                 s = std::to_string(status);
         ++mImpl->mMethodCounts[m];
         ++mImpl->mStatusCounts[s];
     }
 
-    void MetricsRegistry::observeLatencySeconds(std::string_view method,
-                                                std::string_view path,
-                                                double           seconds)
+    void MetricsRegistry::observeLatencySeconds(
+        std::string_view method, std::string_view path, double seconds)
     {
         std::lock_guard<std::mutex> lock(mImpl->mMutex);
         HistogramKey key { std::string(method), std::string(path) };
@@ -63,7 +66,7 @@ namespace Baldr
 
         if (h.upperBounds.empty())
         {
-            h.upperBounds  = defaultBuckets();
+            h.upperBounds = defaultBuckets();
             h.bucketCounts.assign(h.upperBounds.size(), 0);
         }
 
@@ -96,8 +99,8 @@ namespace Baldr
         oss << "# TYPE baldr_http_requests_total counter\n";
 
         std::lock_guard<std::mutex> lock(mImpl->mMutex);
-        std::uint64_t                totalCount = mImpl->mRequestCount.load();
-        (void)totalCount;
+        std::uint64_t               totalCount = mImpl->mRequestCount.load();
+        (void) totalCount;
         for (const auto& [status, count] : mImpl->mStatusCounts)
         {
             oss << "baldr_http_requests_total{status=\"" << status << "\"} "
@@ -129,8 +132,8 @@ namespace Baldr
             }
             cumulative += 0;
             oss << "baldr_http_request_duration_seconds_bucket{method=\""
-                << key.method << "\",path=\"" << key.path
-                << "\",le=\"+Inf\"} " << h.count << '\n';
+                << key.method << "\",path=\"" << key.path << "\",le=\"+Inf\"} "
+                << h.count << '\n';
             oss << "baldr_http_request_duration_seconds_count{method=\""
                 << key.method << "\",path=\"" << key.path << "\"} " << h.count
                 << '\n';
@@ -141,7 +144,8 @@ namespace Baldr
 
         oss << "# HELP baldr_http_in_flight_requests In-flight HTTP requests\n";
         oss << "# TYPE baldr_http_in_flight_requests gauge\n";
-        oss << "baldr_http_in_flight_requests " << mImpl->mInFlight.load() << '\n';
+        oss << "baldr_http_in_flight_requests " << mImpl->mInFlight.load()
+            << '\n';
 
         return oss.str();
     }
@@ -159,8 +163,7 @@ namespace Baldr
     const std::vector<double>& MetricsRegistry::defaultBuckets()
     {
         static const std::vector<double> buckets = {
-            0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0,
-            2.5,   5.0,  10.0
+            0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0
         };
         return buckets;
     }

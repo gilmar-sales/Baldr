@@ -18,4 +18,4 @@ namespace Baldr::Detail
     // compressed responses (clients send already-compressed request
     // bodies when applicable).
     bool gzipDecompress(std::string_view input, std::string& output);
-}
+} // namespace Baldr::Detail

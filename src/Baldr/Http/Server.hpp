@@ -5,16 +5,16 @@
 
 #include <Skirnir/Skirnir.hpp>
 
-#include <Baldr/Http/ServerOptions.hpp>
 #include <Baldr/Application/InFlightTracker.hpp>
+#include <Baldr/Http/ServerOptions.hpp>
 
 class HttpServer
 {
   public:
-    HttpServer(const skr::Arc<HttpServerOptions>&        httpServerOptions,
-               const skr::Arc<skr::ServiceProvider>&     serviceProvider,
-               const skr::Arc<skr::Logger<HttpServer>>&  logger,
-               const skr::Arc<InFlightTracker>&          inFlightTracker);
+    HttpServer(const skr::Arc<HttpServerOptions>&       httpServerOptions,
+               const skr::Arc<skr::ServiceProvider>&    serviceProvider,
+               const skr::Arc<skr::Logger<HttpServer>>& logger,
+               const skr::Arc<InFlightTracker>&         inFlightTracker);
 
     ~HttpServer();
 

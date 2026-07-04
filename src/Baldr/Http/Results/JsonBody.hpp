@@ -19,16 +19,15 @@ namespace Baldr
             const simdjson::dom::object& obj, std::string_view name,
             std::string& out)
         {
-            auto             err = obj[name].get_string().get(out);
-            
+            auto err = obj[name].get_string().get(out);
+
             return err;
         }
 
         inline simdjson::error_code readJsonField(
-            const simdjson::dom::object& obj, std::string_view name,
-            int& out)
+            const simdjson::dom::object& obj, std::string_view name, int& out)
         {
-            int64_t v = 0;
+            int64_t v   = 0;
             auto    err = obj[name].get_int64().get(v);
             if (!err)
                 out = static_cast<int>(v);
@@ -50,8 +49,7 @@ namespace Baldr
         }
 
         inline simdjson::error_code readJsonField(
-            const simdjson::dom::object& obj, std::string_view name,
-            bool& out)
+            const simdjson::dom::object& obj, std::string_view name, bool& out)
         {
             return obj[name].get_bool().get(out);
         }
@@ -84,9 +82,9 @@ namespace Baldr
 
         bool isOk() const { return mError.statusCode == StatusCode::OK; }
 
-        const T&  value() const { return mValue; }
-        T&        value() { return mValue; }
-        T         takeValue() { return std::move(mValue); }
+        const T& value() const { return mValue; }
+        T&       value() { return mValue; }
+        T        takeValue() { return std::move(mValue); }
 
         struct Error
         {
@@ -113,8 +111,8 @@ namespace Baldr
         }
 
         static thread_local simdjson::dom::parser parser;
-        simdjson::dom::element doc;
-        auto                  err = parser.parse(request.body).get(doc);
+        simdjson::dom::element                    doc;
+        auto err = parser.parse(request.body).get(doc);
         if (err)
         {
             return JsonResult<simdjson::dom::object>::Fail(
@@ -155,21 +153,19 @@ namespace Baldr
         T     instance {};
         auto& o = obj.value();
 
-        bool        anyError   = false;
+        bool        anyError = false;
         std::string firstError;
 
-        template for (constexpr auto member :
-                      std::define_static_array(
+        template for (constexpr auto member : std::define_static_array(
                           std::meta::nonstatic_data_members_of(
                               ^^T,
                               std::meta::access_context::current())))
         {
             if (anyError)
                 break;
-            constexpr auto name =
-                std::meta::identifier_of(member);
+            constexpr auto name  = std::meta::identifier_of(member);
             auto&          field = instance.[:member:];
-            using FieldT   = std::remove_cvref_t<decltype(field)>;
+            using FieldT         = std::remove_cvref_t<decltype(field)>;
 
             simdjson::error_code err = simdjson::NO_SUCH_FIELD;
             if constexpr (std::is_same_v<FieldT, std::string>)
@@ -211,4 +207,4 @@ namespace Baldr
         }
         return JsonResult<T>::Ok(std::move(instance));
     }
-}
+} // namespace Baldr

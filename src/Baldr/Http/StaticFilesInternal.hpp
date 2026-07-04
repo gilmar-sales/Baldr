@@ -17,7 +17,7 @@ namespace Baldr::Detail
         std::string           body;
 
         // File metadata. Only meaningful when `status == OK`.
-        std::uintmax_t                  fileSize = 0;
+        std::uintmax_t                        fileSize = 0;
         std::chrono::system_clock::time_point lastModified {};
 
         // ETag value (quoted, e.g. `"<size>-<mtimeHex>"`). Empty if not OK.
@@ -29,7 +29,7 @@ namespace Baldr::Detail
 
     // Build a strong ETag of the form "<size>-<mtime>" wrapped in quotes.
     // Timestamp resolution is per-second (mtime granularity).
-    std::string makeEtag(std::uintmax_t              size,
+    std::string makeEtag(std::uintmax_t                        size,
                          std::chrono::system_clock::time_point mtime);
 
     // Format an HTTP-date Last-Modified header (RFC 7231 IMF-fixdate).
@@ -38,4 +38,4 @@ namespace Baldr::Detail
     // Parse an HTTP-date (RFC 7231 IMF-fixdate, RFC 850, asctime).
     // Returns time_t::max() on failure.
     std::chrono::system_clock::time_point parseHttpDate(std::string_view v);
-}
+} // namespace Baldr::Detail

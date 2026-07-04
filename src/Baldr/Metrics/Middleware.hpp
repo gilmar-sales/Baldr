@@ -41,5 +41,4 @@ class MetricsMiddleware final : public IMiddleware
 // Convenience: registers the /metrics endpoint on the WebApplication.
 // The handler runs after the chain completes, so the counters reflect
 // the final status.
-void MapMetrics(class WebApplication& app,
-                MetricsOptions        options = {});
+void MapMetrics(class WebApplication& app, MetricsOptions options = {});

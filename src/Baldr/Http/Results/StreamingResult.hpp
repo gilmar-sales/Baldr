@@ -22,10 +22,10 @@ class IStreamingResult
     // "Content-Type" here. Implementations MUST NOT set
     // "Content-Length" or "Transfer-Encoding"; the framework sets
     // Transfer-Encoding: chunked automatically.
-    virtual void headers(std::vector<std::pair<std::string, std::string>>& out)
-        const
+    virtual void headers(
+        std::vector<std::pair<std::string, std::string>>& out) const
     {
-        (void)out;
+        (void) out;
     }
 
     // Status code of the response. Default 200.
@@ -74,9 +74,9 @@ class ChunkedStreamResult final : public IStreamingResult
 // Helper: format a chunked transfer-encoding frame.
 inline std::string formatChunk(std::string_view data)
 {
-    char header[32];
-    auto size = data.size();
-    int  n    = std::snprintf(header, sizeof(header), "%zx\r\n", size);
+    char        header[32];
+    auto        size = data.size();
+    int         n    = std::snprintf(header, sizeof(header), "%zx\r\n", size);
     std::string out;
     out.reserve(n + 2 + size + 2);
     out.append(header, static_cast<std::size_t>(n));
@@ -92,11 +92,11 @@ inline std::string formatChunkTrailer()
 
 // Helper: assemble the status line + headers for a streaming response.
 inline std::string formatStreamingHead(
-    StatusCode status,
-    const std::string& version,
+    StatusCode                                              status,
+    const std::string&                                      version,
     const std::vector<std::pair<std::string, std::string>>& headers,
     const std::vector<std::pair<std::string, std::string>>& cookies,
-    const std::function<const char*(StatusCode)>& reasonPhrase)
+    const std::function<const char*(StatusCode)>&           reasonPhrase)
 {
     std::string out;
     out.reserve(128);

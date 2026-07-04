@@ -15,8 +15,8 @@ class WorkerPool
     {
         if (threadCount == 0)
         {
-            threadCount = std::max<std::size_t>(
-                1, std::thread::hardware_concurrency());
+            threadCount =
+                std::max<std::size_t>(1, std::thread::hardware_concurrency());
         }
 
         for (std::size_t i = 0; i < threadCount; ++i)
@@ -80,9 +80,9 @@ class WorkerPool
         }
     }
 
-    std::vector<std::thread>            mWorkers;
-    std::queue<std::function<void()>>   mTasks;
-    std::mutex                          mMutex;
-    std::condition_variable             mCondition;
-    bool                                mStop = false;
+    std::vector<std::thread>          mWorkers;
+    std::queue<std::function<void()>> mTasks;
+    std::mutex                        mMutex;
+    std::condition_variable           mCondition;
+    bool                              mStop = false;
 };

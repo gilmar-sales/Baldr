@@ -14,8 +14,7 @@ namespace Baldr::Detail
         constexpr std::size_t kChunkSize = 16 * 1024;
     }
 
-    bool gzipCompress(std::string_view input, std::string& output,
-                      int level)
+    bool gzipCompress(std::string_view input, std::string& output, int level)
     {
         output.clear();
         if (input.empty())
@@ -29,7 +28,8 @@ namespace Baldr::Detail
             return false;
         }
 
-        stream.next_in  = reinterpret_cast<Bytef*>(const_cast<char*>(input.data()));
+        stream.next_in =
+            reinterpret_cast<Bytef*>(const_cast<char*>(input.data()));
         stream.avail_in = static_cast<uInt>(input.size());
 
         std::string buf;
@@ -71,7 +71,8 @@ namespace Baldr::Detail
         if (inflateInit2(&stream, 15 + 16) != Z_OK)
             return false;
 
-        stream.next_in  = reinterpret_cast<Bytef*>(const_cast<char*>(input.data()));
+        stream.next_in =
+            reinterpret_cast<Bytef*>(const_cast<char*>(input.data()));
         stream.avail_in = static_cast<uInt>(input.size());
 
         std::string buf;
@@ -97,4 +98,4 @@ namespace Baldr::Detail
         output = std::move(buf);
         return true;
     }
-}
+} // namespace Baldr::Detail

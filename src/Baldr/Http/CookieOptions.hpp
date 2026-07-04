@@ -14,7 +14,7 @@ struct CookieOptions
 {
     std::string                value;
     std::optional<std::string> domain;
-    SameSite    sameSite = SameSite::None;
+    SameSite                   sameSite = SameSite::None;
     long                       maxAge {};
     bool                       httpOnly {};
     bool                       secure {};

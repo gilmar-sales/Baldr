@@ -8,22 +8,24 @@
 
 class IStreamingResult;
 
-struct HttpResponse {
+struct HttpResponse
+{
     HttpResponse() = default;
 
-     HttpResponse(const HttpRequest &request) {
-        version = request.version;
+    HttpResponse(const HttpRequest& request)
+    {
+        version    = request.version;
         statusCode = StatusCode::NotFound;
-        headers = {};
-        cookies = {};
-        body = {};
+        headers    = {};
+        cookies    = {};
+        body       = {};
     }
 
-    std::string version;
-    StatusCode statusCode;
-    std::unordered_map<std::string, std::string> headers;
+    std::string                                    version;
+    StatusCode                                     statusCode;
+    std::unordered_map<std::string, std::string>   headers;
     std::unordered_map<std::string, CookieOptions> cookies;
-    std::string body;
+    std::string                                    body;
 
     // When a handler returns an IStreamingResult, MapRoute stores it
     // here. HttpConnection::handle checks for this and bypasses the

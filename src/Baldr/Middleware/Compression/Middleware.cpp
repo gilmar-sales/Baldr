@@ -8,9 +8,8 @@
 
 #include <Baldr/Middleware/Compression/Internal.hpp>
 
-void CompressionMiddleware::Handle(HttpRequest&          request,
-                                   HttpResponse&         response,
-                                   const NextMiddleware& next)
+void CompressionMiddleware::Handle(
+    HttpRequest& request, HttpResponse& response, const NextMiddleware& next)
 {
     // Skip when streaming (we can't rewrite an already-chunked body).
     if (response.streaming)
@@ -41,10 +40,10 @@ void CompressionMiddleware::Handle(HttpRequest&          request,
         return;
 
     // Only compress text-like mime types.
-    auto ctypeIt = response.headers.find("Content-Type");
-    std::string ctype =
-        ctypeIt != response.headers.end() ? ctypeIt->second
-                                          : std::string("application/octet-stream");
+    auto        ctypeIt = response.headers.find("Content-Type");
+    std::string ctype   = ctypeIt != response.headers.end()
+                              ? ctypeIt->second
+                              : std::string("application/octet-stream");
     if (!mimeAllowed(ctype, mOptions.mimeTypePrefixes))
         return;
 
@@ -53,7 +52,7 @@ void CompressionMiddleware::Handle(HttpRequest&          request,
     auto acceptIt = request.headers.find("accept-encoding");
     if (acceptIt != request.headers.end())
     {
-        std::string ae = toLowerAscii(acceptIt->second);
+        std::string ae           = toLowerAscii(acceptIt->second);
         bool        gzipAccepted = false;
         // Search for ", gzip" or leading "gzip" optionally followed by
         // ";q=" and a non-zero qvalue. We treat any explicit "gzip;q=0"
@@ -64,19 +63,20 @@ void CompressionMiddleware::Handle(HttpRequest&          request,
             std::size_t comma = ae.find(',', pos);
             if (comma == std::string::npos)
                 comma = ae.size();
-            std::string_view token = std::string_view(ae).substr(pos,
-                                                                  comma - pos);
+            std::string_view token =
+                std::string_view(ae).substr(pos, comma - pos);
             // Trim spaces.
             std::size_t a = 0, b = token.size();
             while (a < b && std::isspace(static_cast<unsigned char>(token[a])))
                 ++a;
-            while (b > a && std::isspace(static_cast<unsigned char>(token[b - 1])))
+            while (b > a &&
+                   std::isspace(static_cast<unsigned char>(token[b - 1])))
                 --b;
             token = token.substr(a, b - a);
 
-            std::size_t qPos = token.find(';');
+            std::size_t      qPos = token.find(';');
             std::string_view name = token.substr(0, qPos);
-            std::size_t nl     = name.size();
+            std::size_t      nl   = name.size();
             while (nl > 0 &&
                    std::isspace(static_cast<unsigned char>(name[nl - 1])))
                 --nl;
@@ -129,11 +129,10 @@ void CompressionMiddleware::Handle(HttpRequest&          request,
     if (compressed.size() >= response.body.size())
         return;
 
-    response.body = std::move(compressed);
-    response.headers["Content-Encoding"]    = "gzip";
-    response.headers["Content-Length"]      = std::to_string(
-                                                  response.body.size());
-    response.headers["Vary"]                = "Accept-Encoding";
+    response.body                        = std::move(compressed);
+    response.headers["Content-Encoding"] = "gzip";
+    response.headers["Content-Length"]   = std::to_string(response.body.size());
+    response.headers["Vary"]             = "Accept-Encoding";
 }
 
 std::string CompressionMiddleware::toLowerAscii(std::string_view s)
@@ -151,16 +150,14 @@ std::string CompressionMiddleware::toLowerAscii(std::string_view s)
 }
 
 bool CompressionMiddleware::mimeAllowed(
-    const std::string&                      ctype,
-    const std::unordered_set<std::string>& prefixes)
+    const std::string& ctype, const std::unordered_set<std::string>& prefixes)
 {
     std::string lc = toLowerAscii(ctype);
     // Strip parameters (e.g., "text/html; charset=utf-8").
     auto semi = lc.find(';');
     if (semi != std::string::npos)
         lc = lc.substr(0, semi);
-    while (!lc.empty() &&
-           std::isspace(static_cast<unsigned char>(lc.front())))
+    while (!lc.empty() && std::isspace(static_cast<unsigned char>(lc.front())))
         lc.erase(lc.begin());
     while (!lc.empty() && std::isspace(static_cast<unsigned char>(lc.back())))
         lc.pop_back();
@@ -175,8 +172,7 @@ bool CompressionMiddleware::mimeAllowed(
         bool match = false;
         if (!p.empty() && p.back() == '/')
         {
-            match = lc.size() >= p.size() &&
-                    lc.compare(0, p.size(), p) == 0;
+            match = lc.size() >= p.size() && lc.compare(0, p.size(), p) == 0;
         }
         else
         {

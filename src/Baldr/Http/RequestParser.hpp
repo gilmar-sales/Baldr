@@ -16,11 +16,11 @@ struct HttpParseStatus
         Error,
     };
 
-    Kind          kind = Kind::Incomplete;
-    HttpRequest   request;
-    std::string   errorMessage;
-    StatusCode    statusCode = StatusCode::OK;
-    std::size_t   consumedBytes = 0;
+    Kind        kind = Kind::Incomplete;
+    HttpRequest request;
+    std::string errorMessage;
+    StatusCode  statusCode    = StatusCode::OK;
+    std::size_t consumedBytes = 0;
 };
 
 class HttpRequestParser

@@ -8,14 +8,14 @@
 #include <Baldr/Http/Results/StreamingResult.hpp>
 
 void HttpConnection::runMiddlewareChain(
-    MiddlewareFactoryList&                  factories,
-    const skr::Arc<skr::ServiceProvider>&   scopedProvider,
-    HttpRequest&                            request,
-    HttpResponse&                           response,
-    const RouteHandler&                     finalHandler)
+    MiddlewareFactoryList&                factories,
+    const skr::Arc<skr::ServiceProvider>& scopedProvider,
+    HttpRequest&                          request,
+    HttpResponse&                         response,
+    const RouteHandler&                   finalHandler)
 {
     const size_t factoryCount = factories.size();
-    size_t       index       = 0;
+    size_t       index        = 0;
 
     std::function<void()> runRest;
 
@@ -39,12 +39,10 @@ void HttpConnection::onMessage(trantor::MsgBuffer* buffer)
 {
     if (mAccumulator.size() + buffer->readableBytes() > kMaxAccumulatorBytes)
     {
-        mLogger->LogError(
-            "accumulator overflow ({} bytes); closing connection",
-            mAccumulator.size() + buffer->readableBytes());
+        mLogger->LogError("accumulator overflow ({} bytes); closing connection",
+                          mAccumulator.size() + buffer->readableBytes());
         buffer->retrieveAll();
-        sendErrorResponse(StatusCode::BadRequest,
-                          "Request too large");
+        sendErrorResponse(StatusCode::BadRequest, "Request too large");
         if (mConnection && mConnection->connected())
             mConnection->forceClose();
         mAccumulator.clear();
@@ -124,12 +122,12 @@ void HttpConnection::handle(HttpRequest request)
                 mLogger->LogWarning("method not allowed: {} {} (Allow: {})",
                                     refl::enum_to_string(request.method),
                                     request.path, allowList);
-                httpResponse.statusCode         = StatusCode::MethodNotAllowed;
-                httpResponse.body               = "Method Not Allowed";
-                httpResponse.headers["Content-Type"]   = "text/plain";
+                httpResponse.statusCode = StatusCode::MethodNotAllowed;
+                httpResponse.body       = "Method Not Allowed";
+                httpResponse.headers["Content-Type"] = "text/plain";
                 httpResponse.headers["Content-Length"] =
                     std::to_string(httpResponse.body.size());
-                httpResponse.headers["Allow"]    = allowList;
+                httpResponse.headers["Allow"] = allowList;
                 sendResponse(httpResponse, /*closeConnection=*/true);
                 return;
             }
@@ -137,11 +135,11 @@ void HttpConnection::handle(HttpRequest request)
             mLogger->LogWarning("no route for {} {}",
                                 refl::enum_to_string(request.method),
                                 request.path);
-            httpResponse.statusCode         = StatusCode::NotFound;
-            httpResponse.body               = "Not Found";
-            httpResponse.headers["Content-Type"]   = "text/plain";
+            httpResponse.statusCode              = StatusCode::NotFound;
+            httpResponse.body                    = "Not Found";
+            httpResponse.headers["Content-Type"] = "text/plain";
             httpResponse.headers["Content-Length"] =
-                    std::to_string(httpResponse.body.size());
+                std::to_string(httpResponse.body.size());
             sendResponse(httpResponse, /*closeConnection=*/true);
             return;
         }
@@ -150,12 +148,11 @@ void HttpConnection::handle(HttpRequest request)
             matchResult.entry.value().extractRouteParams(request.path);
 
         const auto& entry = matchResult.entry.value();
-        request.route.path = entry.pathTemplate.empty()
-                                 ? request.path
-                                 : entry.pathTemplate;
-        request.route.group    = entry.groupPrefix;
-        request.route.method   = matchResult.resolvedMethod;
-        request.route.options  = entry.options;
+        request.route.path =
+            entry.pathTemplate.empty() ? request.path : entry.pathTemplate;
+        request.route.group   = entry.groupPrefix;
+        request.route.method  = matchResult.resolvedMethod;
+        request.route.options = entry.options;
 
         auto scope          = mServiceProvider->CreateServiceScope();
         auto scopedProvider = scope->GetServiceProvider();
@@ -265,13 +262,13 @@ void HttpConnection::handle(HttpRequest request)
     }
 }
 
-void HttpConnection::sendErrorResponse(StatusCode      statusCode,
+void HttpConnection::sendErrorResponse(StatusCode         statusCode,
                                        const std::string& body)
 {
     HttpResponse response;
-    response.version          = "HTTP/1.1";
-    response.statusCode       = statusCode;
-    response.body             = body;
+    response.version                   = "HTTP/1.1";
+    response.statusCode                = statusCode;
+    response.body                      = body;
     response.headers["Content-Type"]   = "text/plain";
     response.headers["Content-Length"] = std::to_string(body.size());
     response.headers["Connection"]     = "close";
@@ -319,14 +316,22 @@ void HttpConnection::sendResponse(const HttpResponse& response,
         std::string cookie = cookieName + "=" + cookieOptions.value;
         switch (cookieOptions.sameSite)
         {
-            case SameSite::None:   cookie += "; SameSite=None";   break;
-            case SameSite::Lax:    cookie += "; SameSite=Lax";    break;
-            case SameSite::Strict: cookie += "; SameSite=Strict"; break;
+            case SameSite::None:
+                cookie += "; SameSite=None";
+                break;
+            case SameSite::Lax:
+                cookie += "; SameSite=Lax";
+                break;
+            case SameSite::Strict:
+                cookie += "; SameSite=Strict";
+                break;
         }
         if (cookieOptions.domain.has_value())
             cookie += "; Domain=" + cookieOptions.domain.value();
-        if (cookieOptions.secure)  cookie += "; Secure";
-        if (cookieOptions.httpOnly) cookie += "; HttpOnly";
+        if (cookieOptions.secure)
+            cookie += "; Secure";
+        if (cookieOptions.httpOnly)
+            cookie += "; HttpOnly";
         if (cookieOptions.maxAge)
             cookie += "; Max-Age=" + std::to_string(cookieOptions.maxAge);
         out.append("Set-Cookie: ");
@@ -354,8 +359,8 @@ void HttpConnection::sendResponse(const HttpResponse& response,
 }
 
 void HttpConnection::sendStreamingResponse(
-    const IStreamingResult& result,
-    const std::string&      version,
+    const IStreamingResult&                               result,
+    const std::string&                                    version,
     const std::unordered_map<std::string, CookieOptions>& cookies)
 {
     if (!mConnection || !mConnection->connected())
@@ -372,22 +377,30 @@ void HttpConnection::sendStreamingResponse(
         std::string cookie = cookieName + "=" + cookieOptions.value;
         switch (cookieOptions.sameSite)
         {
-            case SameSite::None:   cookie += "; SameSite=None";   break;
-            case SameSite::Lax:    cookie += "; SameSite=Lax";    break;
-            case SameSite::Strict: cookie += "; SameSite=Strict"; break;
+            case SameSite::None:
+                cookie += "; SameSite=None";
+                break;
+            case SameSite::Lax:
+                cookie += "; SameSite=Lax";
+                break;
+            case SameSite::Strict:
+                cookie += "; SameSite=Strict";
+                break;
         }
         if (cookieOptions.domain.has_value())
             cookie += "; Domain=" + cookieOptions.domain.value();
-        if (cookieOptions.secure)  cookie += "; Secure";
-        if (cookieOptions.httpOnly) cookie += "; HttpOnly";
+        if (cookieOptions.secure)
+            cookie += "; Secure";
+        if (cookieOptions.httpOnly)
+            cookie += "; HttpOnly";
         if (cookieOptions.maxAge)
             cookie += "; Max-Age=" + std::to_string(cookieOptions.maxAge);
         cookieStrings.emplace_back(cookieName, std::move(cookie));
     }
 
     std::string out = formatStreamingHead(
-        result.statusCode(), version.empty() ? "HTTP/1.1" : version,
-        headers, cookieStrings, &HttpConnection::reasonPhrase);
+        result.statusCode(), version.empty() ? "HTTP/1.1" : version, headers,
+        cookieStrings, &HttpConnection::reasonPhrase);
 
     mConnection->send(std::move(out));
 

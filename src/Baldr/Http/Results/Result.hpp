@@ -9,7 +9,7 @@
 class IResult
 {
   public:
-    virtual ~IResult() = default;
+    virtual ~IResult()                               = default;
     virtual void Apply(HttpResponse& response) const = 0;
 };
 
@@ -23,8 +23,8 @@ class TextResult final : public IResult
 
     void Apply(HttpResponse& response) const override
     {
-        response.body             = mBody;
-        response.statusCode       = mStatus;
+        response.body                    = mBody;
+        response.statusCode              = mStatus;
         response.headers["Content-Type"] = "text/plain";
     }
 
@@ -43,8 +43,8 @@ class JsonResult final : public IResult
 
     void Apply(HttpResponse& response) const override
     {
-        response.body             = mBody;
-        response.statusCode       = mStatus;
+        response.body                    = mBody;
+        response.statusCode              = mStatus;
         response.headers["Content-Type"] = "application/json";
     }
 
@@ -72,15 +72,15 @@ class ContentResult final : public IResult
   public:
     ContentResult(std::string body, std::string contentType,
                   StatusCode status = StatusCode::OK) :
-        mBody(std::move(body)),
-        mContentType(std::move(contentType)), mStatus(status)
+        mBody(std::move(body)), mContentType(std::move(contentType)),
+        mStatus(status)
     {
     }
 
     void Apply(HttpResponse& response) const override
     {
-        response.body             = mBody;
-        response.statusCode       = mStatus;
+        response.body                    = mBody;
+        response.statusCode              = mStatus;
         response.headers["Content-Type"] = mContentType;
     }
 

@@ -1,14 +1,13 @@
 #include "BaldrExtension.hpp"
 
+#include <Baldr/Application/InFlightTracker.hpp>
+#include <Baldr/Application/WebApplication.hpp>
+#include <Baldr/Application/WorkerPool.hpp>
 #include <Baldr/Http/Connection.hpp>
 #include <Baldr/Http/RequestParser.hpp>
 #include <Baldr/Http/Server.hpp>
-#include <Baldr/Application/InFlightTracker.hpp>
 #include <Baldr/Middleware/Logging.hpp>
 #include <Baldr/Middleware/RateLimit/Middleware.hpp>
-#include "Skirnir/Common.hpp"
-#include <Baldr/Application/WebApplication.hpp>
-#include <Baldr/Application/WorkerPool.hpp>
 
 void BaldrExtension::ConfigureServices(skr::ServiceCollection& services)
 {

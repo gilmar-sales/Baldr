@@ -4,8 +4,8 @@
 #include <string>
 #include <utility>
 
-#include <Baldr/Http/Method.hpp>
 #include <Baldr/Application/WebApplication.hpp>
+#include <Baldr/Http/Method.hpp>
 #include <Baldr/Metrics/Registry.hpp>
 
 void MetricsMiddleware::Handle(HttpRequest&          request,

@@ -43,7 +43,10 @@ namespace Baldr
 
         static const std::vector<double>& defaultBuckets();
 
-        struct TestOnlyTag {};
+        struct TestOnlyTag
+        {
+        };
+
         explicit MetricsRegistry(TestOnlyTag);
 
         struct HistogramKey
