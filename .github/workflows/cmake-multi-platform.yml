@@ -77,8 +77,10 @@ jobs:
         echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-21 main" | sudo tee /etc/apt/sources.list.d/llvm-21.list > /dev/null
         sudo apt-get update
         sudo apt-get install -y clang-21 lld-21
-        sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-21
+        sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
+        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100
         sudo update-alternatives --set clang /usr/bin/clang-21
+        sudo update-alternatives --set clang++ /usr/bin/clang++-21
 
     - name: Cache CMake build directory
       uses: actions/cache@v4
