@@ -1,5 +1,6 @@
 #include "BaldrExtension.hpp"
 
+#include <Baldr/Http/Connection.hpp>
 #include <Baldr/Http/RequestParser.hpp>
 #include <Baldr/Http/Server.hpp>
 #include <Baldr/Application/InFlightTracker.hpp>

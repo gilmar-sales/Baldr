@@ -14,9 +14,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include <Baldr/Http/Router.hpp>
 #include <Baldr/Http/Server.hpp>
-#include <Baldr/Http/Results/Result.hpp>
 #include <Baldr/Http/StaticFilesInternal.hpp>
+#include <Baldr/Middleware/MiddlewareProvider.hpp>
 
 namespace
 {
@@ -83,7 +84,7 @@ namespace
         }
         return out;
     }
-}
+} // namespace
 
 namespace Baldr::Detail
 {
@@ -108,17 +109,12 @@ namespace Baldr::Detail
         gmtime_r(&tt, &tm);
 #endif
         char buf[64];
-        // IMF-fixdate: Sun, 06 Nov 1994 08:49:37 GMT
         std::strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S GMT", &tm);
         return std::string(buf);
     }
 
     std::chrono::system_clock::time_point parseHttpDate(std::string_view v)
     {
-        // IMF-fixdate example: "Sun, 06 Nov 1994 08:49:37 GMT"
-        // RFC 850:            "Sunday, 06-Nov-94 08:49:37 GMT"
-        // asctime:            "Sun Nov  6 08:49:37 1994"
-        // We support all three per RFC 7231.
         if (v.empty())
             return {};
 
@@ -209,7 +205,6 @@ namespace Baldr::Detail
         std::error_code            sizec;
         auto                      sz  = std::filesystem::file_size(fileToServe, sizec);
         auto                      mte = std::filesystem::last_write_time(fileToServe);
-        // Round-trip to system_clock resolution (mtime is filesystem_clock).
         auto                      mtc = std::chrono::file_clock::to_sys(mte);
 
         return { StatusCode::OK, fileToServe, detectMimeType(fileToServe),
@@ -218,6 +213,41 @@ namespace Baldr::Detail
                  /*lastModified=*/mtc,
                  /*etag=*/Baldr::Detail::makeEtag(sizec ? 0 : sz, mtc) };
     }
+} // namespace Baldr::Detail
+
+WebApplication::WebApplication(
+    const skr::Arc<skr::ServiceProvider>& rootServiceProvider) :
+    IApplication(rootServiceProvider),
+    mImpl(std::make_unique<Baldr::detail::WebApplicationImpl>())
+{
+    mImpl->mRouter = rootServiceProvider->GetService<Router>();
+    mImpl->mMiddlewareProvider =
+        rootServiceProvider->GetService<MiddlewareProvider>();
+}
+
+Baldr::RouteRegistration WebApplication::MapGet(const std::string& route)
+{
+    return Baldr::RouteRegistration(*mImpl->mRouter, HttpMethod::Get, route);
+}
+
+Baldr::RouteRegistration WebApplication::MapPost(const std::string& route)
+{
+    return Baldr::RouteRegistration(*mImpl->mRouter, HttpMethod::Post, route);
+}
+
+Baldr::RouteRegistration WebApplication::MapPut(const std::string& route)
+{
+    return Baldr::RouteRegistration(*mImpl->mRouter, HttpMethod::Put, route);
+}
+
+Baldr::RouteRegistration WebApplication::MapDelete(const std::string& route)
+{
+    return Baldr::RouteRegistration(*mImpl->mRouter, HttpMethod::Delete, route);
+}
+
+Baldr::RouteRegistration WebApplication::MapPatch(const std::string& route)
+{
+    return Baldr::RouteRegistration(*mImpl->mRouter, HttpMethod::Patch, route);
 }
 
 void WebApplication::MapStaticFiles(const std::string& urlPrefix,
@@ -241,13 +271,11 @@ void WebApplication::MapStaticFiles(const std::string& urlPrefix,
         const std::string lastModifiedHeader =
             Baldr::Detail::formatHttpDate(resolved.lastModified);
 
-        // If-None-Match (strong comparison; weak etags are not used).
         auto inmIt = request.headers.find("if-none-match");
         if (inmIt != request.headers.end())
         {
-            std::string                   inm = toLowerAscii(inmIt->second);
-            std::string                   tag = toLowerAscii(resolved.etag);
-            // Trim whitespace.
+            std::string inm = toLowerAscii(inmIt->second);
+            std::string tag = toLowerAscii(resolved.etag);
             auto trim = [](std::string& s) {
                 while (!s.empty() && std::isspace(static_cast<unsigned char>(
                                           s.back())))
@@ -268,14 +296,10 @@ void WebApplication::MapStaticFiles(const std::string& urlPrefix,
             }
         }
 
-        // If-Modified-Since: only meaningful for GETs. We treat it as a
-        // secondary cache validator: any modification after the supplied
-        // timestamp invalidates the cached entry.
         auto imsIt = request.headers.find("if-modified-since");
         if (imsIt != request.headers.end())
         {
             auto ts = Baldr::Detail::parseHttpDate(imsIt->second);
-            // Truncate both to seconds before comparing.
             auto floorToSeconds =
                 [](std::chrono::system_clock::time_point tp) {
                     return std::chrono::system_clock::time_point {
@@ -293,11 +317,6 @@ void WebApplication::MapStaticFiles(const std::string& urlPrefix,
         }
 
         ContentResult body(resolved.body, resolved.mimeType, StatusCode::OK);
-        // Hand the cached headers back through a side-channel: we
-        // attach them to the ContentResult's headers by tweaking the
-        // response here too. MapRoute will apply ContentResult to the
-        // response object; the explicit header writes ensure ETag /
-        // Last-Modified reach the wire.
         response.headers["ETag"]          = resolved.etag;
         response.headers["Last-Modified"] = lastModifiedHeader;
         return body;
@@ -311,11 +330,64 @@ void WebApplication::Run()
     try
     {
         auto server = mRootServiceProvider->GetService<HttpServer>();
-
         server->Run();
     }
     catch (const std::exception& e)
     {
         logger->LogError("{}", e.what());
     }
+}
+
+skr::Arc<Router> WebApplication::GetRouter() const
+{
+    return mImpl->mRouter;
+}
+
+std::string WebApplication::RouteBuilder::join(const std::string& a,
+                                               const std::string& b)
+{
+    if (a.empty())
+        return b;
+    if (b.empty())
+        return a;
+    if (a.back() == '/' && b.front() == '/')
+        return a + b.substr(1);
+    if (a.back() == '/' || b.front() == '/')
+        return a + b;
+    return a + "/" + b;
+}
+
+Baldr::RouteRegistration WebApplication::RouteBuilder::MapGet(
+    const std::string& route)
+{
+    return Baldr::RouteRegistration(
+        mRouter, HttpMethod::Get, join(mPrefix, route), mPrefix);
+}
+
+Baldr::RouteRegistration WebApplication::RouteBuilder::MapPost(
+    const std::string& route)
+{
+    return Baldr::RouteRegistration(
+        mRouter, HttpMethod::Post, join(mPrefix, route), mPrefix);
+}
+
+Baldr::RouteRegistration WebApplication::RouteBuilder::MapPut(
+    const std::string& route)
+{
+    return Baldr::RouteRegistration(
+        mRouter, HttpMethod::Put, join(mPrefix, route), mPrefix);
+}
+
+Baldr::RouteRegistration WebApplication::RouteBuilder::MapDelete(
+    const std::string& route)
+{
+    return Baldr::RouteRegistration(
+        mRouter, HttpMethod::Delete, join(mPrefix, route), mPrefix);
+}
+
+Baldr::RouteRegistration WebApplication::RouteBuilder::MapPatch(
+    const std::string& route)
+{
+    return Baldr::RouteRegistration(
+        mRouter, HttpMethod::Patch, join(mPrefix, route), mPrefix);
 }

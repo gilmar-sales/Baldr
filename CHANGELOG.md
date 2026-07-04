@@ -35,3 +35,52 @@ All notable changes to Baldr are documented here. The format is based on [Keep a
 
 ### Notes
 - The `WebApplication::MapRoute` template was promoted to a public member so the new `RouteBuilder` can register routes through it. Behaviour is unchanged for existing call sites.
+
+## [0.16.0] - 2026-07-04
+
+### Changed (BREAKING)
+- **Per-domain include layout.** All public headers were relocated from the flat `src/Baldr/` tree into per-domain subdirectories matching OpenApi conventions. Consumers must update their `#include` paths:
+    - `#include <Baldr/HttpRequest.hpp>` → `#include <Baldr/Http/Request.hpp>`
+    - `#include <Baldr/HttpResponse.hpp>` → `#include <Baldr/Http/Response.hpp>`
+    - `#include <Baldr/HttpServer.hpp>` → `#include <Baldr/Http/Server.hpp>`
+    - `#include <Baldr/HttpConnection.hpp>` → `#include <Baldr/Http/Connection.hpp>`
+    - `#include <Baldr/HttpRequestParser.hpp>` → `#include <Baldr/Http/RequestParser.hpp>`
+    - `#include <Baldr/HttpServerOptions.hpp>` → `#include <Baldr/Http/ServerOptions.hpp>`
+    - `#include <Baldr/HttpMethod.hpp>` → `#include <Baldr/Http/Method.hpp>`
+    - `#include <Baldr/HttpResult.hpp>` → `#include <Baldr/Http/Results/HttpResult.hpp>`
+    - `#include <Baldr/Router.hpp>` → `#include <Baldr/Http/Router.hpp>`
+    - `#include <Baldr/RouteOptions.hpp>` → `#include <Baldr/Http/RouteOptions.hpp>`
+    - `#include <Baldr/RouteRegistration.hpp>` → `#include <Baldr/Http/RouteRegistration.hpp>`
+    - `#include <Baldr/Result.hpp>` → `#include <Baldr/Http/Results/Result.hpp>`
+    - `#include <Baldr/JsonBody.hpp>` → `#include <Baldr/Http/Results/JsonBody.hpp>`
+    - `#include <Baldr/StreamingResult.hpp>` → `#include <Baldr/Http/Results/StreamingResult.hpp>`
+    - `#include <Baldr/FileStreamResult.hpp>` → `#include <Baldr/Http/Results/FileStreamResult.hpp>`
+    - `#include <Baldr/WebApplication.hpp>` → `#include <Baldr/Application/WebApplication.hpp>`
+    - `#include <Baldr/InFlightTracker.hpp>` → `#include <Baldr/Application/InFlightTracker.hpp>`
+    - `#include <Baldr/WorkerPool.hpp>` → `#include <Baldr/Application/WorkerPool.hpp>`
+    - `#include <Baldr/MetricsRegistry.hpp>` → `#include <Baldr/Metrics/Registry.hpp>`
+    - `#include <Baldr/MetricsMiddleware.hpp>` → `#include <Baldr/Metrics/Middleware.hpp>`
+    - `#include <Baldr/IMiddleware.hpp>` → `#include <Baldr/Middleware/IMiddleware.hpp>`
+    - `#include <Baldr/MiddlewareProvider.hpp>` → `#include <Baldr/Middleware/MiddlewareProvider.hpp>`
+    - `#include <Baldr/CorsMiddleware.hpp>` → `#include <Baldr/Middleware/Cors.hpp>`
+    - `#include <Baldr/CsrfMiddleware.hpp>` → `#include <Baldr/Middleware/Csrf.hpp>`
+    - `#include <Baldr/ExceptionHandlerMiddleware.hpp>` → `#include <Baldr/Middleware/ExceptionHandler.hpp>`
+    - `#include <Baldr/LoggingMiddleware.hpp>` → `#include <Baldr/Middleware/Logging.hpp>`
+    - `#include <Baldr/RequestIdMiddleware.hpp>` → `#include <Baldr/Middleware/RequestId.hpp>`
+    - `#include <Baldr/SecurityHeadersMiddleware.hpp>` → `#include <Baldr/Middleware/SecurityHeaders.hpp>`
+    - `#include <Baldr/RateLimiter.hpp>` → `#include <Baldr/Middleware/RateLimit/Limiter.hpp>`
+    - `#include <Baldr/RateLimitMiddleware.hpp>` → `#include <Baldr/Middleware/RateLimit/Middleware.hpp>`
+    - `#include <Baldr/CompressionMiddleware.hpp>` → `#include <Baldr/Middleware/Compression/Middleware.hpp>`
+    - `#include <Baldr/CompressionInternal.hpp>` → `#include <Baldr/Middleware/Compression/Internal.hpp>` (still internal)
+    - `#include <Baldr/StringHelpers.hpp>` → `#include <Baldr/Hosting/StringHelpers.hpp>`
+- Bumped CMake `project(... VERSION ...)` from 0.15.1 to 0.16.0 to mark this as a breaking release.
+
+### Added
+- Pimpl (private `Impl`) on `Router`, `HttpServer`, `WebApplication`, `MetricsRegistry`. Public headers stop pulling in `<regex>`, `<trantor/...>`, `<atomic>`, `<unordered_map>`, and the trie types — touching internal members no longer forces a recompile of every consumer.
+- Precompiled header (`std::string`, `std::memory`, `std::functional`, `std::unordered_map`, `std::vector`, `std::utility`, `<Baldr/Baldr.hpp>`) on the `baldr` target.
+- CMake unity builds (`UNITY_BUILD ON`, `UNITY_BUILD_BATCH_SIZE 4`) on the `baldr` target to amortise include-graph cost across small groups of `.cpp` files.
+
+### Internal
+- Source list switched from `file(GLOB_RECURSE)` to an explicit list grouped by domain in `CMakeLists.txt` (new files now require a CMake edit, which intentionally surfaces the cost of touching public headers).
+- Test layout mirrors the new domain layout (`test/src/Http/`, `test/src/Middleware/`, `test/src/Metrics/`, `test/src/Application/`, `test/src/Hosting/`, `test/src/OpenApi/`).
+- New umbrella header `Baldr.hpp` re-exports the most-used public headers; `BaldrExtension.hpp` was lightened to only pull `<Baldr/Application/WebApplication.hpp>`.

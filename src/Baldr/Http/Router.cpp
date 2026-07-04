@@ -1,11 +1,63 @@
 #include <Baldr/Http/Router.hpp>
 
-#include <ranges>
+#include <map>
+#include <mutex>
+#include <regex>
+#include <shared_mutex>
 #include <stack>
 #include <stdexcept>
+#include <unordered_map>
 #include <utility>
 
 #include <Baldr/OpenApi/JsonSchemaEmitter.hpp>
+
+namespace
+{
+    struct TrieNode
+    {
+        std::unordered_map<std::string, std::unique_ptr<TrieNode>> children;
+        std::optional<RouteEntry>                                 routeEntry;
+        bool isEndOfPath = false;
+
+        TrieNode()                               = default;
+        TrieNode(TrieNode&&) noexcept            = default;
+        TrieNode& operator=(TrieNode&&) noexcept = default;
+        TrieNode(const TrieNode&)                = delete;
+        TrieNode& operator=(const TrieNode&)     = delete;
+
+        ~TrieNode() = default;
+    };
+} // namespace
+
+std::unordered_map<std::string, std::string> RouteEntry::extractRouteParams(
+    const std::string& path) const
+{
+    std::unordered_map<std::string, std::string> params;
+
+    if (!hasParams)
+    {
+        return params;
+    }
+
+    std::smatch match;
+
+    if (std::regex_match(path, match, extractParamsRegex))
+    {
+        for (size_t i = 0; i < paramsNames.size(); ++i)
+        {
+            params[paramsNames[i]] = match[i + 1];
+        }
+    }
+
+    return params;
+}
+
+struct Router::Impl
+{
+    mutable std::shared_mutex                       mMutex {};
+    std::map<HttpMethod, std::unique_ptr<TrieNode>> mMethodsMap;
+    skr::Arc<SchemaRegistry>                        mSchemaRegistry;
+};
 
 namespace
 {
@@ -25,21 +77,123 @@ namespace
             .method       = method,
         };
     }
+
+    std::optional<RouteEntry> matchInTrieWithTemplate(
+        const std::map<HttpMethod, std::unique_ptr<TrieNode>>& mMethodsMap,
+        HttpMethod         method,
+        std::string_view   path,
+        std::string&       outTemplate)
+    {
+        auto root = mMethodsMap.at(method).get();
+
+        auto pathSegments =
+            path | std::views::split('/') |
+            std::views::filter([](const auto& s) { return s.size() > 0; });
+
+        auto joinTemplate = [](const std::vector<std::string>& parts) {
+            std::string out;
+            for (const auto& p : parts)
+            {
+                out.push_back('/');
+                out.append(p);
+            }
+            if (out.empty())
+                return std::string("/");
+            return out;
+        };
+
+        if (pathSegments.empty())
+        {
+            if (root->children.contains("/") && root->children["/"]->isEndOfPath)
+            {
+                outTemplate = "/";
+                return root->children["/"]->routeEntry;
+            }
+
+            return {};
+        }
+
+        struct Frame
+        {
+            TrieNode*                   node;
+            decltype(pathSegments.begin()) index;
+            std::vector<std::string>    parts;
+        };
+
+        auto stack = std::stack<Frame>(
+            { { root, pathSegments.begin(), {} } });
+
+        while (!stack.empty())
+        {
+            auto [node, index, parts] = stack.top();
+            stack.pop();
+
+            if (index == pathSegments.end())
+            {
+                if (node->isEndOfPath)
+                {
+                    outTemplate = joinTemplate(parts);
+                    return node->routeEntry;
+                }
+
+                if (node->children.contains("**") &&
+                    node->children["**"]->isEndOfPath)
+                {
+                    auto childParts = parts;
+                    childParts.emplace_back("**");
+                    outTemplate = joinTemplate(childParts);
+                    return node->children["**"]->routeEntry;
+                }
+
+                continue;
+            }
+
+            const auto& segment = std::string((*index).begin(), (*index).end());
+
+            if (node->children.contains("**") && node->children["**"]->isEndOfPath)
+            {
+                auto childParts = parts;
+                childParts.emplace_back("**");
+                stack.push(Frame { node->children["**"].get(), pathSegments.end(),
+                                  std::move(childParts) });
+            }
+
+            if (node->children.contains(segment))
+            {
+                auto childParts = parts;
+                childParts.emplace_back(segment);
+                stack.push(Frame { node->children[segment].get(),
+                                  std::next(index), std::move(childParts) });
+            }
+
+            if (node->children.contains("*"))
+            {
+                auto childParts = parts;
+                childParts.emplace_back("*");
+                stack.push(Frame { node->children["*"].get(), std::next(index),
+                                  std::move(childParts) });
+            }
+        }
+
+        return {};
+    }
+} // namespace
+
+Router::Router() : mImpl(std::make_unique<Impl>())
+{
+    mImpl->mSchemaRegistry = skr::MakeArc<SchemaRegistry>();
+    mImpl->mMethodsMap[HttpMethod::Get]     = std::make_unique<TrieNode>();
+    mImpl->mMethodsMap[HttpMethod::Post]    = std::make_unique<TrieNode>();
+    mImpl->mMethodsMap[HttpMethod::Put]     = std::make_unique<TrieNode>();
+    mImpl->mMethodsMap[HttpMethod::Delete]  = std::make_unique<TrieNode>();
+    mImpl->mMethodsMap[HttpMethod::Patch]   = std::make_unique<TrieNode>();
+    mImpl->mMethodsMap[HttpMethod::Options] = std::make_unique<TrieNode>();
+    mImpl->mMethodsMap[HttpMethod::Head]    = std::make_unique<TrieNode>();
+    mImpl->mMethodsMap[HttpMethod::Trace]   = std::make_unique<TrieNode>();
+    mImpl->mMethodsMap[HttpMethod::Connect] = std::make_unique<TrieNode>();
 }
 
-Router::Router() : mSchemaRegistry(
-                       skr::MakeArc<SchemaRegistry>())
-{
-    mMethodsMap[HttpMethod::Get]     = std::make_unique<TrieNode>();
-    mMethodsMap[HttpMethod::Post]    = std::make_unique<TrieNode>();
-    mMethodsMap[HttpMethod::Put]     = std::make_unique<TrieNode>();
-    mMethodsMap[HttpMethod::Delete]  = std::make_unique<TrieNode>();
-    mMethodsMap[HttpMethod::Patch]   = std::make_unique<TrieNode>();
-    mMethodsMap[HttpMethod::Options] = std::make_unique<TrieNode>();
-    mMethodsMap[HttpMethod::Head]    = std::make_unique<TrieNode>();
-    mMethodsMap[HttpMethod::Trace]   = std::make_unique<TrieNode>();
-    mMethodsMap[HttpMethod::Connect] = std::make_unique<TrieNode>();
-}
+Router::~Router() = default;
 
 void Router::insert(HttpMethod method, std::string path,
                     const RouteHandler& routeHandler) const
@@ -53,8 +207,8 @@ void Router::insert(HttpMethod method, std::string path,
                     std::string groupPrefix,
                     const RouteHandler& routeHandler) const
 {
-    std::unique_lock lock(mMutex);
-    TrieNode*  current = mMethodsMap.at(method).get();
+    std::unique_lock lock(mImpl->mMutex);
+    TrieNode* current = mImpl->mMethodsMap.at(method).get();
     RouteEntry routeEntry = makeEntry(method, path, std::move(options),
                                       std::move(groupPrefix), routeHandler);
 
@@ -128,131 +282,30 @@ void Router::insert(HttpMethod method, std::string path,
     current->isEndOfPath = true;
 }
 
-std::optional<RouteEntry> Router::matchInTrie(HttpMethod         method,
-                                                std::string_view path) const
-{
-    std::string unused;
-    return matchInTrieWithTemplate(method, path, unused);
-}
-
-std::optional<RouteEntry> Router::matchInTrieWithTemplate(
-    HttpMethod method, std::string_view path, std::string& outTemplate) const
-{
-    auto root = mMethodsMap.at(method).get();
-
-    auto pathSegments =
-        path | std::views::split('/') |
-        std::views::filter([](const auto& s) { return s.size() > 0; });
-
-    auto joinTemplate = [](const std::vector<std::string>& parts) {
-        std::string out;
-        for (const auto& p : parts)
-        {
-            out.push_back('/');
-            out.append(p);
-        }
-        if (out.empty())
-            return std::string("/");
-        return out;
-    };
-
-    if (pathSegments.empty())
-    {
-        if (root->children.contains("/") && root->children["/"]->isEndOfPath)
-        {
-            outTemplate = "/";
-            return root->children["/"]->routeEntry;
-        }
-
-        return {};
-    }
-
-    struct Frame
-    {
-        TrieNode*                   node;
-        decltype(pathSegments.begin()) index;
-        std::vector<std::string>    parts;
-    };
-
-    auto stack = std::stack<Frame>(
-        { { root, pathSegments.begin(), {} } });
-
-    while (!stack.empty())
-    {
-        auto [node, index, parts] = stack.top();
-        stack.pop();
-
-        if (index == pathSegments.end())
-        {
-            if (node->isEndOfPath)
-            {
-                outTemplate = joinTemplate(parts);
-                return node->routeEntry;
-            }
-
-            if (node->children.contains("**") &&
-                node->children["**"]->isEndOfPath)
-            {
-                auto childParts = parts;
-                childParts.emplace_back("**");
-                outTemplate = joinTemplate(childParts);
-                return node->children["**"]->routeEntry;
-            }
-
-            continue;
-        }
-
-        const auto& segment = std::string((*index).begin(), (*index).end());
-
-        if (node->children.contains("**") && node->children["**"]->isEndOfPath)
-        {
-            auto childParts = parts;
-            childParts.emplace_back("**");
-            stack.push(Frame { node->children["**"].get(), pathSegments.end(),
-                              std::move(childParts) });
-        }
-
-        if (node->children.contains(segment))
-        {
-            auto childParts = parts;
-            childParts.emplace_back(segment);
-            stack.push(Frame { node->children[segment].get(),
-                              std::next(index), std::move(childParts) });
-        }
-
-        if (node->children.contains("*"))
-        {
-            auto childParts = parts;
-            childParts.emplace_back("*");
-            stack.push(Frame { node->children["*"].get(), std::next(index),
-                              std::move(childParts) });
-        }
-    }
-
-    return {};
-}
-
 std::optional<RouteEntry> Router::match(HttpMethod  method,
                                         std::string path) const
 {
-    std::shared_lock lock(mMutex);
-    return matchInTrie(method, path);
+    std::shared_lock lock(mImpl->mMutex);
+    std::string unused;
+    return matchInTrieWithTemplate(mImpl->mMethodsMap, method, path, unused);
 }
 
 Router::MatchResult Router::matchWithAllow(HttpMethod  method,
                                            std::string path) const
 {
-    std::shared_lock lock(mMutex);
+    std::shared_lock lock(mImpl->mMutex);
 
     MatchResult result;
-    result.entry = matchInTrie(method, path);
+    std::string template_;
+    result.entry = matchInTrieWithTemplate(mImpl->mMethodsMap, method, path,
+                                           template_);
     if (result.entry.has_value())
         result.routeTemplate = result.entry->pathTemplate;
 
-    // HEAD falls back to GET when no HEAD route is registered.
     if (!result.entry.has_value() && method == HttpMethod::Head)
     {
-        auto getEntry = matchInTrie(HttpMethod::Get, path);
+        auto getEntry = matchInTrieWithTemplate(
+            mImpl->mMethodsMap, HttpMethod::Get, path, template_);
         if (getEntry.has_value())
         {
             result.entry          = getEntry;
@@ -268,11 +321,11 @@ Router::MatchResult Router::matchWithAllow(HttpMethod  method,
     if (result.entry.has_value())
         return result;
 
-    for (const auto& [m, _] : mMethodsMap)
+    for (const auto& [m, _] : mImpl->mMethodsMap)
     {
         if (m == method)
             continue;
-        if (matchInTrie(m, path).has_value())
+        if (matchInTrieWithTemplate(mImpl->mMethodsMap, m, path, template_).has_value())
             result.allowedMethodsOnPath.push_back(m);
     }
 
@@ -281,10 +334,10 @@ Router::MatchResult Router::matchWithAllow(HttpMethod  method,
 
 std::vector<RouteEntry> Router::Snapshot() const
 {
-    std::shared_lock lock(mMutex);
+    std::shared_lock lock(mImpl->mMutex);
     std::vector<RouteEntry> out;
 
-    for (const auto& [method, root] : mMethodsMap)
+    for (const auto& [method, root] : mImpl->mMethodsMap)
     {
         struct Frame
         {
@@ -329,4 +382,9 @@ std::vector<RouteEntry> Router::Snapshot() const
     }
 
     return out;
+}
+
+const skr::Arc<SchemaRegistry>& Router::SchemaRegistrySlot() const
+{
+    return mImpl->mSchemaRegistry;
 }

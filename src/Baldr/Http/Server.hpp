@@ -2,15 +2,9 @@
 
 #include <atomic>
 #include <memory>
-#include <thread>
 
 #include <Skirnir/Skirnir.hpp>
-#include <trantor/net/EventLoop.h>
-#include <trantor/net/EventLoopThreadPool.h>
-#include <trantor/net/InetAddress.h>
-#include <trantor/net/TcpServer.h>
 
-#include <Baldr/Http/Connection.hpp>
 #include <Baldr/Http/ServerOptions.hpp>
 #include <Baldr/Application/InFlightTracker.hpp>
 
@@ -32,14 +26,6 @@ class HttpServer
     void Stop();
 
   private:
-    skr::Arc<skr::Logger<HttpServer>> mLogger;
-    skr::Arc<skr::ServiceProvider>    mServiceProvider;
-    skr::Arc<HttpServerOptions>       mHttpServerOptions;
-    skr::Arc<InFlightTracker>         mInFlightTracker;
-    int                               mResolvedThreadCount;
-
-    std::unique_ptr<trantor::EventLoop>           mAcceptorLoop;
-    std::shared_ptr<trantor::EventLoopThreadPool> mIoLoopPool;
-    std::unique_ptr<trantor::TcpServer>           mServer;
-    std::atomic<bool>                             mRunning { false };
+    struct Impl;
+    std::unique_ptr<Impl> mImpl;
 };

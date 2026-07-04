@@ -1,26 +1,29 @@
 #pragma once
 
-#include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <string>
-#include <unordered_map>
+#include <string_view>
 #include <vector>
 
 namespace Baldr
 {
-    // Tiny process-wide metrics store. Counters are monotonic; the
-    // histogram is a fixed-bucket latency histogram in seconds. Values
-    // are emitted in Prometheus text format.
+    class MetricsRegistry;
+
+    namespace detail
+    {
+        struct MetricsRegistryImpl;
+    } // namespace detail
+
     class MetricsRegistry
     {
       public:
         struct HistogramSnapshot
         {
-            std::vector<double>              upperBounds;
-            std::vector<std::uint64_t>       bucketCounts;
-            std::uint64_t                    count = 0;
-            double                           sum   = 0.0;
+            std::vector<double>        upperBounds;
+            std::vector<std::uint64_t> bucketCounts;
+            std::uint64_t              count = 0;
+            double                     sum   = 0.0;
         };
 
         static MetricsRegistry& instance();
@@ -35,27 +38,13 @@ namespace Baldr
 
         std::string renderPrometheus() const;
 
-        std::uint64_t requestCount() const { return mRequestCount.load(); }
+        std::uint64_t requestCount() const;
+        std::int64_t  inFlight() const;
 
-        std::int64_t inFlight() const { return mInFlight.load(); }
+        static const std::vector<double>& defaultBuckets();
 
-        // Default buckets in seconds (Prometheus-style latency buckets).
-        static const std::vector<double>& defaultBuckets()
-        {
-            static const std::vector<double> buckets = {
-                0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0,
-                2.5,   5.0,  10.0
-            };
-            return buckets;
-        }
-
-      private:
-        MetricsRegistry();
-
-      public:
-        // Public for tests; production code should use the singleton.
         struct TestOnlyTag {};
-        explicit MetricsRegistry(TestOnlyTag) {}
+        explicit MetricsRegistry(TestOnlyTag);
 
         struct HistogramKey
         {
@@ -68,20 +57,11 @@ namespace Baldr
         };
         struct HistogramKeyHash
         {
-            std::size_t operator()(const HistogramKey& k) const
-            {
-                return std::hash<std::string> {}(k.method) ^
-                       (std::hash<std::string> {}(k.path) << 1);
-            }
+            std::size_t operator()(const HistogramKey& k) const;
         };
 
-        mutable std::mutex mMutex;
-        std::unordered_map<std::string, std::uint64_t> mStatusCounts;
-        std::unordered_map<std::string, std::uint64_t> mMethodCounts;
-        std::unordered_map<HistogramKey, HistogramSnapshot,
-                           HistogramKeyHash>
-                                                          mLatency;
-        std::atomic<std::uint64_t> mRequestCount { 0 };
-        std::atomic<std::int64_t>  mInFlight { 0 };
+      private:
+        MetricsRegistry();
+        detail::MetricsRegistryImpl* mImpl;
     };
 } // namespace Baldr

@@ -2,68 +2,49 @@
 
 #include <Skirnir/Skirnir.hpp>
 
-#include <Baldr/Middleware/MiddlewareProvider.hpp>
+#include <Baldr/Http/Method.hpp>
 #include <Baldr/Http/Results/Result.hpp>
 #include <Baldr/Http/RouteOptions.hpp>
 #include <Baldr/Http/RouteRegistration.hpp>
-#include <Baldr/Http/Results/StreamingResult.hpp>
 #include <Baldr/Http/Tuple.hpp>
+
+#include "WebApplication_Impl.hpp"
 
 class WebApplication : public skr::IApplication
 {
   public:
-    WebApplication(const skr::Arc<skr::ServiceProvider>& rootServiceProvider) :
-        IApplication(rootServiceProvider),
-        mRouter(rootServiceProvider->GetService<Router>()),
-        mMiddlewareProvider(
-            rootServiceProvider->GetService<MiddlewareProvider>())
-    {
-    }
+    explicit WebApplication(
+        const skr::Arc<skr::ServiceProvider>& rootServiceProvider);
 
-    Baldr::RouteRegistration MapGet(const std::string& route)
-    {
-        return Baldr::RouteRegistration(*mRouter, HttpMethod::Get, route);
-    }
+    Baldr::RouteRegistration MapGet(const std::string& route);
 
     void MapGet(const std::string& route, auto&& handler)
     {
         MapGet(route).Handle(std::forward<decltype(handler)>(handler));
     }
 
-    Baldr::RouteRegistration MapPost(const std::string& route)
-    {
-        return Baldr::RouteRegistration(*mRouter, HttpMethod::Post, route);
-    }
+    Baldr::RouteRegistration MapPost(const std::string& route);
 
     void MapPost(const std::string& route, auto&& handler)
     {
         MapPost(route).Handle(std::forward<decltype(handler)>(handler));
     }
 
-    Baldr::RouteRegistration MapPut(const std::string& route)
-    {
-        return Baldr::RouteRegistration(*mRouter, HttpMethod::Put, route);
-    }
+    Baldr::RouteRegistration MapPut(const std::string& route);
 
     void MapPut(const std::string& route, auto&& handler)
     {
         MapPut(route).Handle(std::forward<decltype(handler)>(handler));
     }
 
-    Baldr::RouteRegistration MapDelete(const std::string& route)
-    {
-        return Baldr::RouteRegistration(*mRouter, HttpMethod::Delete, route);
-    }
+    Baldr::RouteRegistration MapDelete(const std::string& route);
 
     void MapDelete(const std::string& route, auto&& handler)
     {
         MapDelete(route).Handle(std::forward<decltype(handler)>(handler));
     }
 
-    Baldr::RouteRegistration MapPatch(const std::string& route)
-    {
-        return Baldr::RouteRegistration(*mRouter, HttpMethod::Patch, route);
-    }
+    Baldr::RouteRegistration MapPatch(const std::string& route);
 
     void MapPatch(const std::string& route, auto&& handler)
     {
@@ -72,7 +53,7 @@ class WebApplication : public skr::IApplication
 
     void MapGroup(const std::string& prefix, auto setup)
     {
-        RouteBuilder builder(*mRouter, prefix);
+        RouteBuilder builder(*mImpl->mRouter, prefix);
         setup(builder);
     }
 
@@ -82,8 +63,7 @@ class WebApplication : public skr::IApplication
     template <typename TMiddleware>
     const WebApplication& Use()
     {
-        mMiddlewareProvider->AddMiddleware<TMiddleware>();
-
+        mImpl->mMiddlewareProvider->AddMiddleware<TMiddleware>();
         return *this;
     }
 
@@ -112,7 +92,7 @@ class WebApplication : public skr::IApplication
                   const std::string&         groupPrefix,
                   const Baldr::RouteOptions& options, Handler&& handler)
     {
-        mRouter->insert(
+        mImpl->mRouter->insert(
             method,
             route,
             options,
@@ -217,55 +197,35 @@ class WebApplication : public skr::IApplication
         {
         }
 
-        Baldr::RouteRegistration MapGet(const std::string& route)
-        {
-            return Baldr::RouteRegistration(
-                mRouter, HttpMethod::Get, join(mPrefix, route), mPrefix);
-        }
+        Baldr::RouteRegistration MapGet(const std::string& route);
 
         void MapGet(const std::string& route, auto&& handler)
         {
             MapGet(route).Handle(std::forward<decltype(handler)>(handler));
         }
 
-        Baldr::RouteRegistration MapPost(const std::string& route)
-        {
-            return Baldr::RouteRegistration(
-                mRouter, HttpMethod::Post, join(mPrefix, route), mPrefix);
-        }
+        Baldr::RouteRegistration MapPost(const std::string& route);
 
         void MapPost(const std::string& route, auto&& handler)
         {
             MapPost(route).Handle(std::forward<decltype(handler)>(handler));
         }
 
-        Baldr::RouteRegistration MapPut(const std::string& route)
-        {
-            return Baldr::RouteRegistration(
-                mRouter, HttpMethod::Put, join(mPrefix, route), mPrefix);
-        }
+        Baldr::RouteRegistration MapPut(const std::string& route);
 
         void MapPut(const std::string& route, auto&& handler)
         {
             MapPut(route).Handle(std::forward<decltype(handler)>(handler));
         }
 
-        Baldr::RouteRegistration MapDelete(const std::string& route)
-        {
-            return Baldr::RouteRegistration(
-                mRouter, HttpMethod::Delete, join(mPrefix, route), mPrefix);
-        }
+        Baldr::RouteRegistration MapDelete(const std::string& route);
 
         void MapDelete(const std::string& route, auto&& handler)
         {
             MapDelete(route).Handle(std::forward<decltype(handler)>(handler));
         }
 
-        Baldr::RouteRegistration MapPatch(const std::string& route)
-        {
-            return Baldr::RouteRegistration(
-                mRouter, HttpMethod::Patch, join(mPrefix, route), mPrefix);
-        }
+        Baldr::RouteRegistration MapPatch(const std::string& route);
 
         void MapPatch(const std::string& route, auto&& handler)
         {
@@ -273,27 +233,14 @@ class WebApplication : public skr::IApplication
         }
 
       private:
-        static std::string join(const std::string& a, const std::string& b)
-        {
-            if (a.empty())
-                return b;
-            if (b.empty())
-                return a;
-            if (a.back() == '/' && b.front() == '/')
-                return a + b.substr(1);
-            if (a.back() == '/' || b.front() == '/')
-                return a + b;
-            return a + "/" + b;
-        }
+        static std::string join(const std::string& a, const std::string& b);
 
         Router&     mRouter;
         std::string mPrefix;
     };
 
-  private:
-    skr::Arc<Router>             mRouter;
-    skr::Arc<MiddlewareProvider> mMiddlewareProvider;
+    skr::Arc<Router> GetRouter() const;
 
-  public:
-    skr::Arc<Router> GetRouter() const { return mRouter; }
+  private:
+    std::unique_ptr<Baldr::detail::WebApplicationImpl> mImpl;
 };

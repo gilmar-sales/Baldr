@@ -1,12 +1,20 @@
 #include <Baldr/Http/Server.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <csignal>
 #include <stdexcept>
 #include <thread>
 
+#include <trantor/net/EventLoop.h>
+#include <trantor/net/EventLoopThreadPool.h>
+#include <trantor/net/InetAddress.h>
 #include <trantor/net/TcpConnection.h>
+#include <trantor/net/TcpServer.h>
 #include <trantor/utils/MsgBuffer.h>
+
+#include <Baldr/Http/Connection.hpp>
+#include <Baldr/Middleware/MiddlewareProvider.hpp>
 
 namespace
 {
@@ -16,31 +24,45 @@ namespace
     {
         if (gHttpServerInstance != nullptr)
         {
-            // Async-signal-safe: only call Stop() which queues work on the
-            // acceptor loop. Do not log or allocate from a signal handler.
             (void) signo;
             gHttpServerInstance->Stop();
         }
     }
+
+    int resolveThreadCount(int configured)
+    {
+        return configured > 0
+                   ? configured
+                   : static_cast<int>(std::thread::hardware_concurrency());
+    }
 } // namespace
 
-int resolveThreadCount(int configured)
+struct HttpServer::Impl
 {
-    return configured > 0
-               ? configured
-               : static_cast<int>(std::thread::hardware_concurrency());
-}
+    skr::Arc<skr::Logger<HttpServer>> mLogger;
+    skr::Arc<skr::ServiceProvider>    mServiceProvider;
+    skr::Arc<HttpServerOptions>       mHttpServerOptions;
+    skr::Arc<InFlightTracker>         mInFlightTracker;
+    int                               mResolvedThreadCount { 1 };
+
+    std::unique_ptr<trantor::EventLoop>           mAcceptorLoop;
+    std::shared_ptr<trantor::EventLoopThreadPool> mIoLoopPool;
+    std::unique_ptr<trantor::TcpServer>           mServer;
+    std::atomic<bool>                             mRunning { false };
+};
 
 HttpServer::HttpServer(const skr::Arc<HttpServerOptions>&       httpServerOptions,
                        const skr::Arc<skr::ServiceProvider>&    serviceProvider,
                        const skr::Arc<skr::Logger<HttpServer>>& logger,
                        const skr::Arc<InFlightTracker>&         inFlightTracker) :
-    mServiceProvider(serviceProvider), mLogger(logger),
-    mHttpServerOptions(httpServerOptions),
-    mInFlightTracker(inFlightTracker),
-    mResolvedThreadCount(
-        std::max(1, resolveThreadCount(mHttpServerOptions->threadCount)))
+    mImpl(std::make_unique<Impl>())
 {
+    mImpl->mServiceProvider     = serviceProvider;
+    mImpl->mLogger              = logger;
+    mImpl->mHttpServerOptions   = httpServerOptions;
+    mImpl->mInFlightTracker     = inFlightTracker;
+    mImpl->mResolvedThreadCount =
+        std::max(1, resolveThreadCount(mImpl->mHttpServerOptions->threadCount));
 }
 
 HttpServer::~HttpServer()
@@ -50,7 +72,7 @@ HttpServer::~HttpServer()
 
 void HttpServer::Run()
 {
-    if (mRunning.exchange(true))
+    if (mImpl->mRunning.exchange(true))
         return;
 
     gHttpServerInstance = this;
@@ -58,31 +80,32 @@ void HttpServer::Run()
     std::signal(SIGTERM, handleShutdownSignal);
 
     auto middlewareProvider =
-        mServiceProvider->GetService<MiddlewareProvider>();
+        mImpl->mServiceProvider->GetService<MiddlewareProvider>();
     if (middlewareProvider && !middlewareProvider->IsSealed())
     {
         middlewareProvider->Seal();
-        mLogger->LogInformation("MiddlewareProvider sealed with {} factories",
-                                middlewareProvider->Size());
+        mImpl->mLogger->LogInformation(
+            "MiddlewareProvider sealed with {} factories",
+            middlewareProvider->Size());
     }
 
-    mAcceptorLoop = std::make_unique<trantor::EventLoop>();
-    mIoLoopPool   = std::make_shared<trantor::EventLoopThreadPool>(
-        static_cast<size_t>(mResolvedThreadCount));
-    mIoLoopPool->start();
+    mImpl->mAcceptorLoop = std::make_unique<trantor::EventLoop>();
+    mImpl->mIoLoopPool   = std::make_shared<trantor::EventLoopThreadPool>(
+        static_cast<size_t>(mImpl->mResolvedThreadCount));
+    mImpl->mIoLoopPool->start();
 
-    trantor::InetAddress listenAddr(mHttpServerOptions->port);
-    mServer = std::make_unique<trantor::TcpServer>(
-        mAcceptorLoop.get(),
+    trantor::InetAddress listenAddr(mImpl->mHttpServerOptions->port);
+    mImpl->mServer = std::make_unique<trantor::TcpServer>(
+        mImpl->mAcceptorLoop.get(),
         listenAddr,
         "BaldrHttpServer",
-        /*reUseAddr=*/true,
-        /*reUsePort=*/false);
-    mServer->setIoLoopNum(static_cast<size_t>(mResolvedThreadCount));
+        true,
+        false);
+    mImpl->mServer->setIoLoopNum(static_cast<size_t>(mImpl->mResolvedThreadCount));
 
-    auto serviceProvider = mServiceProvider;
+    auto serviceProvider = mImpl->mServiceProvider;
 
-    mServer->setConnectionCallback(
+    mImpl->mServer->setConnectionCallback(
         [serviceProvider](const trantor::TcpConnectionPtr& conn) {
             if (conn->connected())
             {
@@ -96,7 +119,7 @@ void HttpServer::Run()
             }
         });
 
-    mServer->setRecvMessageCallback(
+    mImpl->mServer->setRecvMessageCallback(
         [](const trantor::TcpConnectionPtr& conn, trantor::MsgBuffer* buf) {
             auto handler = conn->getContext<HttpConnection>();
             if (!handler)
@@ -104,38 +127,35 @@ void HttpServer::Run()
             handler->onMessage(buf);
         });
 
-    mServer->start();
+    mImpl->mServer->start();
 
-    mLogger->LogInformation(
+    mImpl->mLogger->LogInformation(
         "Server running on http://0.0.0.0:{} with {} worker threads",
-        mHttpServerOptions->port, mResolvedThreadCount);
+        mImpl->mHttpServerOptions->port, mImpl->mResolvedThreadCount);
 
-    mAcceptorLoop->loop();
+    mImpl->mAcceptorLoop->loop();
 
-    // After acceptor loop exits, drain in-flight handlers before
-    // tearing the IO loops down. The drain runs on the main thread;
-    // the wait is bounded by `gracefulShutdownTimeoutSeconds`.
-    int  timeoutSec = mHttpServerOptions->gracefulShutdownTimeoutSeconds;
+    int  timeoutSec = mImpl->mHttpServerOptions->gracefulShutdownTimeoutSeconds;
     bool immediate = timeoutSec < 0;
-    if (mInFlightTracker &&
-        mInFlightTracker->outstanding() > 0 &&
+    if (mImpl->mInFlightTracker &&
+        mImpl->mInFlightTracker->outstanding() > 0 &&
         !immediate)
     {
-        mLogger->LogInformation(
+        mImpl->mLogger->LogInformation(
             "Draining {} in-flight requests (timeout {}s)...",
-            mInFlightTracker->outstanding(), timeoutSec);
-        mInFlightTracker->waitDrained(
+            mImpl->mInFlightTracker->outstanding(), timeoutSec);
+        mImpl->mInFlightTracker->waitDrained(
             std::chrono::seconds(timeoutSec));
-        mLogger->LogInformation(
+        mImpl->mLogger->LogInformation(
             "Drained ({} in-flight remaining)",
-            mInFlightTracker->outstanding());
+            mImpl->mInFlightTracker->outstanding());
     }
 
-    mLogger->LogInformation("Server stopped.");
-    mServer.reset();
-    mIoLoopPool.reset();
-    mAcceptorLoop.reset();
-    mRunning.store(false);
+    mImpl->mLogger->LogInformation("Server stopped.");
+    mImpl->mServer.reset();
+    mImpl->mIoLoopPool.reset();
+    mImpl->mAcceptorLoop.reset();
+    mImpl->mRunning.store(false);
     if (gHttpServerInstance == this)
     {
         gHttpServerInstance = nullptr;
@@ -146,14 +166,14 @@ void HttpServer::Run()
 
 void HttpServer::Stop()
 {
-    if (!mRunning.load())
+    if (!mImpl->mRunning.load())
         return;
-    if (mAcceptorLoop)
+    if (mImpl->mAcceptorLoop)
     {
-        mAcceptorLoop->runInLoop([this]() {
-            if (mServer)
-                mServer->stop();
-            mAcceptorLoop->quit();
+        mImpl->mAcceptorLoop->runInLoop([this]() {
+            if (mImpl->mServer)
+                mImpl->mServer->stop();
+            mImpl->mAcceptorLoop->quit();
         });
     }
 }

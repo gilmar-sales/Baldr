@@ -1,13 +1,12 @@
 #pragma once
 
 #include <functional>
-#include <map>
 #include <memory>
-#include <mutex>
+#include <optional>
 #include <regex>
-#include <shared_mutex>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include <Skirnir/Skirnir.hpp>
 
@@ -35,42 +34,7 @@ struct RouteEntry
     HttpMethod               method { HttpMethod::Get };
 
     std::unordered_map<std::string, std::string> extractRouteParams(
-        const std::string& path) const
-    {
-        std::unordered_map<std::string, std::string> params;
-
-        if (!hasParams)
-        {
-            return params;
-        }
-
-        std::smatch match;
-
-        if (std::regex_match(path, match, extractParamsRegex))
-        {
-            for (size_t i = 0; i < paramsNames.size(); ++i)
-            {
-                params[paramsNames[i]] = match[i + 1];
-            }
-        }
-
-        return params;
-    }
-};
-
-struct TrieNode
-{
-    std::unordered_map<std::string, std::unique_ptr<TrieNode>> children;
-    std::optional<RouteEntry>                                  routeEntry;
-    bool isEndOfPath = false;
-
-    TrieNode()                               = default;
-    TrieNode(TrieNode&&) noexcept            = default;
-    TrieNode& operator=(TrieNode&&) noexcept = default;
-    TrieNode(const TrieNode&)                = delete;
-    TrieNode& operator=(const TrieNode&)     = delete;
-
-    ~TrieNode() = default;
+        const std::string& path) const;
 };
 
 class Router
@@ -78,7 +42,7 @@ class Router
   public:
     Router();
 
-    ~Router()                            = default;
+    ~Router();
     Router(const Router&)                = delete;
     Router& operator=(const Router&)     = delete;
     Router(Router&&) noexcept            = default;
@@ -206,28 +170,11 @@ class Router
     [[nodiscard]] MatchResult matchWithAllow(HttpMethod  method,
                                              std::string path) const;
 
-    // Returns a copy of every registered route in registration order.
-    // Used by introspection consumers (e.g. OpenAPI extension).
     std::vector<RouteEntry> Snapshot() const;
 
-    // Returns the shared JSON Schema registry used for auto-derived
-    // request/response schemas. Routes that opt into auto-derivation via
-    // `RouteRegistration::Handle` register their DTOs here; the OpenAPI
-    // extension reads the same registry when rendering `components`.
-    const skr::Arc<SchemaRegistry>& SchemaRegistrySlot() const
-    {
-        return mSchemaRegistry;
-    }
+    const skr::Arc<SchemaRegistry>& SchemaRegistrySlot() const;
 
   private:
-    [[nodiscard]] std::optional<RouteEntry> matchInTrie(
-        HttpMethod method, std::string_view path) const;
-
-    [[nodiscard]] std::optional<RouteEntry> matchInTrieWithTemplate(
-        HttpMethod method, std::string_view path,
-        std::string& outTemplate) const;
-
-    mutable std::shared_mutex                       mMutex {};
-    std::map<HttpMethod, std::unique_ptr<TrieNode>> mMethodsMap;
-    skr::Arc<SchemaRegistry>                        mSchemaRegistry;
+    struct Impl;
+    std::unique_ptr<Impl> mImpl;
 };
