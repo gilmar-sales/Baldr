@@ -3,6 +3,7 @@
 
 #include <Baldr/Application/WebApplication.hpp>
 #include <Baldr/BaldrExtension.hpp>
+#include <Baldr/Http/FromBody.hpp>
 #include <Baldr/Http/Request.hpp>
 #include <Baldr/Http/Response.hpp>
 #include <Baldr/Http/Results/JsonBody.hpp>

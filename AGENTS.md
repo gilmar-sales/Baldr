@@ -45,6 +45,16 @@ ctest --test-dir build --output-on-failure
 
 CI invokes `ctest --test-dir ./test` from inside the `build/` dir — both forms work locally because CMake registers the tests at the top.
 
+## Formatting
+
+`.clang-format` (Microsoft base, 80-col, 4-space indent, no tabs, pointers left-aligned) is the source of truth. Run it on every changed C++ file before considering work done:
+
+```bash
+clang-format -i <changed-files...>
+```
+
+Pin the version used in CI (currently 22.x) to avoid drift: matching local `clang-format --version` with the CI runner is sufficient. Never hand-format around the rules — let `clang-format` own it. If a construct refuses to format cleanly, fix the construct (e.g. break long lines, hoist a complex lambda into a named callable) before merging.
+
 ## Layout
 
 - `src/Baldr/` — library sources. Public entrypoint is `src/Baldr/Baldr.hpp`; extension glue is `BaldrExtension.{hpp,cpp}`. Public surface includes `WebApplication`, `Router`, `HttpServer`, `HttpRequestParser`, middleware (`CorsMiddleware`, `RateLimitMiddleware`, `RequestIdMiddleware`, `ExceptionHandlerMiddleware`, `LoggingMiddleware`, `CsrfMiddleware`, `SecurityHeadersMiddleware`, `CompressionMiddleware`, `MetricsMiddleware`), `RateLimiter`, `WorkerPool`, `IResult` and `Results` (`TextResult`, `JsonResult`, `ContentResult`, `StatusResult`, `StreamingResult`, `FileStreamResult`), and OpenAPI (`OpenApiSpecService`, `SpecBuilder`, etc.).

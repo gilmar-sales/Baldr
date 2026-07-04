@@ -1,12 +1,6 @@
 #include <Baldr/Http/Results/JsonBody.hpp>
 
-#include <string>
-
-struct UserDto
-{
-    std::string name;
-    int         age = 0;
-};
+#include "UserDto.hpp"
 
 TEST(JsonBodyTest, ParsesValidJsonObjectIntoStruct)
 {

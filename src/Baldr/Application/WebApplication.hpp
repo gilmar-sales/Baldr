@@ -9,6 +9,7 @@
 
 #include <Skirnir/Skirnir.hpp>
 
+#include <Baldr/Http/FromBody.hpp>
 #include <Baldr/Http/Method.hpp>
 #include <Baldr/Http/Results/Result.hpp>
 #include <Baldr/Http/RouteOptions.hpp>
@@ -236,29 +237,41 @@ namespace BALDR_NAMESPACE
                     using HandlerArgsTuple = typename LambdaTraits<
                         std::remove_reference_t<decltype(handler)>>::ArgsTuple;
 
-                    auto refFactory = [&]<typename TArg>(TArg* x) -> TArg& {
-                        if constexpr (std::is_same_v<HttpRequest, TArg>)
-                        {
-                            return request;
-                        }
+                    constexpr std::size_t N =
+                        std::tuple_size_v<HandlerArgsTuple>;
+                    using BoundBodiesTuple = typename detail::BuildBoundBodies<
+                        HandlerArgsTuple>::type;
+                    BoundBodiesTuple boundBodies {};
+                    [&]<std::size_t... I>(std::index_sequence<I...>) {
+                        (detail::BindOneBody<I, HandlerArgsTuple>(
+                             boundBodies, request),
+                         ...);
+                    }(std::make_index_sequence<N> {});
 
-                        if constexpr (std::is_same_v<HttpResponse, TArg>)
-                        {
-                            return response;
-                        }
-
-                        return *serviceProvider->GetService<TArg>();
-                    };
-
-                    auto ptrFactory = [&]<typename TArg>(
-                                          skr::Arc<TArg>* x) -> skr::Arc<TArg> {
-                        return serviceProvider
-                            ->GetService<std::remove_pointer_t<TArg>>();
-                    };
-
-                    auto args = transformTuple<HandlerArgsTuple>(
-                        refFactory, ptrFactory,
-                        TupleOfPtr((HandlerArgsTuple*) nullptr));
+                    auto args =
+                        detail::BuildArgsTuple<HandlerArgsTuple>([&](auto tag) {
+                            using TArg = typename decltype(tag)::type;
+                            if constexpr (std::is_same_v<TArg, HttpRequest>)
+                            {
+                                return request;
+                            }
+                            else if constexpr (std::is_same_v<TArg,
+                                                              HttpResponse>)
+                            {
+                                return response;
+                            }
+                            else if constexpr (isFromBody_v<TArg>)
+                            {
+                                constexpr std::size_t Idx =
+                                    detail::IndexOfFromBody<HandlerArgsTuple,
+                                                            TArg>::value;
+                                return std::get<Idx>(boundBodies);
+                            }
+                            else
+                            {
+                                return *serviceProvider->GetService<TArg>();
+                            }
+                        });
 
                     using ResultType = LambdaResult<decltype(handler)>;
                     if constexpr (!std::is_same_v<ResultType, void>)

@@ -17,6 +17,7 @@
 
 #include <Skirnir/Skirnir.hpp>
 
+#include <Baldr/Http/FromBody.hpp>
 #include <Baldr/Http/Method.hpp>
 #include <Baldr/Http/Request.hpp>
 #include <Baldr/Http/Response.hpp>
@@ -107,29 +108,51 @@ namespace BALDR_NAMESPACE
                     using HandlerArgsTuple = typename LambdaTraits<
                         std::remove_reference_t<decltype(handler)>>::ArgsTuple;
 
-                    auto refFactory = [&]<typename TArg>(TArg* x) -> TArg& {
-                        if constexpr (std::is_same_v<HttpRequest, TArg>)
-                        {
-                            return request;
-                        }
+                    // Pre-bind any FromBody<T> parameters against the current
+                    // request body. Each slot is either a FromBody<...> shell
+                    // (populated by bindFromBody) or std::monostate for slots
+                    // that are not FromBody bindings.
+                    constexpr std::size_t N =
+                        std::tuple_size_v<HandlerArgsTuple>;
+                    using BoundBodiesTuple = typename detail::BuildBoundBodies<
+                        HandlerArgsTuple>::type;
+                    BoundBodiesTuple boundBodies {};
+                    [&]<std::size_t... I>(std::index_sequence<I...>) {
+                        (detail::BindOneBody<I, HandlerArgsTuple>(
+                             boundBodies, request),
+                         ...);
+                    }(std::make_index_sequence<N> {});
 
-                        if constexpr (std::is_same_v<HttpResponse, TArg>)
-                        {
-                            return response;
-                        }
-
-                        return *serviceProvider->GetService<TArg>();
-                    };
-
-                    auto ptrFactory = [&]<typename TArg>(
-                                          skr::Arc<TArg>* x) -> skr::Arc<TArg> {
-                        return serviceProvider
-                            ->GetService<std::remove_pointer_t<TArg>>();
-                    };
-
-                    auto args = transformTuple<HandlerArgsTuple>(
-                        refFactory, ptrFactory,
-                        TupleOfPtr((HandlerArgsTuple*) nullptr));
+                    // Build the argument tuple by direct construction, one
+                    // element at a time. This bypasses transformTuple so
+                    // FromBody<T> parameters can be sourced from
+                    // @c boundBodies without adding a new construct()
+                    // overload to Tuple.hpp.
+                    auto args = detail::BuildArgsTuple<HandlerArgsTuple>(
+                        [&](auto tag) -> typename decltype(tag)::type {
+                            using TArg     = typename decltype(tag)::type;
+                            using BareTArg = std::remove_cvref_t<TArg>;
+                            if constexpr (std::is_same_v<BareTArg, HttpRequest>)
+                            {
+                                return request;
+                            }
+                            else if constexpr (std::is_same_v<BareTArg,
+                                                              HttpResponse>)
+                            {
+                                return response;
+                            }
+                            else if constexpr (isFromBody_v<BareTArg>)
+                            {
+                                constexpr std::size_t Idx =
+                                    detail::IndexOfFromBody<HandlerArgsTuple,
+                                                            BareTArg>::value;
+                                return std::get<Idx>(boundBodies);
+                            }
+                            else
+                            {
+                                return *serviceProvider->GetService<TArg>();
+                            }
+                        });
 
                     using ResultType = LambdaResult<decltype(handler)>;
                     if constexpr (!std::is_same_v<ResultType, void>)
