@@ -5,7 +5,7 @@ Guidance for Kilo (and other AI coding agents) working in this repository.
 ## Toolchain (C++)
 
 - CMake **3.28+**, **C++26** (`CMAKE_CXX_STANDARD 26` in `CMakeLists.txt:8`).
-- CI installs **gcc-16** on Linux (better C++26 support). Clang is also built in CI. Windows/MSVC (`cl`) is intentionally not part of the matrix because MSVC does not yet implement C++26 reflection, which Baldr relies on.
+- CI installs **gcc-16** on Linux (better C++26 support). Windows/MSVC (`cl`) and Clang are intentionally not part of the matrix because neither implements C++26 reflection, which Baldr relies on.
 - Formatting: `.clang-format` (Microsoft base, 80-col, 4-space indent, no tabs, pointers left-aligned). Match it on new code.
 - External deps fetched via `FetchContent`: `trantor` (pinned `v1.5.28`, c-ares off, TLS off), `skirnir` (`v0.22.0`), `simdjson` (via skirnir), `zlib` (`v1.3.2`). Do not add system-package fallbacks unless asked.
 - Unity build is enabled for both `baldr` and the test target (`UNITY_BUILD_BATCH_SIZE 4`). Watch for this if a single TU fails — pass `--target baldr -j1` or disable unity locally to bisect.
@@ -74,7 +74,7 @@ Authoring rules (enforced style):
 
 ## CI
 
-- `.github/workflows/cmake-multi-platform.yml` — build + ctest on Ubuntu (gcc-16, clang). Triggered on push/PR to `main`, ignoring `*.md` and `docs/**`.
+- `.github/workflows/cmake-multi-platform.yml` — build + ctest on Ubuntu (gcc-16). Triggered on push/PR to `main`, ignoring `*.md` and `docs/**`.
 - `.github/workflows/docs.yml` — builds the Zensical site and deploys to GitHub Pages via `actions/deploy-pages` on pushes that touch `docs/**`, `zensical.toml`, or this workflow. Requires repo setting **Settings → Pages → Source = "GitHub Actions"**.
 - `.github/workflows/sync-wiki.yml` — mirrors `docs/` into the GitHub Wiki on pushes to `main` that touch `docs/**`. Treat `wiki/` as CI output; do not hand-edit.
 

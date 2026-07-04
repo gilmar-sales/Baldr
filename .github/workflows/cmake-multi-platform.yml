@@ -1,8 +1,8 @@
 # This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
 # See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
 #
-# NOTE: Windows / MSVC (`cl`) is intentionally not part of the matrix because
-# MSVC does not yet implement C++26 reflection, which Baldr relies on.
+# NOTE: Windows / MSVC (`cl`) and Clang are intentionally not part of the
+# matrix because neither implements C++26 reflection, which Baldr relies on.
 name: CMake on multiple platforms
 
 on:
@@ -22,23 +22,18 @@ jobs:
       # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
       fail-fast: false
 
-      # Set up a matrix to run the following 3 configurations:
-      # 1. <Windows, Release, latest MSVC compiler toolchain on the default runner image, default generator>
-      # 2. <Linux, Release, latest GCC compiler toolchain on the default runner image, default generator>
-      # 3. <Linux, Release, latest Clang compiler toolchain on the default runner image, default generator>
+      # Set up a matrix to run the following configuration:
+      # 1. <Linux, Release, latest GCC compiler toolchain on the default runner image, default generator>
       #
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
         os: [ubuntu-latest]
         build_type: [Release]
-        c_compiler: [gcc, clang]
+        c_compiler: [gcc]
         include:
           - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
-          - os: ubuntu-latest
-            c_compiler: clang
-            cpp_compiler: clang++
 
     steps:
     - uses: actions/checkout@v4
@@ -61,20 +56,6 @@ jobs:
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-16 100 --slave /usr/bin/g++ g++ /usr/bin/g++-16 --slave /usr/bin/gcov gcov /usr/bin/gcov-16
         sudo update-alternatives --set gcc /usr/bin/gcc-16
 
-    - name: install clang-21 on linux
-      if: matrix.os == 'ubuntu-latest' && matrix.c_compiler == 'clang'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y wget gnupg lsb-release software-properties-common
-        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/llvm.gpg
-        echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-21 main" | sudo tee /etc/apt/sources.list.d/llvm-21.list > /dev/null
-        sudo apt-get update
-        sudo apt-get install -y clang-21 lld-21
-        sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
-        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100
-        sudo update-alternatives --set clang /usr/bin/clang-21
-        sudo update-alternatives --set clang++ /usr/bin/clang++-21
-
     - name: Cache CMake build directory
       uses: actions/cache@v4
       with:
@@ -95,11 +76,8 @@ jobs:
         -S ${{ github.workspace }}
 
     - name: Build
-      # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
       run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
-      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
       run: ctest --test-dir ./test --build-config ${{ matrix.build_type }}
