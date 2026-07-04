@@ -4,9 +4,21 @@ project(Baldr VERSION 0.1.0 LANGUAGES C CXX)
 
 option(BALDR_BUILD_EXAMPLES OFF)
 option(BALDR_BUILD_TESTS OFF)
+option(BALDR_USE_CCACHE "Use ccache for compilation when available" ON)
 
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if (BALDR_USE_CCACHE)
+  find_program(CCACHE_PROGRAM ccache)
+  if (CCACHE_PROGRAM)
+    message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
+    set(CMAKE_C_COMPILER_LAUNCHER   "${CCACHE_PROGRAM}")
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+  else ()
+    message(STATUS "ccache not found; falling back to default compilers")
+  endif ()
+endif ()
 
 if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
   set(BALDR_BUILD_EXAMPLES ON)
