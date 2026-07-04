@@ -1,3 +1,9 @@
+/**
+ * @file OpenApi/SpecBuilder.hpp
+ * @brief Renders an OpenAPI 3.0.3 JSON document from a router snapshot
+ *        plus a registry of named JSON Schema components.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -13,19 +19,31 @@
 namespace BALDR_NAMESPACE
 {
 
-    // Renders an OpenAPI 3.0.3 JSON document from the router snapshot
-    // plus a registry of named JSON Schema components.
+    /**
+     * @brief Assembles the final OpenAPI document from introspection
+     *        inputs.
+     */
     class SpecBuilder
     {
       public:
+        /**
+         * @brief Construct with the desired options.
+         */
         explicit SpecBuilder(OpenApiOptions opts) : mOptions(std::move(opts)) {}
 
+        /**
+         * @brief Attach the schema registry used to populate
+         *        @c components.schemas.
+         */
         SpecBuilder& SetRegistry(const SchemaRegistry& reg)
         {
             mRegistry = &reg;
             return *this;
         }
 
+        /**
+         * @brief Render the OpenAPI 3.0.3 JSON document for @p entries.
+         */
         std::string Render(const std::vector<RouteEntry>& entries);
 
       private:

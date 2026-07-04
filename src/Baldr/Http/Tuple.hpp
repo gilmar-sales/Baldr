@@ -1,3 +1,10 @@
+/**
+ * @file Http/Tuple.hpp
+ * @brief Compile-time reflection helpers used to introspect route handler
+ *        signatures (argument types, return type) and bind dependencies
+ *        resolved from the request-scoped service provider.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -9,37 +16,59 @@
 
 namespace BALDR_NAMESPACE {
 
+/**
+ * @brief Build a parallel tuple of @c T* pointers from a tuple type.
+ *
+ * Used to seed @ref transformTuple with the right element kinds
+ * (pointer for @ref HttpRequest/@ref HttpResponse, otherwise pointer for
+ * service resolution).
+ */
 template <typename... Ts>
 auto TupleOfPtr(std::tuple<Ts...>*)
 {
     return std::tuple<std::remove_const_t<std::remove_reference_t<Ts>>*...>();
 }
 
-// Helper to extract lambda's argument types
+/**
+ * @brief Trait that exposes the argument and return types of a callable.
+ *
+ * Specialisations cover plain function types, function pointers, lambda
+ * @c operator() (const and non-const, @c noexcept variants) and member
+ * function pointers.
+ */
 template <typename T>
 struct LambdaTraits;
 
-// Specialization for callable objects (lambdas, std::function, etc.)
+/**
+ * @brief Specialisation for plain function types.
+ */
 template <typename Ret, typename... Args>
 struct LambdaTraits<Ret(Args...)>
 {
-    using ArgsTuple = std::tuple<Args...>;
-    using RetType   = Ret;
+    using ArgsTuple = std::tuple<Args...>; ///< Tuple of the callable's argument types.
+    using RetType   = Ret;                 ///< The callable's return type.
 };
 
-// Specialization for function pointers
+/**
+ * @brief Specialisation for function pointers.
+ */
 template <typename Ret, typename... Args>
 struct LambdaTraits<Ret (*)(Args...)> : LambdaTraits<Ret(Args...)>
 {
 };
 
-// Deduce lambda types
+/**
+ * @brief Specialisation that pulls @c operator() out of a lambda or
+ *        @c std::function-like type.
+ */
 template <typename T>
 struct LambdaTraits : LambdaTraits<decltype(&T::operator())>
 {
 };
 
-// Specialization for member function pointers
+/**
+ * @brief Specialisation for @c const @c operator() member function pointers.
+ */
 template <typename T, typename Ret, typename... Args>
 struct LambdaTraits<Ret (T::*)(Args...) const> : LambdaTraits<Ret(Args...)>
 {
@@ -61,14 +90,27 @@ struct LambdaTraits<Ret (T::*)(Args...) noexcept> : LambdaTraits<Ret(Args...)>
 {
 };
 
+/**
+ * @brief Convenience alias for a callable's argument tuple type.
+ */
 template <typename TLambda>
 using LambdaArgs =
     typename LambdaTraits<std::remove_reference_t<TLambda>>::ArgsTuple;
 
+/**
+ * @brief Convenience alias for a callable's return type.
+ */
 template <typename TLambda>
 using LambdaResult =
     typename LambdaTraits<std::remove_reference_t<TLambda>>::RetType;
 
+/**
+ * @brief Dispatch helper for request/response arguments.
+ *
+ * For the request and response elements, return a reference obtained via
+ * @p func. The framework binds these to the live @c HttpRequest and
+ * @c HttpResponse for the in-flight call.
+ */
 template <typename TElement>
     requires(std::is_same_v<TElement*, HttpRequest*> ||
              std::is_same_v<TElement*, HttpResponse*>)
@@ -77,6 +119,11 @@ auto construct(auto func, auto ptrFunc, TElement* element) -> auto&
     return func(element);
 }
 
+/**
+ * @brief Dispatch helper for service-provider-resolved arguments.
+ *
+ * For other arguments, return a service resolved via @p ptrFunc.
+ */
 template <typename TElement>
     requires(!std::is_same_v<TElement, HttpRequest*> &&
              !std::is_same_v<TElement, HttpResponse*>)
@@ -85,7 +132,10 @@ auto construct(auto func, auto ptrFunc, TElement element) -> auto
     return ptrFunc(element);
 }
 
-// Helper function to apply a transformation to a tuple
+/**
+ * @brief Implementation of @ref transformTuple that expands the index
+ *        sequence.
+ */
 template <typename TupleResult, typename Func, typename PtrFunc, typename Tuple,
           std::size_t... Indices>
 TupleResult transformTupleImpl(Func func, PtrFunc ptrFunc, Tuple&& tuple,
@@ -95,7 +145,15 @@ TupleResult transformTupleImpl(Func func, PtrFunc ptrFunc, Tuple&& tuple,
         func, ptrFunc, std::get<Indices>(std::forward<Tuple>(tuple)))...);
 }
 
-// Main function to transform a tuple
+/**
+ * @brief Build a tuple by applying @p func or @p ptrFunc to each element
+ *        of @p tuple, dispatching through @ref construct.
+ *
+ * @tparam TupleResult Tuple type produced by the transformation.
+ * @param func    Invoked for @c HttpRequest/@c HttpResponse elements.
+ * @param ptrFunc Invoked for service-provider-resolved elements.
+ * @param tuple   Source tuple of pointers describing each element kind.
+ */
 template <typename TupleResult, typename Func, typename PtrFunc, typename Tuple>
 auto transformTuple(Func func, PtrFunc ptrFunc, Tuple&& tuple)
 {

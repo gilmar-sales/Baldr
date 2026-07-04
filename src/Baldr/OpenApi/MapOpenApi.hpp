@@ -1,3 +1,9 @@
+/**
+ * @file OpenApi/MapOpenApi.hpp
+ * @brief Imperative helper that mounts the OpenAPI spec on a
+ *        @c WebApplication without registering the Skirnir extension.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -8,9 +14,15 @@
 
 namespace BALDR_NAMESPACE {
 
-// Convenience: mounts the OpenAPI spec at the configured path on the
-// given WebApplication. Intended for users who haven't opted into the
-// extension but want to register it imperatively from main().
+/**
+ * @brief Mount the OpenAPI spec at the configured path on @p app.
+ *
+ * Intended for users who haven't opted into @ref BaldrOpenApiExtension
+ * but still want to expose the spec imperatively from @c main().
+ *
+ * @param app     Target application.
+ * @param options Options (mount path, info object, enable flag).
+ */
 inline void MapOpenApi(WebApplication& app, OpenApiOptions options = {})
 {
     auto specSvc = skr::MakeArc<OpenApiSpecService>(std::move(options));

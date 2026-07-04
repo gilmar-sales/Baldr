@@ -1,3 +1,9 @@
+/**
+ * @file Middleware/RequestId.hpp
+ * @brief Middleware that ensures every request/response pair carries an
+ *        @c X-Request-ID and propagates W3C @c traceparent state.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -11,12 +17,29 @@
 namespace BALDR_NAMESPACE
 {
 
+    /**
+     * @brief Configuration for @ref RequestIdMiddleware.
+     */
     struct RequestIdOptions
     {
+        /// When @c true, echo the resolved @c traceparent header on the response.
         bool propagateTraceparentResponse  = true;
+        /// When @c true and no @c X-Request-ID was supplied, reuse the trace ID.
         bool useTraceIdAsRequestIdFallback = true;
     };
 
+    /**
+     * @brief Middleware that mints / propagates request IDs and W3C
+     *        @c traceparent state.
+     *
+     * Resolution order for the @c X-Request-ID:
+     *   1. Incoming @c X-Request-ID header (verbatim).
+     *   2. The trace ID (when @ref RequestIdOptions::useTraceIdAsRequestIdFallback
+     *      is @c true and a trace context exists).
+     *   3. A freshly generated random ID.
+     *
+     * The chosen ID is echoed back in the response headers.
+     */
     class RequestIdMiddleware final : public IMiddleware
     {
       public:
@@ -24,7 +47,9 @@ namespace BALDR_NAMESPACE
         explicit RequestIdMiddleware(RequestIdOptions opts) : mOptions(opts) {}
         ~RequestIdMiddleware() override = default;
 
+        /// Canonical request ID header name.
         static constexpr const char* kHeaderName        = "X-Request-ID";
+        /// Canonical W3C @c traceparent header name.
         static constexpr const char* kTraceparentHeader = "traceparent";
 
         void Handle(HttpRequest&          request,

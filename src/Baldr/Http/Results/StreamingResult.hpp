@@ -1,3 +1,9 @@
+/**
+ * @file Http/Results/StreamingResult.hpp
+ * @brief Streaming response interface and chunked-encoding helpers used
+ *        for responses whose body is produced lazily.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -16,46 +22,73 @@
 
 namespace BALDR_NAMESPACE {
 
+/**
+ * @brief Result type whose body is produced lazily as a sequence of
+ *        chunks (typically for SSE, file streaming, or backpressured
+ *        producer pipelines).
+ *
+ * The framework wraps the output in HTTP/1.1 chunked transfer encoding;
+ * implementations must not set @c Content-Length or
+ * @c Transfer-Encoding themselves.
+ */
 class IStreamingResult
 {
   public:
     virtual ~IStreamingResult() = default;
 
-    // Optional response headers. Implementations may also set
-    // "Content-Type" here. Implementations MUST NOT set
-    // "Content-Length" or "Transfer-Encoding"; the framework sets
-    // Transfer-Encoding: chunked automatically.
+    /**
+     * @brief Populate @p out with the response headers to send.
+     *
+     * @c Content-Type may be set here. The framework overrides
+     * @c Transfer-Encoding.
+     */
     virtual void headers(
         std::vector<std::pair<std::string, std::string>>& out) const
     {
         (void) out;
     }
 
-    // Status code of the response. Default 200.
+    /**
+     * @brief Status code of the response. Default 200 OK.
+     */
     virtual StatusCode statusCode() const { return StatusCode::OK; }
 
-    // Pull the next chunk. Return false when no more chunks remain. The
-    // chunk is appended to the output buffer; the framework is
-    // responsible for emitting the chunked encoding envelope.
-    // `mutable` state inside the implementation is allowed.
+    /**
+     * @brief Pull the next chunk into @p out.
+     *
+     * Return @c false when no more chunks remain. The chunk is appended
+     * to the output buffer; the framework emits the chunked envelope.
+     */
     virtual bool nextChunk(std::string& out) const = 0;
 };
 
-// A simple streaming result driven by a user-supplied callback that
-// produces chunks lazily. Useful for SSE or backpressure-friendly
-// reads from a producer.
-//
-// Example:
-//   ChunkedStreamResult([&](std::string& out) -> bool {
-//       if (finished) return false;
-//       out = nextEvent();
-//       return true;
-//   });
+/**
+ * @brief @ref IStreamingResult driven by a user-supplied producer callback.
+ *
+ * Useful for SSE or backpressure-friendly reads from a producer.
+ *
+ * @code
+ * ChunkedStreamResult([&](std::string& out) -> bool {
+ *     if (finished) return false;
+ *     out = nextEvent();
+ *     return true;
+ * });
+ * @endcode
+ */
 class ChunkedStreamResult final : public IStreamingResult
 {
   public:
+    /**
+     * @brief Callable type invoked to pull each chunk.
+     *
+     * Implementations should append to @p out and return @c true to
+     * continue streaming or @c false to terminate the stream.
+     */
     using Producer = std::function<bool(std::string&)>;
 
+    /**
+     * @brief Wrap @p producer as a streaming result.
+     */
     explicit ChunkedStreamResult(Producer producer) :
         mProducer(std::move(producer))
     {
@@ -74,7 +107,11 @@ class ChunkedStreamResult final : public IStreamingResult
     Producer mProducer;
 };
 
-// Helper: format a chunked transfer-encoding frame.
+/**
+ * @brief Format a single chunked-transfer-encoding frame.
+ *
+ * Produces @c "<hex-size>\r\n<data>\r\n".
+ */
 inline std::string formatChunk(std::string_view data)
 {
     char        header[32];
@@ -88,12 +125,19 @@ inline std::string formatChunk(std::string_view data)
     return out;
 }
 
+/**
+ * @brief Format the terminating empty chunk (@c "0\r\n\r\n").
+ */
 inline std::string formatChunkTrailer()
 {
     return "0\r\n\r\n";
 }
 
-// Helper: assemble the status line + headers for a streaming response.
+/**
+ * @brief Assemble the status line, headers and @c Set-Cookie lines for a
+ *        streaming response. Adds @c Transfer-Encoding: chunked when not
+ *        already supplied.
+ */
 inline std::string formatStreamingHead(
     StatusCode                                              status,
     const std::string&                                      version,

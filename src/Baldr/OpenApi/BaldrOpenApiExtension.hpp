@@ -1,3 +1,9 @@
+/**
+ * @file OpenApi/BaldrOpenApiExtension.hpp
+ * @brief Skirnir extension that registers the OpenAPI spec service and
+ *        mounts the spec endpoint on the @c WebApplication.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -10,17 +16,36 @@
 
 namespace BALDR_NAMESPACE {
 
+/**
+ * @brief Plug-and-play Skirnir extension that exposes the Baldr router
+ *        as an OpenAPI 3.0.3 document.
+ *
+ * Register on the @c skr::ApplicationBuilder before constructing the
+ * host:
+ * @code
+ * builder.AddExtension<BaldrOpenApiExtension>()
+ *        .WithOptions({ .mountPath = "/openapi.json" });
+ * @endcode
+ */
 class BaldrOpenApiExtension : public skr::IExtension
 {
   public:
+    /// @brief Construct with default options.
     explicit BaldrOpenApiExtension() {}
 
+    /**
+     * @brief Register @ref OpenApiSpecService in the DI container.
+     */
     void ConfigureServices(skr::ServiceCollection& s) override
     {
         s.AddSingleton<OpenApiSpecService>(
             skr::MakeArc<OpenApiSpecService>(mOptions));
     }
 
+    /**
+     * @brief Mount the spec endpoint on the @c WebApplication, when one
+     *        exists in the provider graph.
+     */
     void UseServices(skr::ServiceProvider& sp) override
     {
         auto specSvc = sp.GetService<OpenApiSpecService>();
@@ -41,6 +66,11 @@ class BaldrOpenApiExtension : public skr::IExtension
             });
     }
 
+    /**
+     * @brief Override the options used by the extension.
+     *
+     * @return Reference to @c *this for fluent chaining on the builder.
+     */
     BaldrOpenApiExtension& WithOptions(OpenApiOptions options = {})
     {
         mOptions = options;

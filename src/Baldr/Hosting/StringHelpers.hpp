@@ -1,3 +1,9 @@
+/**
+ * @file Hosting/StringHelpers.hpp
+ * @brief Small string utilities used by the HTTP parser (trim, percent
+ *        decoding of path/query segments).
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -9,6 +15,16 @@
 namespace BALDR_NAMESPACE
 {
 
+    /**
+     * @brief Trim leading and trailing ASCII whitespace from @p str.
+     *
+     * Recognises space, tab, newline, carriage return, form feed, and
+     * vertical tab. Returns the empty string when @p str contains only
+     * whitespace.
+     *
+     * @param str Input string.
+     * @return The trimmed substring.
+     */
     inline std::string trim(const std::string& str)
     {
         const size_t start = str.find_first_not_of(" \t\n\r\f\v");
@@ -23,6 +39,16 @@ namespace BALDR_NAMESPACE
         return str.substr(start, end - start + 1);
     }
 
+    /**
+     * @brief Percent-decode a URL path segment.
+     *
+     * Decodes @c %XX sequences (upper- or lower-case hex). Returns
+     * @c std::nullopt on a malformed escape or an embedded NUL byte;
+     * both indicate a path that should be rejected.
+     *
+     * @param path Encoded path segment.
+     * @return Decoded segment, or @c std::nullopt on failure.
+     */
     inline std::optional<std::string> decode_path(const std::string& path)
     {
         std::ostringstream decoded;

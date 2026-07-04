@@ -83,4 +83,5 @@ Authoring rules (enforced style):
 - New public API follows `src/Baldr/` patterns: smart pointers, `std::function`, RAII, `skr::ApplicationBuilder` DI. Handlers may return any `IResult` subclass or types serialised by results.
 - Middleware contract: `IMiddleware::Handle` takes a mutable `HttpRequest&` so middlewares can attach context.
 - TLS is unsupported on `HttpServer` by design — don't add TLS options without discussion.
-- Don't add comments to code unless explicitly asked.
+- **Doxygen documentation is required on every public API.** All public types, functions, methods and free functions exposed in headers under `src/Baldr/` (and any new public surface added elsewhere) MUST carry Doxygen-style block comments. Use `@brief`, `@param`, `@tparam`, `@return`, `@throws`, `@note` and `@code`/`@endcode` as appropriate. The single existing exception is the "no general comments" rule below — Doxygen blocks are the explicit exception.
+- Don't add comments to code unless explicitly asked. The sole exception is the Doxygen documentation requirement above.

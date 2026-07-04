@@ -1,3 +1,9 @@
+/**
+ * @file Middleware/RateLimit/Middleware.hpp
+ * @brief Middleware that wraps a @ref RateLimiter and short-circuits with
+ *        429 when the per-client budget is exhausted.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -6,9 +12,16 @@
 
 namespace BALDR_NAMESPACE {
 
+/**
+ * @brief Middleware that enforces a per-client rate limit using a
+ *        @ref RateLimiter keyed by @c HttpRequest::clientIp.
+ */
 class RateLimitMiddleware : public IMiddleware
 {
   public:
+    /**
+     * @brief Construct with the limiter and logger to use.
+     */
     explicit RateLimitMiddleware(
         const skr::Arc<RateLimiter>&                      rateLimiter,
         const skr::Arc<skr::Logger<RateLimitMiddleware>>& logger) :

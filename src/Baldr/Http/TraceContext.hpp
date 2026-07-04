@@ -1,3 +1,8 @@
+/**
+ * @file Http/TraceContext.hpp
+ * @brief W3C Trace Context (version 00) parsing, generation and helpers.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -11,17 +16,30 @@
 namespace BALDR_NAMESPACE
 {
 
+    /**
+     * @brief Parsed W3C Trace Context state.
+     *
+     * Carries the version, trace ID, span ID and trace flags. @ref valid
+     * indicates whether the values were sourced from a well-formed
+     * @c traceparent header.
+     */
     struct TraceContext
     {
-        std::uint8_t version { 0 };
-        std::string  traceId;
-        std::string  spanId;
-        std::uint8_t traceFlags { 0 };
-        bool         valid { false };
+        std::uint8_t version { 0 };    ///< @c traceparent version byte.
+        std::string  traceId;          ///< 32-hex-character trace identifier.
+        std::string  spanId;           ///< 16-hex-character span identifier.
+        std::uint8_t traceFlags { 0 }; ///< @c traceparent flags byte.
+        bool         valid { false };  ///< True when parsed from a valid header.
 
+        /**
+         * @brief @c true when the sampled flag (bit 0) is set.
+         */
         bool sampled() const noexcept { return (traceFlags & 0x01) != 0; }
     };
 
+    /**
+     * @brief @c true when @p s is empty or every character is @c '0'.
+     */
     inline bool IsAllZeroHex(std::string_view s) noexcept
     {
         if (s.empty())
@@ -38,6 +56,10 @@ namespace BALDR_NAMESPACE
         return true;
     }
 
+    /**
+     * @brief @c true when @p s is non-empty and every character is a
+     *        lowercase hexadecimal digit (0-9, a-f).
+     */
     inline bool IsLowerHex(std::string_view s) noexcept
     {
         if (s.empty())
@@ -55,6 +77,13 @@ namespace BALDR_NAMESPACE
         return true;
     }
 
+    /**
+     * @brief Generate a new 32-hex-character trace identifier.
+     *
+     * Mixes the wall clock with a thread-local counter. If the result is
+     * all-zero (unlikely) the first nibble is forced to @c '1' because
+     * all-zero is reserved and rejected by the parser.
+     */
     inline std::string NewTraceId() noexcept
     {
         static thread_local std::uint64_t counter = 0;
@@ -73,6 +102,9 @@ namespace BALDR_NAMESPACE
         return id;
     }
 
+    /**
+     * @brief Generate a new 16-hex-character span identifier.
+     */
     inline std::string NewSpanId() noexcept
     {
         static thread_local std::mt19937_64 rng { static_cast<std::uint64_t>(
@@ -91,6 +123,17 @@ namespace BALDR_NAMESPACE
         return id;
     }
 
+    /**
+     * @brief Parse a @c traceparent header value into @p out.
+     *
+     * Strictly validates the version, trace-id, span-id and flags fields
+     * according to the W3C Trace Context spec (version 00). On failure
+     * @p out is reset and the function returns @c false.
+     *
+     * @param header Raw @c traceparent value.
+     * @param out    Receives the parsed context on success.
+     * @return @c true on a well-formed header.
+     */
     inline bool TryParseTraceparent(std::string_view header,
                                     TraceContext&    out) noexcept
     {

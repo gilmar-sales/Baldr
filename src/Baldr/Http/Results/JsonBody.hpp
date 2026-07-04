@@ -1,3 +1,9 @@
+/**
+ * @file Http/Results/JsonBody.hpp
+ * @brief JSON body deserialisation helpers built on simdjson and C++26
+ *        reflection.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -17,6 +23,7 @@ namespace BALDR_NAMESPACE
 
     namespace detail
     {
+        /// @brief Read a string field from a simdjson object into @p out.
         inline simdjson::error_code readJsonField(
             const simdjson::dom::object& obj, std::string_view name,
             std::string& out)
@@ -26,6 +33,7 @@ namespace BALDR_NAMESPACE
             return err;
         }
 
+        /// @brief Read an @c int field (narrowed from @c int64_t).
         inline simdjson::error_code readJsonField(
             const simdjson::dom::object& obj, std::string_view name, int& out)
         {
@@ -36,6 +44,7 @@ namespace BALDR_NAMESPACE
             return err;
         }
 
+        /// @brief Read an @c int64_t field.
         inline simdjson::error_code readJsonField(
             const simdjson::dom::object& obj, std::string_view name,
             int64_t& out)
@@ -43,6 +52,7 @@ namespace BALDR_NAMESPACE
             return obj[name].get_int64().get(out);
         }
 
+        /// @brief Read a @c double field.
         inline simdjson::error_code readJsonField(
             const simdjson::dom::object& obj, std::string_view name,
             double& out)
@@ -50,6 +60,7 @@ namespace BALDR_NAMESPACE
             return obj[name].get_double().get(out);
         }
 
+        /// @brief Read a @c bool field.
         inline simdjson::error_code readJsonField(
             const simdjson::dom::object& obj, std::string_view name, bool& out)
         {
@@ -57,16 +68,19 @@ namespace BALDR_NAMESPACE
         }
     } // namespace detail
 
-    // Result of attempting to parse a JSON body. Either holds a value
-    // of type `T` (deserialised from the top-level JSON object) or a
-    // populated error response (status + message) ready to be applied
-    // to a HttpResponse.
+    /**
+     * @brief Either-or result of a JSON body deserialisation.
+     *
+     * Holds either a value of @c T or a populated error response
+     * (status + message) ready to be applied to an @ref HttpResponse.
+     */
     template <typename T>
     class JsonBodyResult
     {
       public:
         JsonBodyResult() = default;
 
+        /// @brief Construct a successful result wrapping @p value.
         static JsonBodyResult Ok(T value)
         {
             JsonBodyResult r;
@@ -74,6 +88,7 @@ namespace BALDR_NAMESPACE
             return r;
         }
 
+        /// @brief Construct a failure result with @p status and @p message.
         static JsonBodyResult Fail(StatusCode status, std::string message)
         {
             JsonBodyResult r;
@@ -82,17 +97,23 @@ namespace BALDR_NAMESPACE
             return r;
         }
 
+        /// @brief @c true when the parse succeeded.
         bool isOk() const { return mError.statusCode == StatusCode::OK; }
 
+        /// @return Read-only access to the deserialised value.
         const T& value() const { return mValue; }
+        /// @return Mutable access to the deserialised value.
         T&       value() { return mValue; }
+        /// @brief Move the deserialised value out of the result.
         T        takeValue() { return std::move(mValue); }
 
+        /// @brief Error payload carried by a failed parse.
         struct Error
         {
-            StatusCode  statusCode = StatusCode::OK;
-            std::string message;
+            StatusCode  statusCode = StatusCode::OK; ///< Suggested status code.
+            std::string message;                     ///< Human-readable error.
         };
+        /// @return The error payload.
         const Error& error() const { return mError; }
 
       private:
@@ -100,9 +121,16 @@ namespace BALDR_NAMESPACE
         Error mError { StatusCode::OK, {} };
     };
 
-    // Parse the request body as JSON and return the top-level object.
-    // Use this when you need to inspect fields manually; otherwise
-    // `parseJson<T>` performs the deserialisation for you.
+    /**
+     * @brief Parse the request body and return the top-level JSON object.
+     *
+     * Use this when you need to inspect fields manually; otherwise
+     * @ref parseJson performs the deserialisation for you.
+     *
+     * @param request Incoming request.
+     * @return The parsed object on success, or a failure with a 400
+     *         status code and a human-readable message.
+     */
     inline JsonBodyResult<simdjson::dom::object> parseJsonObject(
         const HttpRequest& request)
     {
@@ -133,15 +161,23 @@ namespace BALDR_NAMESPACE
         return JsonBodyResult<simdjson::dom::object>::Ok(std::move(obj));
     }
 
-    // Parse the request body and deserialise it into a `T` using C++26
-    // reflection. Every non-static data member of `T` is read by name
-    // from the top-level JSON object; missing or type-mismatched fields
-    // cause a 400 response.
-    //
-    // Supported field types: std::string, std::string_view, int,
-    // int64_t, double, bool. For richer types, either provide
-    // specialisations of `BALDR_NAMESPACE::detail::readJsonField` or fall back
-    // to `parseJsonObject` and inspect the DOM yourself.
+    /**
+     * @brief Parse the request body and deserialise it into a @c T using
+     *        C++26 reflection.
+     *
+     * Every non-static data member of @c T is read by name from the
+     * top-level JSON object; missing or type-mismatched fields cause a
+     * 400 response.
+     *
+     * Supported field types: @c std::string, @c std::string_view,
+     * @c int, @c int64_t, @c double, @c bool. For richer types, either
+     * provide specialisations of @c BALDR_NAMESPACE::detail::readJsonField
+     * or fall back to @ref parseJsonObject and inspect the DOM yourself.
+     *
+     * @tparam T A reflectable struct whose members are all in the
+     *           supported primitive set.
+     * @param request Incoming request.
+     */
     template <typename T>
     JsonBodyResult<T> parseJson(const HttpRequest& request)
     {

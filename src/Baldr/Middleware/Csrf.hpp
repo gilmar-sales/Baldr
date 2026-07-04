@@ -1,3 +1,8 @@
+/**
+ * @file Middleware/Csrf.hpp
+ * @brief Double-submit-cookie CSRF protection middleware.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -13,40 +18,56 @@
 
 namespace BALDR_NAMESPACE {
 
+/**
+ * @brief Configuration for @ref CsrfMiddleware.
+ *
+ * Implements the double-submit pattern: a cookie carries the token and
+ * the client must echo it in a request header.
+ */
 struct CsrfOptions
 {
-    // Name of the CSRF cookie. Default: "XSRF-TOKEN" (matches Angular
-    // convention; the client reads this cookie and echoes it in a
-    // request header).
+    /// CSRF cookie name. Default @c "XSRF-TOKEN" (matches Angular).
     std::string cookieName = "XSRF-TOKEN";
 
-    // Name of the request header the client must set.
+    /// Request header the client must set to the cookie value.
     std::string headerName = "X-XSRF-TOKEN";
 
-    // HTTP methods considered "unsafe" and therefore protected. Safe
-    // methods (GET/HEAD/OPTIONS) skip the check.
+    /// Methods considered "unsafe" and therefore protected. Safe methods
+    /// (GET/HEAD/OPTIONS) skip the check.
     std::set<HttpMethod> protectedMethods = {
         HttpMethod::Post, HttpMethod::Put, HttpMethod::Patch, HttpMethod::Delete
     };
 
-    // Request paths (prefix match) excluded from CSRF protection, e.g.
-    // "/api/webhooks/". Trailing slash required for prefix match.
+    /// Path prefixes excluded from CSRF protection (e.g. @c "/api/webhooks/").
     std::set<std::string> exemptPathPrefixes {};
 
-    // If true, the middleware will set the CSRF cookie on every safe
-    // request when the cookie is missing. If false, callers are
-    // responsible for issuing the cookie themselves.
+    /**
+     * @brief When @c true, the middleware issues a CSRF cookie on safe
+     *        requests that lack one. When @c false, callers must set the
+     *        cookie themselves.
+     */
     bool issueCookieOnSafeRequest = true;
 
-    // Cookie attributes used when issuing the token.
-    bool cookieHttpOnly = false; // must be readable from JS
-    bool cookieSecure   = false;
-    long cookieMaxAge   = 0; // 0 = session cookie
+    /// Cookie attributes used when issuing the token.
+    bool cookieHttpOnly = false; ///< Must be readable from JS, so default is @c false.
+    bool cookieSecure   = false; ///< Set to @c true when serving over HTTPS.
+    long cookieMaxAge   = 0;     ///< @c Max-Age in seconds. 0 = session cookie.
 };
 
+/**
+ * @brief CSRF protection middleware using the double-submit-cookie
+ *        pattern.
+ *
+ * On unsafe methods, requires the request header to equal the cookie
+ * value. On safe methods, optionally issues a fresh cookie when one is
+ * missing.
+ */
 class CsrfMiddleware final : public IMiddleware
 {
   public:
+    /**
+     * @brief Construct the middleware with the given options.
+     */
     explicit CsrfMiddleware(CsrfOptions options = {}) :
         mOptions(std::move(options))
     {

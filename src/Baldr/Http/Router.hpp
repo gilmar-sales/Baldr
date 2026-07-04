@@ -1,3 +1,9 @@
+/**
+ * @file Http/Router.hpp
+ * @brief Path/method router that turns incoming requests into handler
+ *        invocations and exposes its registered routes for introspection.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -23,24 +29,53 @@ namespace BALDR_NAMESPACE
 
     class SchemaRegistry;
 
+    /**
+     * @brief Callable invoked once a route has been matched.
+     *
+     * Receives the request (mutable, so middleware may attach context),
+     * the response (mutable, populated by the handler), and the
+     * request-scoped service provider used to resolve handler
+     * dependencies.
+     */
     using RouteHandler = std::function<void(
         HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>)>;
 
+    /**
+     * @brief Internal record of a registered route.
+     *
+     * Produced by the router during @ref Router::insert and consumed by
+     * the matcher and the OpenAPI spec service. The compiled regex
+     * captures named path parameters in declaration order.
+     */
     struct RouteEntry
     {
-        std::regex               extractParamsRegex;
-        std::vector<std::string> paramsNames = {};
-        bool                     hasParams   = true;
-        RouteHandler             handler;
-        RouteOptions             options;
-        std::string              groupPrefix;
-        std::string              pathTemplate;
-        HttpMethod               method { HttpMethod::Get };
+        std::regex               extractParamsRegex;  ///< Compiled regex for path-parameter capture.
+        std::vector<std::string> paramsNames = {};     ///< Ordered names of captured path parameters.
+        bool                     hasParams   = true;   ///< Whether the template contains parameters.
+        RouteHandler             handler;              ///< Callable to invoke on a match.
+        RouteOptions             options;              ///< OpenAPI options for the route.
+        std::string              groupPrefix;          ///< Group prefix, if any.
+        std::string              pathTemplate;         ///< Original template (e.g. @c "/users/:id").
+        HttpMethod               method { HttpMethod::Get }; ///< HTTP method.
 
+        /**
+         * @brief Extract named path parameters from a concrete request path.
+         *
+         * @param path The request path to match against this entry's regex.
+         * @return Map of parameter name to decoded value.
+         */
         std::unordered_map<std::string, std::string> extractRouteParams(
             const std::string& path) const;
     };
 
+    /**
+     * @brief Path-and-method router with regex-based parameter capture.
+     *
+     * Routes are matched in registration order with first-match wins.
+     * Use @ref matchWithAllow to obtain the full @c Allow header for
+     * 405 responses, or @ref Snapshot to enumerate every registered
+     * route (used by the OpenAPI extension).
+     */
     class Router
     {
       public:
@@ -156,29 +191,60 @@ namespace BALDR_NAMESPACE
                 });
         }
 
+        /**
+         * @brief Lower-level route insertion used by middleware-aware paths.
+         *
+         * Bypasses the per-request DI machinery; intended for internal use.
+         */
         void insert(HttpMethod method, std::string path,
                     const RouteHandler& routeHandler) const;
 
+        /**
+         * @brief Insert a route with explicit OpenAPI options and group
+         *        prefix. The primary registration entry point.
+         */
         void insert(HttpMethod method, std::string path, RouteOptions options,
                     std::string         groupPrefix,
                     const RouteHandler& routeHandler) const;
 
+        /**
+         * @brief Find the first route matching @p method and @p path.
+         *
+         * @return The matched entry, or @c std::nullopt if no route matches.
+         */
         [[nodiscard]] std::optional<RouteEntry> match(HttpMethod,
                                                       std::string path) const;
 
+        /**
+         * @brief Result of a match that also reports which methods are
+         *        registered for the same path template.
+         */
         struct MatchResult
         {
-            std::optional<RouteEntry> entry;
-            std::vector<HttpMethod>   allowedMethodsOnPath;
-            HttpMethod                resolvedMethod = HttpMethod::Get;
-            std::string               routeTemplate;
+            std::optional<RouteEntry> entry;                  ///< Matched route, if any.
+            std::vector<HttpMethod>   allowedMethodsOnPath;   ///< Methods registered at this path.
+            HttpMethod                resolvedMethod = HttpMethod::Get; ///< Echo of the requested method.
+            std::string               routeTemplate;          ///< Template matched (when an entry exists).
         };
 
+        /**
+         * @brief Like @ref match but always returns the @c MatchResult so
+         *        callers can emit a precise @c Allow header on 405.
+         */
         [[nodiscard]] MatchResult matchWithAllow(HttpMethod  method,
                                                  std::string path) const;
 
+        /**
+         * @brief Snapshot of every registered route.
+         *
+         * Used by the OpenAPI spec service to render the spec document.
+         */
         std::vector<RouteEntry> Snapshot() const;
 
+        /**
+         * @brief Access the per-router JSON Schema registry used by the
+         *        OpenAPI extension to deduplicate schema definitions.
+         */
         const skr::Arc<SchemaRegistry>& SchemaRegistrySlot() const;
 
       private:

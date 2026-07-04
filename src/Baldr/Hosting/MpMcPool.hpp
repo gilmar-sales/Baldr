@@ -1,3 +1,9 @@
+/**
+ * @file Hosting/MpMcPool.hpp
+ * @brief Bounded multi-producer / multi-consumer lock-free ring buffer
+ *        used to recycle per-connection I/O buffers without contention.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -8,6 +14,18 @@
 namespace BALDR_NAMESPACE
 {
 
+    /**
+     * @brief Fixed-capacity, power-of-two, single-slot-per-cell MPMC queue.
+     *
+     * Implemented as a Vyukov-style bounded MPMC ring with per-slot
+     * sequence numbers to coordinate producers and consumers without a
+     * global lock. Capacity is rounded up to the next power of two.
+     *
+     * @tparam T          Element type held in the pool. Must be
+     *                    default-constructible.
+     * @tparam BufferSize Hint passed to newly created elements when the
+     *                    pool is empty (e.g. reserve size of a vector).
+     */
     template <typename T, size_t BufferSize>
     class MPMCLockFreePool
     {
@@ -28,6 +46,12 @@ namespace BALDR_NAMESPACE
         std::unique_ptr<Node[]> nodes_;
 
       public:
+        /**
+         * @brief Construct a pool with the given (rounded-up) capacity.
+         *
+         * @param capacity Minimum number of slots; rounded up to the
+         *                 next power of two.
+         */
         MPMCLockFreePool(size_t capacity) :
             capacity_(next_power_of_2(capacity)), mask_(capacity_ - 1),
             nodes_(std::make_unique<Node[]>(capacity_))
@@ -40,6 +64,15 @@ namespace BALDR_NAMESPACE
             }
         }
 
+        /**
+         * @brief Attempt to enqueue @p item without blocking.
+         *
+         * @param item Pointer to the element to enqueue. Ownership is not
+         *             transferred; the caller must keep @p item alive
+         *             until it is consumed.
+         * @return @c true if the item was queued, @c false if the pool is
+         *         full.
+         */
         bool try_push(T* item)
         {
             size_t pos = enqueue_pos_.load(std::memory_order_relaxed);
@@ -77,6 +110,13 @@ namespace BALDR_NAMESPACE
             }
         }
 
+        /**
+         * @brief Attempt to dequeue an element without blocking.
+         *
+         * @return A pointer previously pushed via @ref try_push, or a
+         *         freshly default-constructed element when the pool is
+         *         empty (callers should be prepared to handle either).
+         */
         T* try_pop()
         {
             size_t pos = dequeue_pos_.load(std::memory_order_relaxed);
@@ -132,6 +172,11 @@ namespace BALDR_NAMESPACE
         }
     };
 
+    /**
+     * @brief Specialised pool of @c std::vector@<char@> buffers pre-sized to
+     *        16 KiB. Used by the HTTP connection layer to recycle read
+     *        buffers across requests without locking.
+     */
     using MpMcBufferPool = MPMCLockFreePool<std::vector<char>, 16 * 1024>;
 
 } // namespace BALDR_NAMESPACE

@@ -1,3 +1,8 @@
+/**
+ * @file Application/WebApplication_Impl.hpp
+ * @brief PIMPL holder for @c WebApplication; kept private to the library.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -13,6 +18,13 @@ namespace BALDR_NAMESPACE
 
     namespace detail
     {
+        /**
+         * @brief Internal state shared by @c WebApplication methods.
+         *
+         * Held via @c std::unique_ptr from the public header so that the
+         * router and middleware headers don't leak into every translation
+         * unit that includes @c WebApplication.hpp.
+         */
         struct WebApplicationImpl
         {
             skr::Arc<Router>             mRouter;

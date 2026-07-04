@@ -1,3 +1,9 @@
+/**
+ * @file Middleware/Compression/Internal.hpp
+ * @brief zlib-backed gzip compression / decompression helpers used by
+ *        the compression middleware.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -11,16 +17,25 @@ namespace BALDR_NAMESPACE
 
     namespace Detail
     {
-        // Compress `input` using gzip-encoded DEFLATE. Returns true on
-        // success and writes the compressed bytes to `output`. `output` is
-        // cleared on failure.
+        /**
+         * @brief Compress @p input using gzip-encoded DEFLATE.
+         *
+         * @param input  Bytes to compress.
+         * @param output Receives the compressed bytes on success; cleared
+         *               on failure.
+         * @param level  zlib compression level (1..9, or @c Z_DEFAULT_COMPRESSION).
+         * @return @c true on success.
+         */
         bool gzipCompress(std::string_view input, std::string& output,
                           int level = Z_DEFAULT_COMPRESSION);
 
-        // Decompress `input` (gzip-encoded DEFLATE) to `output`. Used in
-        // tests; not invoked on the request path because Baldr only emits
-        // compressed responses (clients send already-compressed request
-        // bodies when applicable).
+        /**
+         * @brief Decompress @p input (gzip-encoded DEFLATE) to @p output.
+         *
+         * Used in tests; not invoked on the request path because Baldr
+         * only emits compressed responses (clients send already-compressed
+         * request bodies when applicable).
+         */
         bool gzipDecompress(std::string_view input, std::string& output);
     } // namespace Detail
 

@@ -1,3 +1,9 @@
+/**
+ * @file Middleware/SecurityHeaders.hpp
+ * @brief Middleware that emits defensive HTTP response headers
+ *        (CSP-friendly defaults, HSTS, etc.).
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -9,41 +15,51 @@
 namespace BALDR_NAMESPACE
 {
 
+    /**
+     * @brief Configuration for @ref SecurityHeadersMiddleware.
+     *
+     * Each field corresponds to one outgoing header. Setting a field to
+     * @c std::nullopt disables that header; setting it to the empty
+     * string sends the header with an empty value.
+     */
     struct SecurityHeadersOptions
     {
-        // X-Content-Type-Options: nosniff
+        /// @c X-Content-Type-Options value (e.g. @c "nosniff").
         std::optional<std::string> contentTypeOptions = "nosniff";
 
-        // X-Frame-Options: DENY | SAMEORIGIN | (empty to disable)
+        /// @c X-Frame-Options value (e.g. @c "DENY" or @c "SAMEORIGIN").
         std::optional<std::string> frameOptions = "DENY";
 
-        // Referrer-Policy: no-referrer | same-origin |
-        // strict-origin-when-cross-origin | ...
+        /// @c Referrer-Policy value (e.g. @c "strict-origin-when-cross-origin").
         std::optional<std::string> referrerPolicy =
             "strict-origin-when-cross-origin";
 
-        // Strict-Transport-Security. Only emitted when this option is set.
-        // Recommended: "max-age=31536000; includeSubDomains" when terminating
-        // TLS upstream.
+        /// @c Strict-Transport-Security value (only emitted when set).
         std::optional<std::string> strictTransportSecurity = std::nullopt;
 
-        // Permissions-Policy, e.g. "geolocation=(), microphone=()". Set to
-        // empty string to disable.
+        /// @c Permissions-Policy value (e.g. @c "geolocation=(), microphone=()").
         std::optional<std::string> permissionsPolicy = std::nullopt;
 
-        // Cross-Origin-Opener-Policy: same-origin | same-origin-allow-popups
+        /// @c Cross-Origin-Opener-Policy value (e.g. @c "same-origin").
         std::optional<std::string> crossOriginOpenerPolicy = "same-origin";
 
-        // Cross-Origin-Resource-Policy: same-origin | same-site | cross-origin
+        /// @c Cross-Origin-Resource-Policy value.
         std::optional<std::string> crossOriginResourcePolicy = "same-origin";
 
-        // Cross-Origin-Embedder-Policy: require-corp | credentialless | ...
+        /// @c Cross-Origin-Embedder-Policy value (only emitted when set).
         std::optional<std::string> crossOriginEmbedderPolicy = std::nullopt;
     };
 
+    /**
+     * @brief Middleware that writes the configured defensive headers on
+     *        every response.
+     */
     class SecurityHeadersMiddleware final : public IMiddleware
     {
       public:
+        /**
+         * @brief Construct with the given options.
+         */
         explicit SecurityHeadersMiddleware(
             SecurityHeadersOptions options = {}) : mOptions(std::move(options))
         {

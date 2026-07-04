@@ -1,3 +1,9 @@
+/**
+ * @file Application/WorkerPool.hpp
+ * @brief Fixed-size thread pool used to dispatch background work such as
+ *        asynchronous completion of streaming responses.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -11,9 +17,26 @@
 
 namespace BALDR_NAMESPACE {
 
+/**
+ * @brief Simple @c std::thread-backed worker pool.
+ *
+ * Constructed with a fixed thread count (defaulting to
+ * @c std::thread::hardware_concurrency); tasks submitted via @ref Submit
+ * are queued FIFO and run on the next available worker. Exceptions thrown
+ * by submitted callables surface through the returned @c std::future.
+ *
+ * Not copyable. The destructor signals workers to stop and joins them,
+ * dropping any tasks that had not yet been picked up.
+ */
 class WorkerPool
 {
   public:
+    /**
+     * @brief Spawn @p threadCount worker threads.
+     *
+     * @param threadCount Number of workers. When 0, defaults to
+     *        @c std::max(1, std::thread::hardware_concurrency()).
+     */
     explicit WorkerPool(std::size_t threadCount = 0)
     {
         if (threadCount == 0)
@@ -28,6 +51,11 @@ class WorkerPool
         }
     }
 
+    /**
+     * @brief Signal all workers to stop and join them.
+     *
+     * Tasks remaining in the queue at this point are dropped.
+     */
     ~WorkerPool()
     {
         {
@@ -45,6 +73,15 @@ class WorkerPool
     WorkerPool(const WorkerPool&)            = delete;
     WorkerPool& operator=(const WorkerPool&) = delete;
 
+    /**
+     * @brief Enqueue @p f for asynchronous execution.
+     *
+     * @tparam F Callable type.
+     * @param f  Callable to invoke on a worker thread.
+     * @return A @c std::future that resolves to the callable's return value
+     *         (or rethrows its exception).
+     * @throws std::runtime_error If the pool has been stopped.
+     */
     template <typename F>
     auto Submit(F&& f) -> std::future<std::invoke_result_t<F>>
     {

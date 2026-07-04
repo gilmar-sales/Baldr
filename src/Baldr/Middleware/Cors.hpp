@@ -1,3 +1,9 @@
+/**
+ * @file Middleware/Cors.hpp
+ * @brief CORS middleware that emits the relevant response headers and
+ *        short-circuits @c OPTIONS pre-flight requests.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -8,21 +14,39 @@
 
 namespace BALDR_NAMESPACE {
 
+/**
+ * @brief Configuration for @ref CorsMiddleware.
+ */
 struct CorsOptions
 {
+    /// Value sent in @c Access-Control-Allow-Origin.
     std::string                     allowOrigin  = "*";
+    /// Methods advertised in @c Access-Control-Allow-Methods.
     std::unordered_set<std::string> allowMethods = {
         "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
     };
+    /// Headers advertised in @c Access-Control-Allow-Headers.
     std::unordered_set<std::string> allowHeaders     = { "Content-Type",
                                                          "Authorization" };
+    /// When @c true, send @c Access-Control-Allow-Credentials: true.
     bool                            allowCredentials = false;
+    /// Cache lifetime advertised via @c Access-Control-Max-Age (seconds).
     int                             maxAge           = 86400;
 };
 
+/**
+ * @brief Middleware that adds CORS response headers and handles
+ *        @c OPTIONS pre-flight requests with a 204 status.
+ *
+ * Pre-flight responses short-circuit the chain; other requests continue
+ * to the next middleware / route handler.
+ */
 class CorsMiddleware final : public IMiddleware
 {
   public:
+    /**
+     * @brief Construct the middleware with the given options.
+     */
     explicit CorsMiddleware(CorsOptions options = {}) :
         mOptions(std::move(options))
     {

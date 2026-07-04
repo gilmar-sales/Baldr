@@ -1,3 +1,9 @@
+/**
+ * @file Middleware/RateLimit/Limiter.hpp
+ * @brief In-memory token-bucket rate limiter with LRU eviction of idle
+ *        clients.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -11,9 +17,27 @@
 
 namespace BALDR_NAMESPACE {
 
+/**
+ * @brief Per-client token-bucket rate limiter.
+ *
+ * Refills @c maxRequests tokens per @c timeWindow, linearly interpolated
+ * by elapsed time. The map of tracked clients is bounded by
+ * @c maxTrackedClients; the least-recently-used client is evicted when
+ * the cap is exceeded. Safe for concurrent use.
+ */
 class RateLimiter
 {
   public:
+    /**
+     * @brief Construct a limiter with the given capacity and window.
+     *
+     * @tparam Rep    Integer type of the window duration.
+     * @tparam Period @c std::ratio of the window duration.
+     * @param maxRequests       Maximum requests allowed per window.
+     * @param timeWindow        Length of the sliding window.
+     * @param maxTrackedClients Maximum distinct clients kept in memory
+     *                          before LRU eviction kicks in.
+     */
     template <typename Rep, typename Period>
     RateLimiter(size_t maxRequests,
                 std::chrono::duration<Rep, Period>
@@ -26,6 +50,15 @@ class RateLimiter
     {
     }
 
+    /**
+     * @brief Check whether @p clientId is allowed to make one more
+     *        request right now.
+     *
+     * Updates the client's token bucket and LRU position atomically.
+     *
+     * @param clientId Opaque identifier (typically the remote IP).
+     * @return @c true when the request is within the rate budget.
+     */
     bool isAllowed(const std::string& clientId)
     {
         const auto now = std::chrono::steady_clock::now();

@@ -1,3 +1,9 @@
+/**
+ * @file Http/Results/FileStreamResult.hpp
+ * @brief Streaming result that reads from an open @c std::ifstream in
+ *        64 KiB chunks and forces a download via @c Content-Disposition.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -12,11 +18,30 @@
 
 namespace BALDR_NAMESPACE {
 
+/**
+ * @brief Streams a file to the client via chunked transfer encoding.
+ *
+ * The file is read lazily in @ref kDefaultChunkBytes chunks; EOF
+ * terminates the stream. The response advertises @c Content-Type and a
+ * @c Content-Disposition: attachment header carrying the original
+ * filename.
+ */
 class FileStreamResult final : public IStreamingResult
 {
   public:
+    /// Size of each read chunk sent to the client.
     static constexpr std::size_t kDefaultChunkBytes = 64 * 1024;
 
+    /**
+     * @brief Wrap an already-opened file in a streaming result.
+     *
+     * @param file        Open input stream positioned at the start of the
+     *                    payload (taken by move; the stream is closed
+     *                    automatically when the result is destroyed).
+     * @param contentType MIME type to advertise.
+     * @param fileName    File name used in the @c Content-Disposition
+     *                    header.
+     */
     FileStreamResult(std::ifstream file,
                      std::string   contentType,
                      std::string   fileName) :

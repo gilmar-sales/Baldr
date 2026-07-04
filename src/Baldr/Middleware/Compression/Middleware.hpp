@@ -1,3 +1,9 @@
+/**
+ * @file Middleware/Compression/Middleware.hpp
+ * @brief Middleware that gzip-compresses buffered responses whose
+ *        Content-Type qualifies and whose size exceeds the threshold.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -8,27 +14,46 @@
 
 namespace BALDR_NAMESPACE {
 
+/**
+ * @brief Configuration for @ref CompressionMiddleware.
+ */
 struct CompressionOptions
 {
-    // Only compress responses whose Content-Type starts with one of
-    // these prefixes (case-insensitive). Defaults to text-like types.
+    /**
+     * @brief Only compress responses whose Content-Type starts with one
+     *        of these prefixes (case-insensitive). Defaults to text-like
+     *        types where compression pays off.
+     */
     std::unordered_set<std::string> mimeTypePrefixes = {
         "text/",           "application/json",      "application/javascript",
         "application/xml", "application/xhtml+xml", "image/svg+xml",
     };
 
-    // Skip responses smaller than this many bytes. Defaults to 1024
-    // (compression overhead rarely pays off on tiny bodies).
+    /**
+     * @brief Skip responses smaller than this many bytes. Defaults to
+     *        1024 because compression overhead rarely pays off on tiny
+     *        bodies.
+     */
     std::size_t minBodyBytes = 1024;
 
-    // Compression level passed to zlib (1..9, default 6). -1 selects
-    // zlib's default.
+    /**
+     * @brief Compression level passed to zlib (1..9). @c -1 selects
+     *        zlib's default (typically 6).
+     */
     int level = -1;
 };
 
+/**
+ * @brief Middleware that gzip-compresses qualifying buffered responses
+ *        and updates the @c Content-Encoding / @c Content-Length
+ *        headers accordingly.
+ */
 class CompressionMiddleware final : public IMiddleware
 {
   public:
+    /**
+     * @brief Construct the middleware with the given options.
+     */
     explicit CompressionMiddleware(CompressionOptions options = {}) :
         mOptions(std::move(options))
     {

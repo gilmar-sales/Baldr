@@ -1,3 +1,9 @@
+/**
+ * @file Middleware/ExceptionHandler.hpp
+ * @brief Middleware that converts thrown exceptions into a generic 500
+ *        response, optionally with a custom mapper.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -10,30 +16,45 @@
 
 namespace BALDR_NAMESPACE {
 
+/**
+ * @brief Configuration for @ref ExceptionHandlerMiddleware.
+ */
 struct ExceptionHandlerOptions
 {
-    // Custom mapper that converts a caught std::exception into a
-    // response payload. When `includeDetailsInDev` is `false` (the
-    // default) the framework emits a generic 500 body so internal
-    // exception messages do not leak to clients; the mapper still
-    // receives the exception so it can decide locally whether to log
-    // the details or take other action.
+    /**
+     * @brief Custom mapper that converts a caught @c std::exception into
+     *        a response body string.
+     *
+     * When @ref includeDetailsInDev is @c false (the default) the
+     * built-in mapper emits a generic body so internal exception
+     * messages do not leak to clients; the mapper still receives the
+     * exception so it can decide locally whether to log the details.
+     */
     std::function<std::string(const std::exception&)> mapper;
 
-    // When true, the built-in mapper falls back to `e.what()`.
-    // Disable this in release builds to avoid information leakage.
+    /**
+     * @brief When @c true, the built-in mapper falls back to @c e.what().
+     *        Disable in release builds to avoid information leakage.
+     */
     bool includeDetailsInDev = false;
 
-    // Content-Type used for the generated plain-text response.
+    /// Content-Type used for the generated response.
     std::string contentType = "text/plain";
 
-    // Status emitted on any caught exception (typed or non-typed).
+    /// Status emitted on any caught exception (typed or non-typed).
     StatusCode status = StatusCode::InternalServerError;
 };
 
+/**
+ * @brief Middleware that converts exceptions thrown further down the
+ *        chain into an HTTP 500 response.
+ */
 class ExceptionHandlerMiddleware final : public IMiddleware
 {
   public:
+    /**
+     * @brief Construct the middleware with the given options.
+     */
     explicit ExceptionHandlerMiddleware(ExceptionHandlerOptions options = {}) :
         mOptions(std::move(options))
     {

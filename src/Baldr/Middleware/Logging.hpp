@@ -1,3 +1,9 @@
+/**
+ * @file Middleware/Logging.hpp
+ * @brief Access-log middleware that emits one structured line per
+ *        request, including the resolved W3C trace context.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -14,9 +20,17 @@
 namespace BALDR_NAMESPACE
 {
 
+    /**
+     * @brief Middleware that writes a one-line request log on the way in
+     *        and a one-line response log (with duration and status) on
+     *        the way out.
+     */
     class LoggingMiddleware final : public IMiddleware
     {
       public:
+        /**
+         * @brief Construct with a logger tagged for this middleware type.
+         */
         LoggingMiddleware(skr::Arc<skr::Logger<LoggingMiddleware>> logger) :
             mLogger(logger)
         {
@@ -24,6 +38,11 @@ namespace BALDR_NAMESPACE
 
         ~LoggingMiddleware() = default;
 
+        /**
+         * @brief Format the request-side access log line.
+         *
+         * Format: @c Request - '<version>' '<method>' '<path>' [trace=<id> [span=<id>]]
+         */
         static std::string FormatRequestLine(const HttpRequest& request)
         {
             const auto  method = refl::enum_to_string(request.method);
@@ -33,6 +52,11 @@ namespace BALDR_NAMESPACE
                                method, request.path, suffix);
         }
 
+        /**
+         * @brief Format the response-side access log line.
+         *
+         * Format: @c Response - <status> '<method>' '<path>' - <micros>us - <clientIp> [trace=<id>]
+         */
         static std::string FormatResponseLine(
             const HttpRequest&        request,
             const HttpResponse&       response,

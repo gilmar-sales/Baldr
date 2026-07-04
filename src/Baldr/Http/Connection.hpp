@@ -1,3 +1,9 @@
+/**
+ * @file Http/Connection.hpp
+ * @brief Per-TCP-connection HTTP/1.1 handler. Owns the parser state and
+ *        the read accumulator, and drives the middleware pipeline.
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -25,9 +31,22 @@
 
 namespace BALDR_NAMESPACE {
 
+/**
+ * @brief Owns the parser, accumulator and middleware chain for a single
+ *        client connection.
+ *
+ * Constructed by @c HttpServer when a new connection is accepted; the
+ * trantor event loop dispatches incoming bytes to @ref onMessage.
+ */
 class HttpConnection
 {
   public:
+    /**
+     * @brief Bind a new connection to the shared service graph.
+     *
+     * @param serviceProvider The application-wide DI container.
+     * @param conn            Trantor's connection pointer.
+     */
     HttpConnection(const skr::Arc<skr::ServiceProvider>& serviceProvider,
                    const trantor::TcpConnectionPtr&      conn) :
         mServiceProvider(serviceProvider),
@@ -41,10 +60,33 @@ class HttpConnection
     {
     }
 
+    /**
+     * @brief Append @p buffer's bytes to the per-connection accumulator
+     *        and dispatch every complete request contained in it.
+     *
+     * @param buffer Bytes just received from the peer.
+     */
     void onMessage(trantor::MsgBuffer* buffer);
 
+    /**
+     * @brief Hard cap on the per-connection read accumulator. If a single
+     *        request would push the accumulator past this limit the
+     *        connection is closed.
+     */
     static constexpr std::size_t kMaxAccumulatorBytes = 10 * 1024 * 1024;
 
+    /**
+     * @brief Execute the middleware chain around a single request.
+     *
+     * @param factories      Snapshot of middleware factories from the
+     *                       sealed @c MiddlewareProvider.
+     * @param scopedProvider Per-request DI scope used to construct each
+     *                       middleware instance.
+     * @param request        Request being dispatched (mutable so middleware
+     *                       may attach context).
+     * @param response       Response populated by the chain.
+     * @param finalHandler   Terminal handler (the route callback).
+     */
     static void runMiddlewareChain(
         MiddlewareFactoryList&                factories,
         const skr::Arc<skr::ServiceProvider>& scopedProvider,

@@ -1,3 +1,8 @@
+/**
+ * @file Http/StatusCode.hpp
+ * @brief Strongly-typed enumeration of HTTP status codes (1xx-5xx).
+ */
+
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
@@ -5,6 +10,13 @@
 
 namespace BALDR_NAMESPACE {
 
+/**
+ * @brief IANA-registered HTTP response status codes.
+ *
+ * The numeric value matches the wire format, so casting to @c int yields
+ * the bytes to send after the status line. Use @c operator<< to print the
+ * numeric value; reason phrases are handled by the connection layer.
+ */
 enum class StatusCode : int
 {
     Continue           = 100,
@@ -75,6 +87,9 @@ enum class StatusCode : int
     NetworkAuthenticationRequired = 511
 };
 
+/**
+ * @brief Stream a status code as its numeric value.
+ */
 inline std::ostream& operator<<(std::ostream& os, StatusCode code)
 {
     os << static_cast<int>(code);
