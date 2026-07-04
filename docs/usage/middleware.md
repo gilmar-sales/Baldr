@@ -1,18 +1,20 @@
 # Middleware
 
-Middleware lets you run code before and after every request — perfect for logging, authentication, rate limiting, and request transformation.
+Middleware lets you run code before and after every request — perfect for logging, authentication, rate limiting, request transformation, and cross-cutting security headers.
 
 ## The `IMiddleware` interface
 
-Every middleware implements the [`IMiddleware`](https://github.com/gilmar-sales/Baldr/blob/main/src/Baldr/IMiddleware.hpp) interface:
+Every middleware implements the [`IMiddleware`](https://github.com/gilmar-sales/Baldr/blob/main/src/Baldr/Middleware/IMiddleware.hpp) interface defined in [`src/Baldr/Middleware/IMiddleware.hpp`](https://github.com/gilmar-sales/Baldr/blob/main/src/Baldr/Middleware/IMiddleware.hpp):
 
 ```cpp title="IMiddleware.hpp"
 #pragma once
 
+#include <Skirnir/Skirnir.hpp>
+
 #include <functional>
 
-#include "HttpRequest.hpp"
-#include "HttpResponse.hpp"
+#include <Baldr/Http/Request.hpp>
+#include <Baldr/Http/Response.hpp>
 
 using NextMiddleware = std::function<void()>;
 
@@ -21,7 +23,7 @@ class IMiddleware
   public:
     virtual ~IMiddleware() = default;
 
-    virtual void Handle(const HttpRequest&    request,
+    virtual void Handle(HttpRequest&          request,
                         HttpResponse&         response,
                         const NextMiddleware& next) = 0;
 };
@@ -35,13 +37,14 @@ A middleware:
 
 If `next()` is not called, the request is short-circuited — no further middleware or handler runs.
 
+`HttpRequest` is passed by non-const reference, so middleware may attach per-request context (for example `RequestIdMiddleware` echoes the id on both the request and the response headers).
+
 ## Registering middleware
 
 Middleware is added to a `WebApplication` via the `Use<T>()` template, in the order you want it to run:
 
 ```cpp title="src/main.cpp"
 #include <Baldr/Baldr.hpp>
-#include <Baldr/LoggingMiddleware.hpp>
 
 int main()
 {
@@ -56,14 +59,38 @@ int main()
 }
 ```
 
-`Use<T>()` registers the middleware with the `MiddlewareProvider` (see [`src/Baldr/MiddlewareProvider.hpp`](https://github.com/gilmar-sales/Baldr/blob/main/src/Baldr/MiddlewareProvider.hpp)). The middleware is resolved from the service provider on every request, so it can take constructor dependencies.
+All built-in middleware headers are pulled in via the umbrella `<Baldr/Baldr.hpp>`. Individual headers live under `<Baldr/Middleware/...>` (for example `<Baldr/Middleware/Logging.hpp>`).
+
+`Use<T>()` registers the middleware with the framework's middleware provider. The middleware is resolved from the service provider on every request, so it can take constructor dependencies (for example `RateLimitMiddleware` requires a `skr::Arc<RateLimiter>`).
 
 ## Built-in middleware
 
-Baldr ships with two ready-to-use middleware:
+Baldr ships with the following middleware out of the box:
 
-- **`LoggingMiddleware`** — logs each request and response with timing information. See [Logging middleware](../extensions/logging.md).
-- **`RateLimitMiddleware`** — rejects requests from clients that exceed a configurable rate. See [Rate-limit middleware](../extensions/rate-limit.md).
+| Middleware | Header | Purpose |
+| --- | --- | --- |
+| `LoggingMiddleware` | `<Baldr/Middleware/Logging.hpp>` | Logs request/response with elapsed microseconds. |
+| `RequestIdMiddleware` | `<Baldr/Middleware/RequestId.hpp>` | Echoes or generates `X-Request-ID` for log correlation. |
+| `ExceptionHandlerMiddleware` | `<Baldr/Middleware/ExceptionHandler.hpp>` | Catches exceptions and maps them to a 500 response. |
+| `RateLimitMiddleware` | `<Baldr/Middleware/RateLimit/Middleware.hpp>` | Per-client throttling backed by `RateLimiter`. |
+| `CorsMiddleware` | `<Baldr/Middleware/Cors.hpp>` | CORS headers + `OPTIONS` preflight short-circuit. |
+| `CsrfMiddleware` | `<Baldr/Middleware/Csrf.hpp>` | Double-submit cookie CSRF protection. |
+| `SecurityHeadersMiddleware` | `<Baldr/Middleware/SecurityHeaders.hpp>` | Sets X-Content-Type-Options, X-Frame-Options, HSTS, COOP/CORP, etc. |
+| `CompressionMiddleware` | `<Baldr/Middleware/Compression/Middleware.hpp>` | gzip-encodes eligible response bodies. |
+
+See [Middleware overview](../middleware/overview.md) for per-middleware pages with options and examples.
+
+Example wiring:
+
+```cpp title="src/main.cpp"
+app->Use<RequestIdMiddleware>()
+   ->Use<ExceptionHandlerMiddleware>()
+   ->Use<LoggingMiddleware>()
+   ->Use<CompressionMiddleware>()
+   ->Use<SecurityHeadersMiddleware>()
+   ->Use<CorsMiddleware>()
+   ->Use<RateLimitMiddleware>();
+```
 
 ## Writing your own
 
@@ -72,15 +99,16 @@ Implement `IMiddleware`, register the implementation in the service collection, 
 ```cpp title="TimingMiddleware.hpp"
 #pragma once
 
-#include "IMiddleware.hpp"
+#include <Baldr/Middleware/IMiddleware.hpp>
 
 class TimingMiddleware final : public IMiddleware
 {
   public:
-    void Handle(const HttpRequest& request,
-                HttpResponse& response,
+    void Handle(HttpRequest&          request,
+                HttpResponse&         response,
                 const NextMiddleware& next) override
     {
+        (void) request;
         auto begin = std::chrono::steady_clock::now();
         next();
         auto end = std::chrono::steady_clock::now();
@@ -102,28 +130,19 @@ app->Use<TimingMiddleware>();
 
 ## Order of execution
 
-Middleware runs in registration order on the way **in**, and in reverse order on the way **out**. Register cross-cutting concerns (logging, request IDs) first, and request-specific concerns (auth, rate limiting) closer to the handler.
+Middleware runs in registration order on the way **in**, and in reverse order on the way **out**. Register cross-cutting concerns (logging, request IDs, exception handling) first, and request-specific concerns (auth, rate limiting, CORS) closer to the handler.
 
-## Built-in middleware
+Typical order, outermost first:
 
-| Middleware | Header | Purpose |
-| ---------- | ------ | ------- |
-| `LoggingMiddleware` | `LoggingMiddleware.hpp` | Logs request/response with elapsed microseconds. |
-| `RateLimitMiddleware` | `RateLimitMiddleware.hpp` | Per-client throttling backed by `RateLimiter`. |
-| `CorsMiddleware` | `CorsMiddleware.hpp` | CORS headers + `OPTIONS` preflight short-circuit. |
-| `RequestIdMiddleware` | `RequestIdMiddleware.hpp` | Echoes or generates `X-Request-ID` for log correlation. |
-| `ExceptionHandlerMiddleware` | `ExceptionHandlerMiddleware.hpp` | Maps thrown exceptions to a 500 response. |
-
-Example wiring:
-
-```cpp title="src/main.cpp"
-app->Use<RequestIdMiddleware>()
-   ->Use<LoggingMiddleware>()
-   ->Use<CorsMiddleware>()
-   ->Use<ExceptionHandlerMiddleware>()
-   ->Use<RateLimitMiddleware>();
-```
+1. `RequestIdMiddleware` — assigns an id before anything else so it appears in every log.
+2. `ExceptionHandlerMiddleware` — wraps the rest of the pipeline so uncaught exceptions become 500s.
+3. `LoggingMiddleware` — measures elapsed time including everything below.
+4. `CompressionMiddleware` — only relevant for response bodies, so position relative to `LoggingMiddleware` does not matter for ordering correctness.
+5. `SecurityHeadersMiddleware` — adds headers regardless of response.
+6. `CorsMiddleware` — must run before the handler to short-circuit preflight `OPTIONS`.
+7. `RateLimitMiddleware` — close to the handler so rejected requests still benefit from logging and request-id propagation.
 
 ## Next steps
 
-- See a complete example that uses both built-in middleware in the [Examples walkthrough](../authoring/examples.md).
+- Browse per-middleware pages under [Middleware overview](../middleware/overview.md).
+- See runnable programs that combine middleware in the [Examples walkthrough](../authoring/examples.md).

@@ -4,11 +4,10 @@
 
 ## Enabling it
 
-Include the header and add the middleware to your application:
+The header is pulled in via the umbrella `<Baldr/Baldr.hpp>`. Add the middleware to your application:
 
 ```cpp title="src/main.cpp"
 #include <Baldr/Baldr.hpp>
-#include <Baldr/LoggingMiddleware.hpp>
 
 int main()
 {
@@ -23,7 +22,7 @@ int main()
 }
 ```
 
-`LoggingMiddleware` is defined in [`src/Baldr/LoggingMiddleware.hpp`](https://github.com/gilmar-sales/Baldr/blob/main/src/Baldr/LoggingMiddleware.hpp). It depends on a `skr::Logger<LoggingMiddleware>`, which is provided automatically by Skirnir — no service registration is required.
+`LoggingMiddleware` is defined in [`src/Baldr/Middleware/Logging.hpp`](https://github.com/gilmar-sales/Baldr/blob/main/src/Baldr/Middleware/Logging.hpp). It depends on a `skr::Logger<LoggingMiddleware>`, which is provided automatically by Skirnir — no service registration is required.
 
 ## What gets logged
 
@@ -41,8 +40,14 @@ The first line is emitted before the request is dispatched; the second line is e
 Register `LoggingMiddleware` **first**, so it wraps every other middleware and route handler:
 
 ```cpp title="src/main.cpp"
-app->Use<LoggingMiddleware>();
-app->Use<RateLimitMiddleware>();
+app->Use<RequestIdMiddleware>()
+   ->Use<ExceptionHandlerMiddleware>()
+   ->Use<LoggingMiddleware>()
+   ->Use<RateLimitMiddleware>();
 ```
 
-This ensures every response — including those short-circuited by the rate limiter — is logged with accurate timing.
+This ensures every response — including those short-circuited by the rate limiter — is logged with accurate timing, and the request id is in scope for the log line.
+
+## Implementation note
+
+`LoggingMiddleware` uses C++26 reflection (`std::meta::info` via Skirnir's `refl::enum_to_string`) to format the request method. Consumers do not need to opt in to reflection themselves — the dependency is compiled inside the `baldr` target.

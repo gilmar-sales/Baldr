@@ -55,8 +55,12 @@ Home = "index.md"
 Usage = [
     "usage/overview.md",
     "usage/routing.md",
-    "usage/dependency-injection.md",
+    "usage/route-options.md",
+    "usage/results.md",
+    "usage/streaming-results.md",
+    "usage/static-files.md",
     "usage/middleware.md",
+    "usage/dependency-injection.md",
 ]
 
 [[project.nav]]
@@ -66,15 +70,34 @@ Setup = [
 ]
 
 [[project.nav]]
+Middleware = [
+    "middleware/overview.md",
+    "middleware/logging.md",
+    "middleware/request-id.md",
+    "middleware/exception-handler.md",
+    "middleware/compression.md",
+    "middleware/security-headers.md",
+    "middleware/cors.md",
+    "middleware/csrf.md",
+    "middleware/rate-limit.md",
+]
+
+[[project.nav]]
 Extensions = [
-    "extensions/overview.md",
-    "extensions/logging.md",
-    "extensions/rate-limit.md",
+    "extensions/index.md",
+    "extensions/openapi.md",
 ]
 
 [[project.nav]]
 Authoring = [
     "authoring/examples.md",
+    "authoring/examples/hello-world.md",
+    "authoring/examples/hello-service.md",
+    "authoring/examples/devices.md",
+    "authoring/examples/weather-forecast.md",
+    "authoring/examples/static-files.md",
+    "authoring/examples/file-stream.md",
+    "authoring/examples/open-api.md",
 ]
 
 [[project.nav]]

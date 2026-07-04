@@ -32,7 +32,7 @@ Always include Baldr through the umbrella header:
 #include <Baldr/Baldr.hpp>
 ```
 
-This header pulls in `BaldrExtension.hpp`, which transitively includes `WebApplication.hpp`. Individual middleware headers (such as `<Baldr/LoggingMiddleware.hpp>` and `<Baldr/RateLimitMiddleware.hpp>`) must be included explicitly when used.
+This header pulls in `BaldrExtension.hpp`, which transitively includes `WebApplication.hpp`. All built-in middleware headers (such as `<Baldr/Middleware/Logging.hpp>` and `<Baldr/Middleware/RateLimit/Middleware.hpp>`) are re-exported through the umbrella header — explicit includes are only needed when you want to skip the re-exports.
 
 ## Source organization
 

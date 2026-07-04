@@ -70,6 +70,14 @@ app->MapPost("/echo", [](HttpRequest& request) {
 });
 ```
 
+## Static files
+
+To serve a directory tree under a URL prefix, use `MapStaticFiles`. See [Static files](static-files.md) for the full reference.
+
+```cpp title="src/main.cpp"
+app->MapStaticFiles("/static", "/var/www/my_app/wwwroot");
+```
+
 ## Next steps
 
 - Learn how handlers receive injected services in [Dependency injection](dependency-injection.md).

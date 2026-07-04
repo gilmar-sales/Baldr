@@ -54,6 +54,34 @@ class AuditMiddleware : public IMiddleware
 
 `request.route.path` is the resolved template (e.g. `/api/v1/users/:id`), `request.route.method` is the HTTP method, and `request.route.group` is the prefix from the enclosing `MapGroup`, if any.
 
+## Route groups
+
+`MapGroup(prefix, setup)` registers a group of routes that share a common URL prefix. `setup` receives a `RouteBuilder` exposing the same `MapGet`/`MapPost`/... fluent API:
+
+```cpp title="src/main.cpp"
+app->MapGroup("/api/v1", [](auto& group) {
+    group.MapGet("/users")
+        .WithSummary("List users")
+        .WithTag("users")
+        .Handle([]() { return std::vector<User>{}; });
+
+    group.MapPost("/users", [](const HttpRequest& req) -> IResult {
+        // ...
+        return Results::Status(StatusCode::Created);
+    });
+});
+```
+
+The prefix is concatenated with each route's template when matching. Route options (summary, tags, operation id, schemas) are still applied per-route inside the group.
+
+## Static files
+
+Use `MapStaticFiles(urlPrefix, rootPath)` to serve a directory tree under a URL prefix — see [Static files](static-files.md) for path safety, MIME-type inference, and streaming behaviour.
+
+```cpp title="src/main.cpp"
+app->MapStaticFiles("/static", "/var/www/my_app/wwwroot");
+```
+
 ## Next steps
 
 - Generate an OpenAPI 3.0.3 spec from your routes in the [OpenAPI extension](../extensions/openapi.md).

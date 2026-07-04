@@ -53,7 +53,7 @@ int main()
 | --- | --- | --- |
 | `mountPath` | `/openapi.json` | HTTP path that serves the rendered document. |
 | `info.title` | `"Baldr API"` | `info.title` in the document. |
-| `info.version` | `"0.15.1"` | `info.version` in the document. |
+| `info.version` | `"0.16.0"` | `info.version` in the document. |
 | `info.description` | `std::nullopt` | Optional `info.description`. |
 | `enabled` | `true` | When `false`, the extension is registered but no route is mounted. |
 

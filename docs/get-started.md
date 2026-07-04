@@ -8,9 +8,10 @@ This page walks you through the prerequisites, a minimal CMake integration, and 
 
 Before installing Baldr, make sure you have:
 
-- A C++ compiler with **C++20** support — GCC 11+, Clang 14+, or MSVC 19.30+.
+- A C++ compiler with **C++26** support — GCC 14+, Clang 17+, or MSVC 19.40+. The CI build matrix pins `gcc-14` on Linux; `gcc-13` and older may fail to compile the codebase.
 - **CMake 3.28** or newer.
 - **Git** — required by CMake's `FetchContent`.
+- **zlib** (development headers) — required at configure time because [`CompressionMiddleware`](middleware/compression.md) links against `ZLIB::ZLIB`. On Debian/Ubuntu install `zlib1g-dev`; on Fedora/RHEL install `zlib-devel`; on macOS it ships with the platform SDK.
 
 Baldr transitively fetches [Skirnir](https://github.com/gilmar-sales/Skirnir) and [trantor](https://github.com/an-tao/trantor), so an internet connection is required on the first configure.
 
@@ -40,13 +41,13 @@ add_executable(my_app src/main.cpp)
 target_link_libraries(my_app PRIVATE baldr)
 
 set_target_properties(my_app PROPERTIES
-  CXX_STANDARD 20
+  CXX_STANDARD 26
   CXX_STANDARD_REQUIRED ON
 )
 ```
 
 !!! tip "Pin to a release tag"
-    In production code, replace `GIT_TAG "main"` with a specific tag (for example `v0.15.1`) so your builds are reproducible.
+    In production code, replace `GIT_TAG "main"` with a specific tag (for example `v0.16.0`) so your builds are reproducible.
 
 ## Hello World
 
