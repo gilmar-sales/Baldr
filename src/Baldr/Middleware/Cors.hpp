@@ -12,86 +12,88 @@
 
 #include <Baldr/Middleware/IMiddleware.hpp>
 
-namespace BALDR_NAMESPACE {
-
-/**
- * @brief Configuration for @ref CorsMiddleware.
- */
-struct CorsOptions
+namespace BALDR_NAMESPACE
 {
-    /// Value sent in @c Access-Control-Allow-Origin.
-    std::string                     allowOrigin  = "*";
-    /// Methods advertised in @c Access-Control-Allow-Methods.
-    std::unordered_set<std::string> allowMethods = {
-        "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
-    };
-    /// Headers advertised in @c Access-Control-Allow-Headers.
-    std::unordered_set<std::string> allowHeaders     = { "Content-Type",
-                                                         "Authorization" };
-    /// When @c true, send @c Access-Control-Allow-Credentials: true.
-    bool                            allowCredentials = false;
-    /// Cache lifetime advertised via @c Access-Control-Max-Age (seconds).
-    int                             maxAge           = 86400;
-};
 
-/**
- * @brief Middleware that adds CORS response headers and handles
- *        @c OPTIONS pre-flight requests with a 204 status.
- *
- * Pre-flight responses short-circuit the chain; other requests continue
- * to the next middleware / route handler.
- */
-class CorsMiddleware final : public IMiddleware
-{
-  public:
     /**
-     * @brief Construct the middleware with the given options.
+     * @brief Configuration for @ref CorsMiddleware.
      */
-    explicit CorsMiddleware(CorsOptions options = {}) :
-        mOptions(std::move(options))
+    struct CorsOptions
     {
-    }
+        /// Value sent in @c Access-Control-Allow-Origin.
+        std::string allowOrigin = "*";
+        /// Methods advertised in @c Access-Control-Allow-Methods.
+        std::unordered_set<std::string> allowMethods = {
+            "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
+        };
+        /// Headers advertised in @c Access-Control-Allow-Headers.
+        std::unordered_set<std::string> allowHeaders = { "Content-Type",
+                                                         "Authorization" };
+        /// When @c true, send @c Access-Control-Allow-Credentials: true.
+        bool allowCredentials = false;
+        /// Cache lifetime advertised via @c Access-Control-Max-Age (seconds).
+        int maxAge = 86400;
+    };
 
-    ~CorsMiddleware() override = default;
-
-    void Handle(HttpRequest&          request,
-                HttpResponse&         response,
-                const NextMiddleware& next) override
+    /**
+     * @brief Middleware that adds CORS response headers and handles
+     *        @c OPTIONS pre-flight requests with a 204 status.
+     *
+     * Pre-flight responses short-circuit the chain; other requests continue
+     * to the next middleware / route handler.
+     */
+    class CorsMiddleware final : public IMiddleware
     {
-        response.headers["Access-Control-Allow-Origin"] = mOptions.allowOrigin;
-        response.headers["Access-Control-Allow-Methods"] =
-            join(mOptions.allowMethods, ", ");
-        response.headers["Access-Control-Allow-Headers"] =
-            join(mOptions.allowHeaders, ", ");
-        response.headers["Access-Control-Max-Age"] =
-            std::to_string(mOptions.maxAge);
-        if (mOptions.allowCredentials)
-            response.headers["Access-Control-Allow-Credentials"] = "true";
-
-        if (request.method == HttpMethod::Options)
+      public:
+        /**
+         * @brief Construct the middleware with the given options.
+         */
+        explicit CorsMiddleware(CorsOptions options = {}) :
+            mOptions(std::move(options))
         {
-            response.statusCode = StatusCode::NoContent;
-            return;
         }
 
-        next();
-    }
+        ~CorsMiddleware() override = default;
 
-  private:
-    static std::string join(const std::unordered_set<std::string>& items,
-                            const std::string&                     sep)
-    {
-        std::string out;
-        for (const auto& item : items)
+        void Handle(HttpRequest&          request,
+                    HttpResponse&         response,
+                    const NextMiddleware& next) override
         {
-            if (!out.empty())
-                out += sep;
-            out += item;
-        }
-        return out;
-    }
+            response.headers["Access-Control-Allow-Origin"] =
+                mOptions.allowOrigin;
+            response.headers["Access-Control-Allow-Methods"] =
+                join(mOptions.allowMethods, ", ");
+            response.headers["Access-Control-Allow-Headers"] =
+                join(mOptions.allowHeaders, ", ");
+            response.headers["Access-Control-Max-Age"] =
+                std::to_string(mOptions.maxAge);
+            if (mOptions.allowCredentials)
+                response.headers["Access-Control-Allow-Credentials"] = "true";
 
-    CorsOptions mOptions;
-};
+            if (request.method == HttpMethod::Options)
+            {
+                response.statusCode = StatusCode::NoContent;
+                return;
+            }
+
+            next();
+        }
+
+      private:
+        static std::string join(const std::unordered_set<std::string>& items,
+                                const std::string&                     sep)
+        {
+            std::string out;
+            for (const auto& item : items)
+            {
+                if (!out.empty())
+                    out += sep;
+                out += item;
+            }
+            return out;
+        }
+
+        CorsOptions mOptions;
+    };
 
 } // namespace BALDR_NAMESPACE

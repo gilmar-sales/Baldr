@@ -41,7 +41,8 @@ namespace BALDR_NAMESPACE
         /// @return @c true when @p typeName has been registered.
         [[nodiscard]] bool Contains(std::string_view typeName) const;
 
-        /// @brief Render the contents of @c components.schemas as a JSON object.
+        /// @brief Render the contents of @c components.schemas as a JSON
+        /// object.
         [[nodiscard]] std::string RenderComponents() const;
 
         /// @return Read-only view of every registered schema.
@@ -205,7 +206,7 @@ namespace BALDR_NAMESPACE
         }
     } // namespace Detail
 
-/**
+    /**
      * @brief @c true when @c T is a class type with at least one
      *        non-static data member and all members are in the supported
      *        primitive set.

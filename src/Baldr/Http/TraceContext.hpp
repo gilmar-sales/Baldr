@@ -29,7 +29,7 @@ namespace BALDR_NAMESPACE
         std::string  traceId;          ///< 32-hex-character trace identifier.
         std::string  spanId;           ///< 16-hex-character span identifier.
         std::uint8_t traceFlags { 0 }; ///< @c traceparent flags byte.
-        bool         valid { false };  ///< True when parsed from a valid header.
+        bool         valid { false }; ///< True when parsed from a valid header.
 
         /**
          * @brief @c true when the sampled flag (bit 0) is set.

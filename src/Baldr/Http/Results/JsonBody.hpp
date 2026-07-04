@@ -103,9 +103,9 @@ namespace BALDR_NAMESPACE
         /// @return Read-only access to the deserialised value.
         const T& value() const { return mValue; }
         /// @return Mutable access to the deserialised value.
-        T&       value() { return mValue; }
+        T& value() { return mValue; }
         /// @brief Move the deserialised value out of the result.
-        T        takeValue() { return std::move(mValue); }
+        T takeValue() { return std::move(mValue); }
 
         /// @brief Error payload carried by a failed parse.
         struct Error

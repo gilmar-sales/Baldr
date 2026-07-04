@@ -49,14 +49,16 @@ namespace BALDR_NAMESPACE
      */
     struct RouteEntry
     {
-        std::regex               extractParamsRegex;  ///< Compiled regex for path-parameter capture.
-        std::vector<std::string> paramsNames = {};     ///< Ordered names of captured path parameters.
-        bool                     hasParams   = true;   ///< Whether the template contains parameters.
-        RouteHandler             handler;              ///< Callable to invoke on a match.
-        RouteOptions             options;              ///< OpenAPI options for the route.
-        std::string              groupPrefix;          ///< Group prefix, if any.
-        std::string              pathTemplate;         ///< Original template (e.g. @c "/users/:id").
-        HttpMethod               method { HttpMethod::Get }; ///< HTTP method.
+        std::regex
+            extractParamsRegex; ///< Compiled regex for path-parameter capture.
+        std::vector<std::string>
+             paramsNames = {};   ///< Ordered names of captured path parameters.
+        bool hasParams   = true; ///< Whether the template contains parameters.
+        RouteHandler handler;    ///< Callable to invoke on a match.
+        RouteOptions options;    ///< OpenAPI options for the route.
+        std::string  groupPrefix; ///< Group prefix, if any.
+        std::string pathTemplate; ///< Original template (e.g. @c "/users/:id").
+        HttpMethod  method { HttpMethod::Get }; ///< HTTP method.
 
         /**
          * @brief Extract named path parameters from a concrete request path.
@@ -221,10 +223,13 @@ namespace BALDR_NAMESPACE
          */
         struct MatchResult
         {
-            std::optional<RouteEntry> entry;                  ///< Matched route, if any.
-            std::vector<HttpMethod>   allowedMethodsOnPath;   ///< Methods registered at this path.
-            HttpMethod                resolvedMethod = HttpMethod::Get; ///< Echo of the requested method.
-            std::string               routeTemplate;          ///< Template matched (when an entry exists).
+            std::optional<RouteEntry> entry; ///< Matched route, if any.
+            std::vector<HttpMethod>
+                allowedMethodsOnPath; ///< Methods registered at this path.
+            HttpMethod resolvedMethod =
+                HttpMethod::Get; ///< Echo of the requested method.
+            std::string
+                routeTemplate; ///< Template matched (when an entry exists).
         };
 
         /**

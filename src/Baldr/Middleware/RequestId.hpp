@@ -22,9 +22,11 @@ namespace BALDR_NAMESPACE
      */
     struct RequestIdOptions
     {
-        /// When @c true, echo the resolved @c traceparent header on the response.
-        bool propagateTraceparentResponse  = true;
-        /// When @c true and no @c X-Request-ID was supplied, reuse the trace ID.
+        /// When @c true, echo the resolved @c traceparent header on the
+        /// response.
+        bool propagateTraceparentResponse = true;
+        /// When @c true and no @c X-Request-ID was supplied, reuse the trace
+        /// ID.
         bool useTraceIdAsRequestIdFallback = true;
     };
 
@@ -34,8 +36,9 @@ namespace BALDR_NAMESPACE
      *
      * Resolution order for the @c X-Request-ID:
      *   1. Incoming @c X-Request-ID header (verbatim).
-     *   2. The trace ID (when @ref RequestIdOptions::useTraceIdAsRequestIdFallback
-     *      is @c true and a trace context exists).
+     *   2. The trace ID (when @ref
+     * RequestIdOptions::useTraceIdAsRequestIdFallback is @c true and a trace
+     * context exists).
      *   3. A freshly generated random ID.
      *
      * The chosen ID is echoed back in the response headers.
@@ -48,7 +51,7 @@ namespace BALDR_NAMESPACE
         ~RequestIdMiddleware() override = default;
 
         /// Canonical request ID header name.
-        static constexpr const char* kHeaderName        = "X-Request-ID";
+        static constexpr const char* kHeaderName = "X-Request-ID";
         /// Canonical W3C @c traceparent header name.
         static constexpr const char* kTraceparentHeader = "traceparent";
 

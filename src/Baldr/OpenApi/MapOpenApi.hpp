@@ -12,26 +12,27 @@
 #include "BaldrOpenApiExtension.hpp"
 #include "OpenApiSpecService.hpp"
 
-namespace BALDR_NAMESPACE {
-
-/**
- * @brief Mount the OpenAPI spec at the configured path on @p app.
- *
- * Intended for users who haven't opted into @ref BaldrOpenApiExtension
- * but still want to expose the spec imperatively from @c main().
- *
- * @param app     Target application.
- * @param options Options (mount path, info object, enable flag).
- */
-inline void MapOpenApi(WebApplication& app, OpenApiOptions options = {})
+namespace BALDR_NAMESPACE
 {
-    auto specSvc = skr::MakeArc<OpenApiSpecService>(std::move(options));
-    const std::string mountPath   = specSvc->options().mountPath;
-    const std::string contentType = "application/openapi+json";
 
-    app.MapGet(mountPath, [specSvc, &app, contentType]() {
-        return ContentResult(specSvc->Cached(app.GetRouter()), contentType);
-    });
-}
+    /**
+     * @brief Mount the OpenAPI spec at the configured path on @p app.
+     *
+     * Intended for users who haven't opted into @ref BaldrOpenApiExtension
+     * but still want to expose the spec imperatively from @c main().
+     *
+     * @param app     Target application.
+     * @param options Options (mount path, info object, enable flag).
+     */
+    inline void MapOpenApi(WebApplication& app, OpenApiOptions options = {})
+    {
+        auto specSvc = skr::MakeArc<OpenApiSpecService>(std::move(options));
+        const std::string mountPath   = specSvc->options().mountPath;
+        const std::string contentType = "application/openapi+json";
+
+        app.MapGet(mountPath, [specSvc, &app, contentType]() {
+            return ContentResult(specSvc->Cached(app.GetRouter()), contentType);
+        });
+    }
 
 } // namespace BALDR_NAMESPACE

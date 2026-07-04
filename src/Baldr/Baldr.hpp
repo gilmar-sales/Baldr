@@ -20,6 +20,7 @@
 #include <Baldr/Middleware/SecurityHeaders.hpp>
 #include <Baldr/OpenApi/BaldrOpenApiExtension.hpp>
 #include <Baldr/OpenApi/MapOpenApi.hpp>
-namespace BALDR_NAMESPACE {
+namespace BALDR_NAMESPACE
+{
 
 } // namespace BALDR_NAMESPACE

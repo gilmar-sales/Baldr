@@ -11,29 +11,32 @@
 
 #include <Baldr/Application/WebApplication.hpp>
 
-namespace BALDR_NAMESPACE {
-
-/**
- * @brief Skirnir extension registering the framework's core services
- *        (router, middleware provider, parsers, loggers, server options,
- *        request id, etc.).
- *
- * Register on the @c skr::ApplicationBuilder before the host is built.
- */
-class BaldrExtension : public skr::IExtension
+namespace BALDR_NAMESPACE
 {
-  public:
-    virtual ~BaldrExtension() = default;
 
     /**
-     * @brief Add Baldr's default services to @p services.
+     * @brief Skirnir extension registering the framework's core services
+     *        (router, middleware provider, parsers, loggers, server options,
+     *        request id, etc.).
+     *
+     * Register on the @c skr::ApplicationBuilder before the host is built.
      */
-    virtual void ConfigureServices(skr::ServiceCollection& services) override;
+    class BaldrExtension : public skr::IExtension
+    {
+      public:
+        virtual ~BaldrExtension() = default;
 
-    /**
-     * @brief Resolve framework services from the built provider.
-     */
-    virtual void UseServices(skr::ServiceProvider& serviceProvider) override;
-};
+        /**
+         * @brief Add Baldr's default services to @p services.
+         */
+        virtual void ConfigureServices(
+            skr::ServiceCollection& services) override;
+
+        /**
+         * @brief Resolve framework services from the built provider.
+         */
+        virtual void UseServices(
+            skr::ServiceProvider& serviceProvider) override;
+    };
 
 } // namespace BALDR_NAMESPACE

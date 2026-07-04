@@ -30,14 +30,16 @@ namespace BALDR_NAMESPACE
         /// @c X-Frame-Options value (e.g. @c "DENY" or @c "SAMEORIGIN").
         std::optional<std::string> frameOptions = "DENY";
 
-        /// @c Referrer-Policy value (e.g. @c "strict-origin-when-cross-origin").
+        /// @c Referrer-Policy value (e.g. @c
+        /// "strict-origin-when-cross-origin").
         std::optional<std::string> referrerPolicy =
             "strict-origin-when-cross-origin";
 
         /// @c Strict-Transport-Security value (only emitted when set).
         std::optional<std::string> strictTransportSecurity = std::nullopt;
 
-        /// @c Permissions-Policy value (e.g. @c "geolocation=(), microphone=()").
+        /// @c Permissions-Policy value (e.g. @c "geolocation=(),
+        /// microphone=()").
         std::optional<std::string> permissionsPolicy = std::nullopt;
 
         /// @c Cross-Origin-Opener-Policy value (e.g. @c "same-origin").

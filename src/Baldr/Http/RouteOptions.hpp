@@ -25,14 +25,16 @@ namespace BALDR_NAMESPACE
      */
     struct RouteOptions
     {
-        std::optional<std::string>                   summary;       ///< Operation summary.
-        std::optional<std::string>                   description;   ///< Operation description.
-        std::vector<std::string>                     tags;          ///< Operation tags.
-        std::optional<std::string>                   operationId;   ///< Unique operation identifier.
-        bool                                         deprecated = false; ///< Mark as deprecated.
-        std::vector<std::string>                     consumes;      ///< Accepted request MIME types.
-        std::vector<std::string>                     produces;      ///< Emitted response MIME types.
-        std::unordered_map<std::string, std::string> metadata;      ///< Free-form key/value bag for extensions.
+        std::optional<std::string> summary;     ///< Operation summary.
+        std::optional<std::string> description; ///< Operation description.
+        std::vector<std::string>   tags;        ///< Operation tags.
+        std::optional<std::string>
+                                 operationId; ///< Unique operation identifier.
+        bool                     deprecated = false; ///< Mark as deprecated.
+        std::vector<std::string> consumes; ///< Accepted request MIME types.
+        std::vector<std::string> produces; ///< Emitted response MIME types.
+        std::unordered_map<std::string, std::string>
+            metadata; ///< Free-form key/value bag for extensions.
     };
 
     /**
@@ -44,10 +46,10 @@ namespace BALDR_NAMESPACE
      */
     struct RouteInfo
     {
-        std::string  path;                            ///< Resolved template path (e.g. @c "/users/{id}").
-        std::string  group;                           ///< Group prefix, if any.
-        HttpMethod   method { HttpMethod::Get };      ///< HTTP method.
-        RouteOptions options;                         ///< Copy of the route's OpenAPI options.
+        std::string  path;  ///< Resolved template path (e.g. @c "/users/{id}").
+        std::string  group; ///< Group prefix, if any.
+        HttpMethod   method { HttpMethod::Get }; ///< HTTP method.
+        RouteOptions options; ///< Copy of the route's OpenAPI options.
     };
 
 } // namespace BALDR_NAMESPACE

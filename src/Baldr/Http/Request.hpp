@@ -27,17 +27,21 @@ namespace BALDR_NAMESPACE
      */
     struct HttpRequest
     {
-        HttpMethod                                   method;       ///< Request method.
-        std::string                                  path;         ///< Path component (no query string).
-        std::string                                  version;      ///< HTTP version string (e.g. @c "HTTP/1.1").
-        std::string                                  clientIp;     ///< Remote peer address.
-        std::unordered_map<std::string, std::string> headers;      ///< Header map (lowercase keys).
-        std::unordered_map<std::string, std::string> query;        ///< Decoded query-string parameters.
-        std::unordered_map<std::string, std::string> params;       ///< Path-template parameters (e.g. @c :id).
-        std::unordered_map<std::string, std::string> cookies;      ///< Decoded cookies from the @c Cookie header.
-        std::string                                  body;         ///< Raw request body.
-        RouteInfo                                    route;        ///< Resolved route identity.
-        TraceContext                                 traceContext; ///< W3C Trace Context state.
+        HttpMethod  method;   ///< Request method.
+        std::string path;     ///< Path component (no query string).
+        std::string version;  ///< HTTP version string (e.g. @c "HTTP/1.1").
+        std::string clientIp; ///< Remote peer address.
+        std::unordered_map<std::string, std::string>
+            headers; ///< Header map (lowercase keys).
+        std::unordered_map<std::string, std::string>
+            query; ///< Decoded query-string parameters.
+        std::unordered_map<std::string, std::string>
+            params; ///< Path-template parameters (e.g. @c :id).
+        std::unordered_map<std::string, std::string>
+                     cookies; ///< Decoded cookies from the @c Cookie header.
+        std::string  body;    ///< Raw request body.
+        RouteInfo    route;   ///< Resolved route identity.
+        TraceContext traceContext; ///< W3C Trace Context state.
 
         HttpRequest() = default;
     };

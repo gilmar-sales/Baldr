@@ -25,17 +25,19 @@ namespace BALDR_NAMESPACE
          */
         struct StaticResolve
         {
-            StatusCode            status;     ///< Suggested HTTP status (200/403/404).
-            std::filesystem::path canonical;  ///< Canonicalised absolute path of the resolved file.
-            std::string           mimeType;   ///< Best-effort MIME type based on extension.
-            std::string           body;       ///< Inline body for error responses.
+            StatusCode status; ///< Suggested HTTP status (200/403/404).
+            std::filesystem::path canonical; ///< Canonicalised absolute path of
+                                             ///< the resolved file.
+            std::string mimeType; ///< Best-effort MIME type based on extension.
+            std::string body;     ///< Inline body for error responses.
 
             /// File size in bytes. Only meaningful when @c status == OK.
-            std::uintmax_t                        fileSize = 0;
+            std::uintmax_t fileSize = 0;
             /// Last-modified timestamp. Only meaningful when @c status == OK.
             std::chrono::system_clock::time_point lastModified {};
 
-            /// ETag value (quoted, e.g. @c "<size>-<mtimeHex>"). Empty if not OK.
+            /// ETag value (quoted, e.g. @c "<size>-<mtimeHex>"). Empty if not
+            /// OK.
             std::string etag;
         };
 

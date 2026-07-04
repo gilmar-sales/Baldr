@@ -12,25 +12,27 @@
 
 #include <Baldr/Http/Router.hpp>
 
-namespace BALDR_NAMESPACE {
+namespace BALDR_NAMESPACE
+{
 
-/**
- * @brief Map an @ref HttpMethod enum to its lowercase OpenAPI verb
- *        (e.g. @c Get -> @c "get").
- */
-const char* MethodToString(HttpMethod m);
+    /**
+     * @brief Map an @ref HttpMethod enum to its lowercase OpenAPI verb
+     *        (e.g. @c Get -> @c "get").
+     */
+    const char* MethodToString(HttpMethod m);
 
-/**
- * @brief Translate a router path template like @c "/users/:id" (or
- *        @c "/a/**") to OpenAPI path templating (@c "/users/{id}",
- *        @c "/a/{filepath}").
- */
-std::string TranslatePath(const std::string& routerPath);
+    /**
+     * @brief Translate a router path template like @c "/users/:id" (or
+     *        @c "/a/**") to OpenAPI path templating (@c "/users/{id}",
+     *        @c "/a/{filepath}").
+     */
+    std::string TranslatePath(const std::string& routerPath);
 
-/**
- * @brief Deduplicate the union of route templates, preserving the order
- *        in which they were registered.
- */
-std::vector<std::string> UniquePaths(const std::vector<RouteEntry>& entries);
+    /**
+     * @brief Deduplicate the union of route templates, preserving the order
+     *        in which they were registered.
+     */
+    std::vector<std::string> UniquePaths(
+        const std::vector<RouteEntry>& entries);
 
 } // namespace BALDR_NAMESPACE

@@ -41,7 +41,8 @@ namespace BALDR_NAMESPACE
         /**
          * @brief Format the request-side access log line.
          *
-         * Format: @c Request - '<version>' '<method>' '<path>' [trace=<id> [span=<id>]]
+         * Format: @c Request - '<version>' '<method>' '<path>' [trace=<id>
+         * [span=<id>]]
          */
         static std::string FormatRequestLine(const HttpRequest& request)
         {
@@ -55,7 +56,8 @@ namespace BALDR_NAMESPACE
         /**
          * @brief Format the response-side access log line.
          *
-         * Format: @c Response - <status> '<method>' '<path>' - <micros>us - <clientIp> [trace=<id>]
+         * Format: @c Response - <status> '<method>' '<path>' - <micros>us -
+         * <clientIp> [trace=<id>]
          */
         static std::string FormatResponseLine(
             const HttpRequest&        request,

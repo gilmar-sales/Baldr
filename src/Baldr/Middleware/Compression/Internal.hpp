@@ -23,7 +23,8 @@ namespace BALDR_NAMESPACE
          * @param input  Bytes to compress.
          * @param output Receives the compressed bytes on success; cleared
          *               on failure.
-         * @param level  zlib compression level (1..9, or @c Z_DEFAULT_COMPRESSION).
+         * @param level  zlib compression level (1..9, or @c
+         * Z_DEFAULT_COMPRESSION).
          * @return @c true on success.
          */
         bool gzipCompress(std::string_view input, std::string& output,

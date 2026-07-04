@@ -182,7 +182,7 @@ namespace BALDR_NAMESPACE
         /// @return The accumulated OpenAPI options.
         const RouteOptions& options() const { return mOptions; }
         /// @return The raw JSON Schema string for the request body, if set.
-        const std::string&  requestSchemaJson() const
+        const std::string& requestSchemaJson() const
         {
             return mRequestSchemaJson;
         }
@@ -192,7 +192,7 @@ namespace BALDR_NAMESPACE
             return mResponseSchemaJson;
         }
         /// @return The HTTP method this registration targets.
-        HttpMethod         method() const { return mMethod; }
+        HttpMethod method() const { return mMethod; }
         /// @return The path template (without group prefix).
         const std::string& path() const { return mPath; }
         /// @return The group prefix, or empty when not in a group.

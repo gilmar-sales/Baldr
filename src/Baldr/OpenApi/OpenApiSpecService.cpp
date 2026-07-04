@@ -1,34 +1,36 @@
-#include <Baldr/Detail/Namespace.hpp>
 #include "OpenApiSpecService.hpp"
+#include <Baldr/Detail/Namespace.hpp>
 
-namespace BALDR_NAMESPACE {
-
-const std::string& OpenApiSpecService::Cached(const skr::Arc<Router>& router)
+namespace BALDR_NAMESPACE
 {
-    if (!mRendered)
-        Regenerate(router);
-    return mCache;
-}
 
-void OpenApiSpecService::Regenerate(const skr::Arc<Router>& router)
-{
-    auto entries = router->Snapshot();
-
-    const SchemaRegistry* reg    = nullptr;
-    const auto&           shared = router->SchemaRegistrySlot();
-    if (shared && !shared->Schemas().empty())
+    const std::string& OpenApiSpecService::Cached(
+        const skr::Arc<Router>& router)
     {
-        reg = shared.get();
-    }
-    else
-    {
-        reg = &mRegistry;
+        if (!mRendered)
+            Regenerate(router);
+        return mCache;
     }
 
-    SpecBuilder builder(mOptions);
-    builder.SetRegistry(*reg);
-    mCache    = builder.Render(entries);
-    mRendered = true;
-}
+    void OpenApiSpecService::Regenerate(const skr::Arc<Router>& router)
+    {
+        auto entries = router->Snapshot();
+
+        const SchemaRegistry* reg    = nullptr;
+        const auto&           shared = router->SchemaRegistrySlot();
+        if (shared && !shared->Schemas().empty())
+        {
+            reg = shared.get();
+        }
+        else
+        {
+            reg = &mRegistry;
+        }
+
+        SpecBuilder builder(mOptions);
+        builder.SetRegistry(*reg);
+        mCache    = builder.Render(entries);
+        mRendered = true;
+    }
 
 } // namespace BALDR_NAMESPACE

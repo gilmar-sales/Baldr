@@ -40,10 +40,13 @@ namespace BALDR_NAMESPACE
          */
         struct HistogramSnapshot
         {
-            std::vector<double>        upperBounds;  ///< Inclusive upper bounds for each bucket.
-            std::vector<std::uint64_t> bucketCounts; ///< Cumulative counts per bucket (Prometheus style).
-            std::uint64_t              count = 0;    ///< Total observation count.
-            double                     sum   = 0.0;  ///< Sum of observed values.
+            std::vector<double>
+                upperBounds; ///< Inclusive upper bounds for each bucket.
+            std::vector<std::uint64_t>
+                bucketCounts; ///< Cumulative counts per bucket (Prometheus
+                              ///< style).
+            std::uint64_t count = 0;   ///< Total observation count.
+            double        sum   = 0.0; ///< Sum of observed values.
         };
 
         /// @return The process-wide singleton.
@@ -75,7 +78,7 @@ namespace BALDR_NAMESPACE
         /// @return Total number of requests recorded so far.
         std::uint64_t requestCount() const;
         /// @return Current value of the in-flight gauge.
-        std::int64_t  inFlight() const;
+        std::int64_t inFlight() const;
 
         /// @return Default histogram bucket upper bounds (seconds).
         static const std::vector<double>& defaultBuckets();

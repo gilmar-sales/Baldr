@@ -12,76 +12,82 @@
 
 #include <Baldr/Middleware/IMiddleware.hpp>
 
-namespace BALDR_NAMESPACE {
-
-/**
- * @brief Configuration for @ref CompressionMiddleware.
- */
-struct CompressionOptions
+namespace BALDR_NAMESPACE
 {
+
     /**
-     * @brief Only compress responses whose Content-Type starts with one
-     *        of these prefixes (case-insensitive). Defaults to text-like
-     *        types where compression pays off.
+     * @brief Configuration for @ref CompressionMiddleware.
      */
-    std::unordered_set<std::string> mimeTypePrefixes = {
-        "text/",           "application/json",      "application/javascript",
-        "application/xml", "application/xhtml+xml", "image/svg+xml",
+    struct CompressionOptions
+    {
+        /**
+         * @brief Only compress responses whose Content-Type starts with one
+         *        of these prefixes (case-insensitive). Defaults to text-like
+         *        types where compression pays off.
+         */
+        std::unordered_set<std::string> mimeTypePrefixes = {
+            "text/",
+            "application/json",
+            "application/javascript",
+            "application/xml",
+            "application/xhtml+xml",
+            "image/svg+xml",
+        };
+
+        /**
+         * @brief Skip responses smaller than this many bytes. Defaults to
+         *        1024 because compression overhead rarely pays off on tiny
+         *        bodies.
+         */
+        std::size_t minBodyBytes = 1024;
+
+        /**
+         * @brief Compression level passed to zlib (1..9). @c -1 selects
+         *        zlib's default (typically 6).
+         */
+        int level = -1;
     };
 
     /**
-     * @brief Skip responses smaller than this many bytes. Defaults to
-     *        1024 because compression overhead rarely pays off on tiny
-     *        bodies.
+     * @brief Middleware that gzip-compresses qualifying buffered responses
+     *        and updates the @c Content-Encoding / @c Content-Length
+     *        headers accordingly.
      */
-    std::size_t minBodyBytes = 1024;
-
-    /**
-     * @brief Compression level passed to zlib (1..9). @c -1 selects
-     *        zlib's default (typically 6).
-     */
-    int level = -1;
-};
-
-/**
- * @brief Middleware that gzip-compresses qualifying buffered responses
- *        and updates the @c Content-Encoding / @c Content-Length
- *        headers accordingly.
- */
-class CompressionMiddleware final : public IMiddleware
-{
-  public:
-    /**
-     * @brief Construct the middleware with the given options.
-     */
-    explicit CompressionMiddleware(CompressionOptions options = {}) :
-        mOptions(std::move(options))
+    class CompressionMiddleware final : public IMiddleware
     {
-    }
+      public:
+        /**
+         * @brief Construct the middleware with the given options.
+         */
+        explicit CompressionMiddleware(CompressionOptions options = {}) :
+            mOptions(std::move(options))
+        {
+        }
 
-    ~CompressionMiddleware() override = default;
+        ~CompressionMiddleware() override = default;
 
-    void Handle(HttpRequest&          request,
-                HttpResponse&         response,
-                const NextMiddleware& next) override;
+        void Handle(HttpRequest&          request,
+                    HttpResponse&         response,
+                    const NextMiddleware& next) override;
 
-  private:
-    static std::string toLowerAscii(std::string_view s);
+      private:
+        static std::string toLowerAscii(std::string_view s);
 
-    static bool mimeAllowed(const std::string&                     ctype,
-                            const std::unordered_set<std::string>& prefixes);
+        static bool mimeAllowed(
+            const std::string&                     ctype,
+            const std::unordered_set<std::string>& prefixes);
 
-  public:
-    // Public helper for unit tests; not part of the framework's
-    // user-facing API.
-    static bool mimeAllowedForTest(
-        const std::string&                     ctype,
-        const std::unordered_set<std::string>& prefixes)
-    {
-        return mimeAllowed(ctype, prefixes);
-    }
+      public:
+        // Public helper for unit tests; not part of the framework's
+        // user-facing API.
+        static bool mimeAllowedForTest(
+            const std::string&                     ctype,
+            const std::unordered_set<std::string>& prefixes)
+        {
+            return mimeAllowed(ctype, prefixes);
+        }
 
-    CompressionOptions mOptions;
-};
+        CompressionOptions mOptions;
+    };
 
 } // namespace BALDR_NAMESPACE

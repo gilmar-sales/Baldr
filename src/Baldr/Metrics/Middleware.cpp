@@ -9,45 +9,48 @@
 #include <Baldr/Http/Method.hpp>
 #include <Baldr/Metrics/Registry.hpp>
 
-namespace BALDR_NAMESPACE {
-
-void MetricsMiddleware::Handle(HttpRequest&          request,
-                               HttpResponse&         response,
-                               const NextMiddleware& next)
+namespace BALDR_NAMESPACE
 {
-    auto& reg = BALDR_NAMESPACE::MetricsRegistry::instance();
-    reg.incInFlight(+1);
 
-    using namespace std::chrono;
-    auto begin = steady_clock::now();
+    void MetricsMiddleware::Handle(HttpRequest&          request,
+                                   HttpResponse&         response,
+                                   const NextMiddleware& next)
+    {
+        auto& reg = BALDR_NAMESPACE::MetricsRegistry::instance();
+        reg.incInFlight(+1);
 
-    next();
+        using namespace std::chrono;
+        auto begin = steady_clock::now();
 
-    auto end = steady_clock::now();
-    auto dur = duration<double>(end - begin).count();
+        next();
 
-    std::string methodLabel = std::string(refl::enum_to_string(request.method));
-    std::string pathLabel   = mOptions.usePathLabel ? request.path : "/";
+        auto end = steady_clock::now();
+        auto dur = duration<double>(end - begin).count();
 
-    reg.incRequest(methodLabel, static_cast<int>(response.statusCode));
-    reg.observeLatencySeconds(methodLabel, pathLabel, dur);
+        std::string methodLabel =
+            std::string(refl::enum_to_string(request.method));
+        std::string pathLabel = mOptions.usePathLabel ? request.path : "/";
 
-    reg.incInFlight(-1);
-}
+        reg.incRequest(methodLabel, static_cast<int>(response.statusCode));
+        reg.observeLatencySeconds(methodLabel, pathLabel, dur);
 
-void MapMetrics(WebApplication& app, MetricsOptions options)
-{
-    if (options.endpointPath.empty())
-        return;
+        reg.incInFlight(-1);
+    }
 
-    const std::string path = options.endpointPath;
+    void MapMetrics(WebApplication& app, MetricsOptions options)
+    {
+        if (options.endpointPath.empty())
+            return;
 
-    app.MapGet(path, [path](HttpResponse& response) -> ContentResult {
-        (void) path;
-        auto body = BALDR_NAMESPACE::MetricsRegistry::instance().renderPrometheus();
-        ContentResult r(body, "text/plain; version=0.0.4", StatusCode::OK);
-        return r;
-    });
-}
+        const std::string path = options.endpointPath;
+
+        app.MapGet(path, [path](HttpResponse& response) -> ContentResult {
+            (void) path;
+            auto body =
+                BALDR_NAMESPACE::MetricsRegistry::instance().renderPrometheus();
+            ContentResult r(body, "text/plain; version=0.0.4", StatusCode::OK);
+            return r;
+        });
+    }
 
 } // namespace BALDR_NAMESPACE
