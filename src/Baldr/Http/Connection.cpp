@@ -139,9 +139,9 @@ void HttpConnection::handle(HttpRequest request)
                                 request.path);
             httpResponse.statusCode         = StatusCode::NotFound;
             httpResponse.body               = "Not Found";
-            httpResponse.headers["Content-Type"]   = "plain/text";
+            httpResponse.headers["Content-Type"]   = "text/plain";
             httpResponse.headers["Content-Length"] =
-                std::to_string(httpResponse.body.size());
+                    std::to_string(httpResponse.body.size());
             sendResponse(httpResponse, /*closeConnection=*/true);
             return;
         }
@@ -177,6 +177,23 @@ void HttpConnection::handle(HttpRequest request)
         if (request.method == HttpMethod::Head)
         {
             httpResponse.body.clear();
+        }
+
+        // 204 No Content and 304 Not Modified must not include a body.
+        // For all other 4xx responses, ensure a body so clients always
+        // receive something meaningful.
+        const int statusInt = static_cast<int>(httpResponse.statusCode);
+        if (httpResponse.body.empty() &&
+            httpResponse.statusCode != StatusCode::NoContent &&
+            httpResponse.statusCode != StatusCode::NotModified &&
+            statusInt >= 400 && statusInt < 500)
+        {
+            httpResponse.body = reasonPhrase(httpResponse.statusCode);
+            if (httpResponse.headers.find("Content-Type") ==
+                httpResponse.headers.end())
+            {
+                httpResponse.headers["Content-Type"] = "text/plain";
+            }
         }
 
         if (httpResponse.body.empty() &&
@@ -255,7 +272,7 @@ void HttpConnection::sendErrorResponse(StatusCode      statusCode,
     response.version          = "HTTP/1.1";
     response.statusCode       = statusCode;
     response.body             = body;
-    response.headers["Content-Type"]   = "plain/text";
+    response.headers["Content-Type"]   = "text/plain";
     response.headers["Content-Length"] = std::to_string(body.size());
     response.headers["Connection"]     = "close";
     sendResponse(response, /*closeConnection=*/true);
