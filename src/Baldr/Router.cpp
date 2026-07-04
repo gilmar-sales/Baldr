@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include "OpenApi/JsonSchemaEmitter.hpp"
+
 namespace
 {
     RouteEntry makeEntry(HttpMethod method, std::string_view path,
@@ -23,6 +25,20 @@ namespace
             .method       = method,
         };
     }
+}
+
+Router::Router() : mSchemaRegistry(
+                       skr::MakeArc<SchemaRegistry>())
+{
+    mMethodsMap[HttpMethod::Get]     = std::make_unique<TrieNode>();
+    mMethodsMap[HttpMethod::Post]    = std::make_unique<TrieNode>();
+    mMethodsMap[HttpMethod::Put]     = std::make_unique<TrieNode>();
+    mMethodsMap[HttpMethod::Delete]  = std::make_unique<TrieNode>();
+    mMethodsMap[HttpMethod::Patch]   = std::make_unique<TrieNode>();
+    mMethodsMap[HttpMethod::Options] = std::make_unique<TrieNode>();
+    mMethodsMap[HttpMethod::Head]    = std::make_unique<TrieNode>();
+    mMethodsMap[HttpMethod::Trace]   = std::make_unique<TrieNode>();
+    mMethodsMap[HttpMethod::Connect] = std::make_unique<TrieNode>();
 }
 
 void Router::insert(HttpMethod method, std::string path,

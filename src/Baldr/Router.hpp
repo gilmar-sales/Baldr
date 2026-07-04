@@ -18,6 +18,8 @@
 #include "RouteOptions.hpp"
 #include "Tuple.hpp"
 
+class SchemaRegistry;
+
 using RouteHandler = std::function<void(
     HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>)>;
 
@@ -74,18 +76,7 @@ struct TrieNode
 class Router
 {
   public:
-    Router()
-    {
-        mMethodsMap[HttpMethod::Get]     = std::make_unique<TrieNode>();
-        mMethodsMap[HttpMethod::Post]    = std::make_unique<TrieNode>();
-        mMethodsMap[HttpMethod::Put]     = std::make_unique<TrieNode>();
-        mMethodsMap[HttpMethod::Delete]  = std::make_unique<TrieNode>();
-        mMethodsMap[HttpMethod::Patch]   = std::make_unique<TrieNode>();
-        mMethodsMap[HttpMethod::Options] = std::make_unique<TrieNode>();
-        mMethodsMap[HttpMethod::Head]    = std::make_unique<TrieNode>();
-        mMethodsMap[HttpMethod::Trace]   = std::make_unique<TrieNode>();
-        mMethodsMap[HttpMethod::Connect] = std::make_unique<TrieNode>();
-    }
+    Router();
 
     ~Router()                            = default;
     Router(const Router&)                = delete;
@@ -137,7 +128,7 @@ class Router
                 using ResultType = LambdaResult<decltype(handler)>;
                 if constexpr (!std::is_same_v<ResultType, void>)
                 {
-                    auto result = std::move(std::apply(handler, args));
+                    auto result = std::apply(handler, args);
 
                     if constexpr (std::is_base_of_v<IStreamingResult,
                                                     ResultType> &&
@@ -219,6 +210,15 @@ class Router
     // Used by introspection consumers (e.g. OpenAPI extension).
     std::vector<RouteEntry> Snapshot() const;
 
+    // Returns the shared JSON Schema registry used for auto-derived
+    // request/response schemas. Routes that opt into auto-derivation via
+    // `RouteRegistration::Handle` register their DTOs here; the OpenAPI
+    // extension reads the same registry when rendering `components`.
+    const skr::Arc<SchemaRegistry>& SchemaRegistrySlot() const
+    {
+        return mSchemaRegistry;
+    }
+
   private:
     [[nodiscard]] std::optional<RouteEntry> matchInTrie(
         HttpMethod method, std::string_view path) const;
@@ -229,4 +229,5 @@ class Router
 
     mutable std::shared_mutex                       mMutex {};
     std::map<HttpMethod, std::unique_ptr<TrieNode>> mMethodsMap;
+    skr::Arc<SchemaRegistry>                        mSchemaRegistry;
 };

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <meta>
 #include <string>
 #include <utility>
 
@@ -8,6 +9,10 @@
 #include "HttpMethod.hpp"
 #include "RouteOptions.hpp"
 #include "Router.hpp"
+
+#include "OpenApi/JsonSchemaEmitter.hpp"
+
+#include "Result.hpp"
 
 class WebApplication;
 
@@ -91,6 +96,38 @@ namespace Baldr
             return *this;
         }
 
+        template <typename T>
+        RouteRegistration& WithRequestType()
+        {
+            static_assert(
+                IsAutoDerivable<T> || Detail::IsVectorOfAutoDerivableV<T>,
+                "RouteRegistration::WithRequestType<T>: T must be a "
+                "reflectable struct whose non-static data members are all "
+                "in the supported primitive set (std::string, "
+                "std::string_view, integral, double/float, bool).");
+
+            auto& reg          = *mRouter.SchemaRegistrySlot();
+            auto  ref          = TryEmitRefFor<T>(reg);
+            mRequestSchemaJson = ref.value_or(std::string {});
+            return *this;
+        }
+
+        template <typename T>
+        RouteRegistration& WithResponseType()
+        {
+            static_assert(
+                IsAutoDerivable<T> || Detail::IsVectorOfAutoDerivableV<T>,
+                "RouteRegistration::WithRequestType<T>: T must be a "
+                "reflectable struct whose non-static data members are all "
+                "in the supported primitive set (std::string, "
+                "std::string_view, integral, double/float, bool).");
+
+            auto& reg           = *mRouter.SchemaRegistrySlot();
+            auto  ref           = TryEmitRefFor<T>(reg);
+            mResponseSchemaJson = ref.value_or(std::string {});
+            return *this;
+        }
+
         const RouteOptions& options() const { return mOptions; }
         const std::string&  requestSchemaJson() const
         {
@@ -104,13 +141,30 @@ namespace Baldr
         const std::string& path() const { return mPath; }
         const std::string& groupPrefix() const { return mGroupPrefix; }
 
-        // Final binding step. Forwards to WebApplication::BindRoute with the
-        // buffered options. Inline body requires WebApplication to be a
-        // complete type at instantiation; call sites live in WebApplication
-        // methods or after WebApplication.hpp has been included.
         template <typename Handler>
         void Handle(Handler&& handler)
         {
+            using ResultType = typename LambdaTraits<
+                std::remove_reference_t<decltype(handler)>>::RetType;
+
+            if (mResponseSchemaJson.empty())
+            {
+                constexpr bool isIResult =
+                    std::is_base_of_v<IResult, ResultType> ||
+                    std::is_base_of_v<IStreamingResult, ResultType>;
+
+                if constexpr (!isIResult &&
+                              (IsAutoDerivable<ResultType> ||
+                               Detail::IsVectorOfAutoDerivableV<ResultType>) )
+                {
+                    auto& reg = *mRouter.SchemaRegistrySlot();
+                    if (auto ref = TryEmitRefFor<ResultType>(reg))
+                    {
+                        mResponseSchemaJson = std::move(*ref);
+                    }
+                }
+            }
+
             if (!mRequestSchemaJson.empty())
             {
                 mOptions.metadata["requestSchemaJson"] = mRequestSchemaJson;

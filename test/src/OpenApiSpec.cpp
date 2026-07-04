@@ -1,5 +1,5 @@
-#include <OpenApiSpecService.hpp>
-#include <RouteIntrospector.hpp>
+#include <Baldr/OpenApi/OpenApiSpecService.hpp>
+#include <Baldr/OpenApi/RouteIntrospector.hpp>
 
 #include <Baldr/Router.hpp>
 
@@ -23,10 +23,10 @@ class OpenApiSpec : public ::testing::Test
 
 TEST_F(OpenApiSpec, CachedIsStableUntilRegenerate)
 {
-    Baldr::OpenApi::OpenApiOptions opts;
+    OpenApiOptions opts;
     opts.info.title = "Cached Test";
 
-    Baldr::OpenApi::OpenApiSpecService svc(std::move(opts));
+    OpenApiSpecService svc(std::move(opts));
     svc.Regenerate(mRouter);
     const std::string& first = svc.Cached(mRouter);
     const std::string& second = svc.Cached(mRouter);
@@ -54,8 +54,8 @@ TEST_F(OpenApiSpec, SpecContainsPathTemplatesAndMethods)
         HttpMethod::Post, "/users", postOpts, "",
         [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
 
-    Baldr::OpenApi::OpenApiOptions opts;
-    Baldr::OpenApi::OpenApiSpecService svc(std::move(opts));
+    OpenApiOptions opts;
+    OpenApiSpecService svc(std::move(opts));
     svc.Regenerate(mRouter);
     const std::string& spec = svc.Cached(mRouter);
 

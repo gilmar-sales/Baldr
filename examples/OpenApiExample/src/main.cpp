@@ -1,15 +1,16 @@
 #include <Baldr/Baldr.hpp>
 
 #include "Device.hpp"
+#include "User.hpp"
 
 int main()
 {
     auto builder =
         skr::ApplicationBuilder()
             .WithExtension<BaldrExtension>()
-            .WithExtension<Baldr::OpenApi::BaldrOpenApiExtension>(
-                [](Baldr::OpenApi::BaldrOpenApiExtension& openApi) {
-                    Baldr::OpenApi::OpenApiOptions opts;
+            .WithExtension<BaldrOpenApiExtension>(
+                [](BaldrOpenApiExtension& openApi) {
+                    OpenApiOptions opts;
                     opts.info.title       = "Devices API";
                     opts.info.version     = "1.0.0";
                     opts.info.description = "Reference example demonstrating "
@@ -23,16 +24,6 @@ int main()
         .WithSummary("List devices")
         .WithOperationId("listDevices")
         .WithTag("devices")
-        .WithResponseSchemaJson(
-            "{\"type\":\"array\",\"items\":{\"type\":\"object\","
-            "\"properties\":{\"id\":{\"type\":\"integer\"},"
-            "\"uuid\":{\"type\":\"string\"},"
-            "\"mac\":{\"type\":\"string\"},"
-            "\"firmware\":{\"type\":\"string\"},"
-            "\"created_at\":{\"type\":\"string\"},"
-            "\"updated_at\":{\"type\":\"string\"}},"
-            "\"required\":[\"id\",\"uuid\",\"mac\",\"firmware\","
-            "\"created_at\",\"updated_at\"]}}")
         .Handle([]() {
             return std::vector<Device> {
                 Device { 1, "9add349c-c35c-4d32-ab0f-53da1ba40a2a",
@@ -47,11 +38,12 @@ int main()
         });
 
     app->MapGroup("/api/v1", [](auto& group) {
-        group.MapGet("/users/:id")
-            .WithSummary("Fetch user by id")
+        group.MapGet("/users")
+            .WithSummary("Fetch users")
             .WithTag("users")
             .Handle([](HttpRequest& req) {
-                return std::string { "user " + req.params["id"] };
+                return std::vector<User> { User { .id = 1, .name = "First" },
+                                           User { .id = 2, .name = "Second" } };
             });
     });
 

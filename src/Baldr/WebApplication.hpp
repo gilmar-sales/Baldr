@@ -89,8 +89,6 @@ class WebApplication : public skr::IApplication
 
     void Run() override;
 
-    // Public so RouteBuilder and RouteRegistration can call into it for
-    // grouped routes and per-route fluent options. Forwards to MapRoute.
     template <typename Handler>
     void BindRoute(HttpMethod method, const std::string& route,
                    const std::string&         groupPrefix,
@@ -101,7 +99,6 @@ class WebApplication : public skr::IApplication
         MapRoute(method, route, groupPrefix, options, handler);
     }
 
-    // Public so RouteBuilder can call into it for grouped routes.
     template <typename Handler>
     void MapRoute(HttpMethod method, const std::string& route,
                   Handler&& handler)

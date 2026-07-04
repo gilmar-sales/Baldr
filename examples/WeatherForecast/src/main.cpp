@@ -25,7 +25,16 @@ int main()
 
     auto app = builder.Build<WebApplication>();
 
-    app->MapGet("/", [] {
+    app->MapGet("/")
+        .WithResponseSchemaJson(
+            "{\"type\":\"array\",\"items\":{\"type\":\"object\","
+            "\"properties\":{\"date\":{\"type\":\"string\"},"
+            "\"summary\":{\"type\":\"string\"},"
+            "\"temperatureC\":{\"type\":\"integer\"},"
+            "\"temperatureF\":{\"type\":\"integer\"}},"
+            "\"required\":[\"date\",\"summary\",\"temperatureC\","
+            "\"temperatureF\"]}}")
+        .Handle([] {
         auto forecast = std::vector<WeatherForecast>(5);
 
         static auto summaries =

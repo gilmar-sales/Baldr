@@ -5,8 +5,6 @@
 
 #include <Baldr/Router.hpp>
 
-namespace Baldr::OpenApi
-{
     // Maps an HttpMethod enum to its lowercase OpenAPI verb.
     const char* MethodToString(HttpMethod m);
 
@@ -18,4 +16,3 @@ namespace Baldr::OpenApi
     // which they were registered.
     std::vector<std::string> UniquePaths(
         const std::vector<RouteEntry>& entries);
-}

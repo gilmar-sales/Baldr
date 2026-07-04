@@ -15,7 +15,7 @@ This page lists the extensions shipped with Baldr and links to their dedicated d
 | `RateLimitMiddleware` | Rejects clients that exceed a configured rate | [Rate limit](rate-limit.md) |
 | `BaldrOpenApiExtension` | Renders an OpenAPI 3.0.3 document from the router and serves it as JSON | [OpenAPI](openapi.md) |
 
-The middleware extensions live under the [`src/Baldr/`](https://github.com/gilmar-sales/Baldr/tree/main/src/Baldr) directory and are header-only — including the header registers the middleware with the framework. The OpenAPI extension is compiled into the `baldr` library under `src/Baldr/extensions/OpenApi/` and is opted into via `skr::ApplicationBuilder`.
+The middleware extensions live under the [`src/Baldr/`](https://github.com/gilmar-sales/Baldr/tree/main/src/Baldr) directory and are header-only — including the header registers the middleware with the framework. The OpenAPI extension is compiled into the `baldr` library under `src/Baldr/OpenApi/` and is opted into via `skr::ApplicationBuilder`.
 
 ## Writing your own extension
 

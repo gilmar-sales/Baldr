@@ -1,7 +1,10 @@
-#include <JsonSchemaEmitter.hpp>
-#include <RouteIntrospector.hpp>
-#include <SpecBuilder.hpp>
-#include <OpenApiOptions.hpp>
+#include <Baldr/OpenApi/JsonSchemaEmitter.hpp>
+#include <Baldr/OpenApi/RouteIntrospector.hpp>
+#include <Baldr/OpenApi/SpecBuilder.hpp>
+#include <Baldr/OpenApi/OpenApiOptions.hpp>
+
+#include <Baldr/Router.hpp>
+#include <Baldr/RouteRegistration.hpp>
 
 #include <gtest/gtest.h>
 
@@ -19,8 +22,8 @@ struct ReflectableDevice
 
 TEST(JsonSchemaEmitterSpec, EmitsStructSchemaWithPrimitiveFields)
 {
-    Baldr::OpenApi::SchemaRegistry reg;
-    std::string schema = Baldr::OpenApi::EmitAndRegister<ReflectableDevice>(
+    SchemaRegistry reg;
+    std::string schema = EmitAndRegister<ReflectableDevice>(
         reg);
 
     simdjson::dom::parser parser;
@@ -66,9 +69,9 @@ TEST(JsonSchemaEmitterSpec, EmitsStructSchemaWithPrimitiveFields)
 
 TEST(JsonSchemaEmitterSpec, RegistryDeduplicatesByTypeName)
 {
-    Baldr::OpenApi::SchemaRegistry reg;
-    Baldr::OpenApi::EmitAndRegister<ReflectableDevice>(reg);
-    Baldr::OpenApi::EmitAndRegister<ReflectableDevice>(reg);
+    SchemaRegistry reg;
+    EmitAndRegister<ReflectableDevice>(reg);
+    EmitAndRegister<ReflectableDevice>(reg);
 
     EXPECT_EQ(reg.Schemas().size(), 1u);
     EXPECT_TRUE(reg.Contains("ReflectableDevice"));
@@ -76,18 +79,18 @@ TEST(JsonSchemaEmitterSpec, RegistryDeduplicatesByTypeName)
 
 TEST(JsonSchemaEmitterSpec, TranslatePathReplacesColonParam)
 {
-    EXPECT_EQ(Baldr::OpenApi::TranslatePath("/users/:id"),
+    EXPECT_EQ(TranslatePath("/users/:id"),
               "/users/{id}");
-    EXPECT_EQ(Baldr::OpenApi::TranslatePath("/a/:b/c"),
+    EXPECT_EQ(TranslatePath("/a/:b/c"),
               "/a/{b}/c");
-    EXPECT_EQ(Baldr::OpenApi::TranslatePath("/files/**"),
+    EXPECT_EQ(TranslatePath("/files/**"),
               "/files/{filepath}");
-    EXPECT_EQ(Baldr::OpenApi::TranslatePath("/"), "/");
+    EXPECT_EQ(TranslatePath("/"), "/");
 }
 
 TEST(SpecBuilderSpec, RendersOpenApiThreeDocument)
 {
-    Baldr::OpenApi::OpenApiOptions opts;
+    OpenApiOptions opts;
     opts.info.title       = "Test";
     opts.info.version     = "1.0.0";
     opts.info.description = "Spec test";
@@ -113,7 +116,7 @@ TEST(SpecBuilderSpec, RendersOpenApiThreeDocument)
     post.options.deprecated  = true;
     entries.push_back(post);
 
-    Baldr::OpenApi::SpecBuilder builder(opts);
+    SpecBuilder builder(opts);
     std::string spec = builder.Render(entries);
 
     simdjson::dom::parser parser;
@@ -165,9 +168,164 @@ TEST(SpecBuilderSpec, MountedOpenApiPathIsExcludedFromSpec)
     mount.method       = HttpMethod::Get;
     std::vector<RouteEntry> entries { mount };
 
-    Baldr::OpenApi::OpenApiOptions opts;
-    Baldr::OpenApi::SpecBuilder  builder(opts);
+    OpenApiOptions opts;
+    SpecBuilder  builder(opts);
     std::string                  spec = builder.Render(entries);
 
     EXPECT_NE(spec.find("/openapi.json"), std::string::npos);
+}
+
+struct AutoDevice
+{
+    int         id;
+    std::string uuid;
+    double      voltage;
+    bool        active;
+};
+
+struct UnsupportedDevice
+{
+    int    id;
+    void*  raw;
+};
+
+static_assert(IsReflectableStruct<ReflectableDevice>,
+              "ReflectableDevice must be auto-derivable");
+static_assert(IsReflectableStruct<AutoDevice>,
+              "AutoDevice must be auto-derivable");
+static_assert(!IsReflectableStruct<UnsupportedDevice>,
+              "UnsupportedDevice has a void* field, must NOT be derivable");
+static_assert(!IsReflectableStruct<std::string>,
+              "std::string is not a struct-shaped reflectable type");
+static_assert(!IsReflectableStruct<int>,
+              "int is not a struct-shaped reflectable type");
+static_assert(
+    !IsReflectableStruct<std::vector<int>>,
+    "std::vector is not a reflectable struct (no reflection members)");
+
+TEST(JsonSchemaEmitterSpec, IsReflectableStructMatchesExpectations)
+{
+    EXPECT_TRUE(IsReflectableStruct<ReflectableDevice>);
+    EXPECT_TRUE(IsReflectableStruct<AutoDevice>);
+    EXPECT_FALSE(IsReflectableStruct<UnsupportedDevice>);
+    EXPECT_FALSE(IsReflectableStruct<std::string>);
+    EXPECT_FALSE(IsReflectableStruct<int>);
+    EXPECT_FALSE(IsReflectableStruct<std::vector<int>>);
+}
+
+TEST(JsonSchemaEmitterSpec, TryEmitRefForReturnsRefFragment)
+{
+    SchemaRegistry reg;
+    auto ref = TryEmitRefFor<AutoDevice>(reg);
+
+    ASSERT_TRUE(ref.has_value());
+    EXPECT_EQ(*ref,
+              "{\"$ref\":\"#/components/schemas/AutoDevice\"}");
+    EXPECT_TRUE(reg.Contains("AutoDevice"));
+}
+
+TEST(JsonSchemaEmitterSpec, TryEmitRefForDeduplicatesAcrossCalls)
+{
+    SchemaRegistry reg;
+    TryEmitRefFor<AutoDevice>(reg);
+    TryEmitRefFor<AutoDevice>(reg);
+
+    EXPECT_EQ(reg.Schemas().size(), 1u);
+    EXPECT_TRUE(reg.Contains("AutoDevice"));
+}
+
+TEST(JsonSchemaEmitterSpec, TryEmitRefForUnsupporedTypeYieldsNullopt)
+{
+    SchemaRegistry reg;
+    auto                           ref =
+        TryEmitRefFor<int>(reg);
+    EXPECT_FALSE(ref.has_value());
+    EXPECT_FALSE(reg.Contains("int"));
+}
+
+TEST(JsonSchemaEmitterSpec, TryEmitRefForVectorOfReflectableEmitsArraySchema)
+{
+    SchemaRegistry reg;
+    auto ref = TryEmitRefFor<std::vector<AutoDevice>>(reg);
+
+    ASSERT_TRUE(ref.has_value());
+    EXPECT_EQ(
+        *ref,
+        "{\"type\":\"array\","
+        "\"items\":{\"$ref\":\"#/components/schemas/AutoDevice\"}}");
+    EXPECT_TRUE(reg.Contains("AutoDevice"));
+}
+
+TEST(JsonSchemaEmitterSpec, TryEmitRefForVectorOfUnsupportedYieldsNullopt)
+{
+    SchemaRegistry reg;
+    auto ref = TryEmitRefFor<std::vector<int>>(reg);
+
+    EXPECT_FALSE(ref.has_value());
+    EXPECT_FALSE(reg.Contains("int"));
+}
+
+TEST(RouteRegistrationAutoSchema, AutoDerivesReflectableReturnType)
+{
+    Router router;
+    Baldr::RouteRegistration(router, HttpMethod::Get, "/auto")
+        .WithSummary("auto")
+        .Handle([](HttpRequest&) -> AutoDevice {
+            return AutoDevice { 1, "u", 3.3, true };
+        });
+
+    auto entries = router.Snapshot();
+    ASSERT_EQ(entries.size(), 1u);
+    auto it = entries[0].options.metadata.find("responseSchemaJson");
+    ASSERT_NE(it, entries[0].options.metadata.end());
+    EXPECT_EQ(it->second, "{\"$ref\":\"#/components/schemas/AutoDevice\"}");
+
+    ASSERT_NE(router.SchemaRegistrySlot(), nullptr);
+    EXPECT_TRUE(router.SchemaRegistrySlot()->Contains("AutoDevice"));
+}
+
+TEST(RouteRegistrationAutoSchema, ExplicitSchemaWinsOverAutoDerivation)
+{
+    Router router;
+    Baldr::RouteRegistration(router, HttpMethod::Get, "/explicit")
+        .WithResponseSchemaJson("{\"type\":\"object\"}")
+        .Handle([](HttpRequest&) -> AutoDevice {
+            return AutoDevice { 1, "u", 3.3, true };
+        });
+
+    auto entries = router.Snapshot();
+    ASSERT_EQ(entries.size(), 1u);
+    auto it = entries[0].options.metadata.find("responseSchemaJson");
+    ASSERT_NE(it, entries[0].options.metadata.end());
+    EXPECT_EQ(it->second, "{\"type\":\"object\"}");
+}
+
+TEST(RouteRegistrationAutoSchema,
+     UnsupporedReturnTypeLeavesMetadataEmpty)
+{
+    Router router;
+    Baldr::RouteRegistration(router, HttpMethod::Get, "/raw")
+        .Handle([](HttpRequest&) -> int { return 42; });
+
+    auto entries = router.Snapshot();
+    ASSERT_EQ(entries.size(), 1u);
+    EXPECT_EQ(entries[0].options.metadata.count("responseSchemaJson"), 0u);
+}
+
+TEST(RouteRegistrationAutoSchema, WithRequestTypeDerivesRequestSchema)
+{
+    Router router;
+    Baldr::RouteRegistration(router, HttpMethod::Post, "/echo")
+        .WithRequestType<AutoDevice>()
+        .Handle([](HttpRequest&) -> std::string {
+            return "ok";
+        });
+
+    auto entries = router.Snapshot();
+    ASSERT_EQ(entries.size(), 1u);
+    auto it = entries[0].options.metadata.find("requestSchemaJson");
+    ASSERT_NE(it, entries[0].options.metadata.end());
+    EXPECT_EQ(it->second,
+              "{\"$ref\":\"#/components/schemas/AutoDevice\"}");
+    EXPECT_TRUE(router.SchemaRegistrySlot()->Contains("AutoDevice"));
 }

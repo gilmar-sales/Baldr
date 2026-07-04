@@ -5,8 +5,6 @@
 #include <string>
 #include <unordered_set>
 
-namespace Baldr::OpenApi
-{
     const char* MethodToString(HttpMethod m)
     {
         switch (m)
@@ -76,4 +74,3 @@ namespace Baldr::OpenApi
         }
         return out;
     }
-}
