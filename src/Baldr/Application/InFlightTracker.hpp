@@ -1,10 +1,13 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <mutex>
+
+namespace BALDR_NAMESPACE {
 
 // Tracks in-flight HTTP handlers across all connections. Used by
 // HttpServer for graceful drain during shutdown.
@@ -41,3 +44,5 @@ class InFlightTracker
     std::mutex               mMutex;
     std::condition_variable  mCv;
 };
+
+} // namespace BALDR_NAMESPACE

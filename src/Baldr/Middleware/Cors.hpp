@@ -1,9 +1,12 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <string>
 #include <unordered_set>
 
 #include <Baldr/Middleware/IMiddleware.hpp>
+
+namespace BALDR_NAMESPACE {
 
 struct CorsOptions
 {
@@ -66,3 +69,5 @@ class CorsMiddleware final : public IMiddleware
 
     CorsOptions mOptions;
 };
+
+} // namespace BALDR_NAMESPACE

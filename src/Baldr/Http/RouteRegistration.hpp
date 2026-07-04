@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <meta>
 #include <string>
@@ -14,10 +15,11 @@
 
 #include <Baldr/Http/Results/Result.hpp>
 
-class WebApplication;
-
-namespace Baldr
+namespace BALDR_NAMESPACE
 {
+
+    class WebApplication;
+
     class RouteRegistration
     {
       public:
@@ -189,4 +191,5 @@ namespace Baldr
         std::string  mResponseSchemaJson;
         bool         mFinalised { false };
     };
-} // namespace Baldr
+
+} // namespace BALDR_NAMESPACE

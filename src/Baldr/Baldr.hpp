@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <Baldr/Application/WebApplication.hpp>
 #include <Baldr/BaldrExtension.hpp>
@@ -19,3 +20,6 @@
 #include <Baldr/Middleware/SecurityHeaders.hpp>
 #include <Baldr/OpenApi/BaldrOpenApiExtension.hpp>
 #include <Baldr/OpenApi/MapOpenApi.hpp>
+namespace BALDR_NAMESPACE {
+
+} // namespace BALDR_NAMESPACE

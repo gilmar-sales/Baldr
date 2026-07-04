@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <Skirnir/Skirnir.hpp>
 
@@ -6,6 +7,8 @@
 
 #include <Baldr/Http/Request.hpp>
 #include <Baldr/Http/Response.hpp>
+
+namespace BALDR_NAMESPACE {
 
 using NextMiddleware = std::function<void()>;
 
@@ -18,3 +21,5 @@ class IMiddleware
                         HttpResponse&         response,
                         const NextMiddleware& next) = 0;
 };
+
+} // namespace BALDR_NAMESPACE

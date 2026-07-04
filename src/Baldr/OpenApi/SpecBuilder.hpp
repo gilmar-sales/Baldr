@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <string>
 #include <unordered_map>
@@ -9,22 +10,27 @@
 #include "JsonSchemaEmitter.hpp"
 #include "OpenApiOptions.hpp"
 
-// Renders an OpenAPI 3.0.3 JSON document from the router snapshot
-// plus a registry of named JSON Schema components.
-class SpecBuilder
+namespace BALDR_NAMESPACE
 {
-  public:
-    explicit SpecBuilder(OpenApiOptions opts) : mOptions(std::move(opts)) {}
 
-    SpecBuilder& SetRegistry(const SchemaRegistry& reg)
+    // Renders an OpenAPI 3.0.3 JSON document from the router snapshot
+    // plus a registry of named JSON Schema components.
+    class SpecBuilder
     {
-        mRegistry = &reg;
-        return *this;
-    }
+      public:
+        explicit SpecBuilder(OpenApiOptions opts) : mOptions(std::move(opts)) {}
 
-    std::string Render(const std::vector<RouteEntry>& entries);
+        SpecBuilder& SetRegistry(const SchemaRegistry& reg)
+        {
+            mRegistry = &reg;
+            return *this;
+        }
 
-  private:
-    OpenApiOptions        mOptions;
-    const SchemaRegistry* mRegistry { nullptr };
-};
+        std::string Render(const std::vector<RouteEntry>& entries);
+
+      private:
+        OpenApiOptions        mOptions;
+        const SchemaRegistry* mRegistry { nullptr };
+    };
+
+} // namespace BALDR_NAMESPACE

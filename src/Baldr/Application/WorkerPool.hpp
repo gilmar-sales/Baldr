@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <condition_variable>
 #include <functional>
@@ -7,6 +8,8 @@
 #include <queue>
 #include <thread>
 #include <vector>
+
+namespace BALDR_NAMESPACE {
 
 class WorkerPool
 {
@@ -86,3 +89,5 @@ class WorkerPool
     std::condition_variable           mCondition;
     bool                              mStop = false;
 };
+
+} // namespace BALDR_NAMESPACE

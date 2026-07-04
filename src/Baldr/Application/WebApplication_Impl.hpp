@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <memory>
 
@@ -7,11 +8,16 @@
 #include <Baldr/Http/Router.hpp>
 #include <Baldr/Middleware/MiddlewareProvider.hpp>
 
-namespace Baldr::detail
+namespace BALDR_NAMESPACE
 {
-    struct WebApplicationImpl
+
+    namespace detail
     {
-        skr::Arc<Router>             mRouter;
-        skr::Arc<MiddlewareProvider> mMiddlewareProvider;
-    };
-} // namespace Baldr::detail
+        struct WebApplicationImpl
+        {
+            skr::Arc<Router>             mRouter;
+            skr::Arc<MiddlewareProvider> mMiddlewareProvider;
+        };
+    } // namespace detail
+
+} // namespace BALDR_NAMESPACE

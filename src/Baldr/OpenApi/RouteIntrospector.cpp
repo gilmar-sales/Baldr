@@ -1,9 +1,12 @@
+#include <Baldr/Detail/Namespace.hpp>
 #include "RouteIntrospector.hpp"
 
 #include <algorithm>
 #include <ranges>
 #include <string>
 #include <unordered_set>
+
+namespace BALDR_NAMESPACE {
 
 const char* MethodToString(HttpMethod m)
 {
@@ -82,3 +85,5 @@ std::vector<std::string> UniquePaths(const std::vector<RouteEntry>& entries)
     }
     return out;
 }
+
+} // namespace BALDR_NAMESPACE

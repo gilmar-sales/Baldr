@@ -1,9 +1,12 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <Baldr/Baldr.hpp>
 
 #include "BaldrOpenApiExtension.hpp"
 #include "OpenApiSpecService.hpp"
+
+namespace BALDR_NAMESPACE {
 
 // Convenience: mounts the OpenAPI spec at the configured path on the
 // given WebApplication. Intended for users who haven't opted into the
@@ -18,3 +21,5 @@ inline void MapOpenApi(WebApplication& app, OpenApiOptions options = {})
         return ContentResult(specSvc->Cached(app.GetRouter()), contentType);
     });
 }
+
+} // namespace BALDR_NAMESPACE

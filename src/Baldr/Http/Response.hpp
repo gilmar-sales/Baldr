@@ -1,10 +1,13 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <memory>
 
 #include <Baldr/Http/CookieOptions.hpp>
 #include <Baldr/Http/Request.hpp>
 #include <Baldr/Http/StatusCode.hpp>
+
+namespace BALDR_NAMESPACE {
 
 class IStreamingResult;
 
@@ -33,3 +36,5 @@ struct HttpResponse
     // (e.g. with chunked transfer-encoding).
     std::shared_ptr<const IStreamingResult> streaming;
 };
+
+} // namespace BALDR_NAMESPACE

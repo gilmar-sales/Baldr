@@ -1,3 +1,4 @@
+#include <Baldr/Detail/Namespace.hpp>
 #include <Baldr/Http/Connection.hpp>
 
 #include <functional>
@@ -6,6 +7,8 @@
 #include <trantor/net/TcpConnection.h>
 
 #include <Baldr/Http/Results/StreamingResult.hpp>
+
+namespace BALDR_NAMESPACE {
 
 void HttpConnection::runMiddlewareChain(
     MiddlewareFactoryList&                factories,
@@ -411,3 +414,5 @@ void HttpConnection::sendStreamingResponse(
     }
     mConnection->send(formatChunkTrailer());
 }
+
+} // namespace BALDR_NAMESPACE

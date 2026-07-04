@@ -1,3 +1,4 @@
+#include <Baldr/Detail/Namespace.hpp>
 #include <Baldr/Http/Server.hpp>
 
 #include <algorithm>
@@ -15,6 +16,8 @@
 
 #include <Baldr/Http/Connection.hpp>
 #include <Baldr/Middleware/MiddlewareProvider.hpp>
+
+namespace BALDR_NAMESPACE {
 
 HttpServer* gHttpServerInstance = nullptr;
 
@@ -172,3 +175,5 @@ void HttpServer::Stop()
         });
     }
 }
+
+} // namespace BALDR_NAMESPACE

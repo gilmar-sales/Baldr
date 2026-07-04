@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <optional>
 #include <string>
@@ -7,8 +8,9 @@
 
 #include <Baldr/Http/Method.hpp>
 
-namespace Baldr
+namespace BALDR_NAMESPACE
 {
+
     struct RouteOptions
     {
         std::optional<std::string>                   summary;
@@ -28,4 +30,5 @@ namespace Baldr
         HttpMethod   method { HttpMethod::Get };
         RouteOptions options;
     };
-} // namespace Baldr
+
+} // namespace BALDR_NAMESPACE

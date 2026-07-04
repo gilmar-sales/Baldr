@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <simdjson.h>
 
@@ -11,8 +12,9 @@
 #include <Baldr/Http/Request.hpp>
 #include <Baldr/Http/StatusCode.hpp>
 
-namespace Baldr
+namespace BALDR_NAMESPACE
 {
+
     namespace detail
     {
         inline simdjson::error_code readJsonField(
@@ -60,21 +62,21 @@ namespace Baldr
     // populated error response (status + message) ready to be applied
     // to a HttpResponse.
     template <typename T>
-    class JsonResult
+    class JsonBodyResult
     {
       public:
-        JsonResult() = default;
+        JsonBodyResult() = default;
 
-        static JsonResult Ok(T value)
+        static JsonBodyResult Ok(T value)
         {
-            JsonResult r;
+            JsonBodyResult r;
             r.mValue = std::move(value);
             return r;
         }
 
-        static JsonResult Fail(StatusCode status, std::string message)
+        static JsonBodyResult Fail(StatusCode status, std::string message)
         {
-            JsonResult r;
+            JsonBodyResult r;
             r.mError.statusCode = status;
             r.mError.message    = std::move(message);
             return r;
@@ -101,12 +103,12 @@ namespace Baldr
     // Parse the request body as JSON and return the top-level object.
     // Use this when you need to inspect fields manually; otherwise
     // `parseJson<T>` performs the deserialisation for you.
-    inline JsonResult<simdjson::dom::object> parseJsonObject(
+    inline JsonBodyResult<simdjson::dom::object> parseJsonObject(
         const HttpRequest& request)
     {
         if (request.body.empty())
         {
-            return JsonResult<simdjson::dom::object>::Fail(
+            return JsonBodyResult<simdjson::dom::object>::Fail(
                 StatusCode::BadRequest, "Empty request body");
         }
 
@@ -115,7 +117,7 @@ namespace Baldr
         auto err = parser.parse(request.body).get(doc);
         if (err)
         {
-            return JsonResult<simdjson::dom::object>::Fail(
+            return JsonBodyResult<simdjson::dom::object>::Fail(
                 StatusCode::BadRequest,
                 std::string("Invalid JSON: ") + simdjson::error_message(err));
         }
@@ -124,11 +126,11 @@ namespace Baldr
         err = doc.get_object().get(obj);
         if (err)
         {
-            return JsonResult<simdjson::dom::object>::Fail(
+            return JsonBodyResult<simdjson::dom::object>::Fail(
                 StatusCode::BadRequest,
                 "Expected a JSON object at the top level");
         }
-        return JsonResult<simdjson::dom::object>::Ok(std::move(obj));
+        return JsonBodyResult<simdjson::dom::object>::Ok(std::move(obj));
     }
 
     // Parse the request body and deserialise it into a `T` using C++26
@@ -138,16 +140,16 @@ namespace Baldr
     //
     // Supported field types: std::string, std::string_view, int,
     // int64_t, double, bool. For richer types, either provide
-    // specialisations of `Baldr::detail::readJsonField` or fall back to
-    // `parseJsonObject` and inspect the DOM yourself.
+    // specialisations of `BALDR_NAMESPACE::detail::readJsonField` or fall back
+    // to `parseJsonObject` and inspect the DOM yourself.
     template <typename T>
-    JsonResult<T> parseJson(const HttpRequest& request)
+    JsonBodyResult<T> parseJson(const HttpRequest& request)
     {
         auto obj = parseJsonObject(request);
         if (!obj.isOk())
         {
-            return JsonResult<T>::Fail(obj.error().statusCode,
-                                       obj.error().message);
+            return JsonBodyResult<T>::Fail(obj.error().statusCode,
+                                           obj.error().message);
         }
 
         T     instance {};
@@ -170,7 +172,7 @@ namespace Baldr
             simdjson::error_code err = simdjson::NO_SUCH_FIELD;
             if constexpr (std::is_same_v<FieldT, std::string>)
             {
-                err = Baldr::detail::readJsonField(o, name, field);
+                err = BALDR_NAMESPACE::detail::readJsonField(o, name, field);
             }
             else if constexpr (std::is_same_v<FieldT, std::string_view>)
             {
@@ -184,7 +186,7 @@ namespace Baldr
                                std::is_same_v<FieldT, double> ||
                                std::is_same_v<FieldT, bool>)
             {
-                err = Baldr::detail::readJsonField(o, name, field);
+                err = BALDR_NAMESPACE::detail::readJsonField(o, name, field);
             }
             else
             {
@@ -203,8 +205,9 @@ namespace Baldr
 
         if (anyError)
         {
-            return JsonResult<T>::Fail(StatusCode::BadRequest, firstError);
+            return JsonBodyResult<T>::Fail(StatusCode::BadRequest, firstError);
         }
-        return JsonResult<T>::Ok(std::move(instance));
+        return JsonBodyResult<T>::Ok(std::move(instance));
     }
-} // namespace Baldr
+
+} // namespace BALDR_NAMESPACE

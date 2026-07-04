@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <array>
 #include <cstddef>
@@ -8,6 +9,8 @@
 #include <vector>
 
 #include <Baldr/Http/Results/StreamingResult.hpp>
+
+namespace BALDR_NAMESPACE {
 
 class FileStreamResult final : public IStreamingResult
 {
@@ -51,3 +54,5 @@ class FileStreamResult final : public IStreamingResult
     std::string           mContentType;
     std::string           mFileName;
 };
+
+} // namespace BALDR_NAMESPACE

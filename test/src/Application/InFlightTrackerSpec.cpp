@@ -7,7 +7,7 @@
 class InFlightTrackerSpec : public ::testing::Test
 {
   protected:
-    InFlightTracker                     mTracker;
+    baldr::InFlightTracker mTracker;
 };
 
 TEST_F(InFlightTrackerSpec, ZeroByDefault)
@@ -44,9 +44,10 @@ TEST_F(InFlightTrackerSpec, WaitDrainedReturnsWhenZero)
 
     t.join();
     EXPECT_EQ(mTracker.outstanding(), 0u);
-    EXPECT_LE(std::chrono::duration_cast<std::chrono::milliseconds>(
-                  after - before).count(),
-              500);
+    EXPECT_LE(
+        std::chrono::duration_cast<std::chrono::milliseconds>(after - before)
+            .count(),
+        500);
 }
 
 TEST_F(InFlightTrackerSpec, WaitDrainedTimesOut)
@@ -56,7 +57,8 @@ TEST_F(InFlightTrackerSpec, WaitDrainedTimesOut)
     mTracker.waitDrained(std::chrono::milliseconds(50));
     auto after = std::chrono::steady_clock::now();
     EXPECT_EQ(mTracker.outstanding(), 1u);
-    EXPECT_GE(std::chrono::duration_cast<std::chrono::milliseconds>(
-                  after - before).count(),
-              50);
+    EXPECT_GE(
+        std::chrono::duration_cast<std::chrono::milliseconds>(after - before)
+            .count(),
+        50);
 }

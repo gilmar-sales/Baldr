@@ -1,3 +1,4 @@
+#include <Baldr/Detail/Namespace.hpp>
 #include <Baldr/Hosting/StringHelpers.hpp>
 #include <algorithm>
 #include <cctype>
@@ -7,6 +8,8 @@
 
 #include <Baldr/Http/RequestParser.hpp>
 #include <Baldr/Http/StatusCode.hpp>
+
+namespace BALDR_NAMESPACE {
 
 bool containsLiteralPercent00(const std::string& s)
 {
@@ -597,3 +600,5 @@ HttpParseStatus HttpRequestParser::tryParse(std::string_view buffer) const
     out.statusCode    = StatusCode::OK;
     return out;
 }
+
+} // namespace BALDR_NAMESPACE

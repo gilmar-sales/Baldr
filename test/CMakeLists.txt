@@ -17,6 +17,7 @@ target_precompile_headers(Tests_run
    PUBLIC
       <Skirnir/Skirnir.hpp>
       <gtest/gtest.h>
+      <Baldr/Baldr.hpp>
 )
 
 set_target_properties(Tests_run PROPERTIES

@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -7,6 +8,8 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+
+namespace BALDR_NAMESPACE {
 
 class RateLimiter
 {
@@ -98,3 +101,5 @@ class RateLimiter
     std::list<std::string>                      mLruOrder;
     std::mutex                                  mMutex {};
 };
+
+} // namespace BALDR_NAMESPACE

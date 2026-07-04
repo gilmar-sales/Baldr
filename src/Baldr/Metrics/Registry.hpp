@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <cstdint>
 #include <mutex>
@@ -6,8 +7,9 @@
 #include <string_view>
 #include <vector>
 
-namespace Baldr
+namespace BALDR_NAMESPACE
 {
+
     class MetricsRegistry;
 
     namespace detail
@@ -67,4 +69,5 @@ namespace Baldr
         MetricsRegistry();
         detail::MetricsRegistryImpl* mImpl;
     };
-} // namespace Baldr
+
+} // namespace BALDR_NAMESPACE

@@ -1,8 +1,11 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <string>
 
 #include <Baldr/Middleware/IMiddleware.hpp>
+
+namespace BALDR_NAMESPACE {
 
 struct MetricsOptions
 {
@@ -42,3 +45,5 @@ class MetricsMiddleware final : public IMiddleware
 // The handler runs after the chain completes, so the counters reflect
 // the final status.
 void MapMetrics(class WebApplication& app, MetricsOptions options = {});
+
+} // namespace BALDR_NAMESPACE

@@ -13,22 +13,19 @@
 class OpenApiSpec : public ::testing::Test
 {
   protected:
-    void SetUp() override
-    {
-        mRouter = skr::MakeArc<Router>();
-    }
+    void SetUp() override { mRouter = skr::MakeArc<baldr::Router>(); }
 
-    skr::Arc<Router> mRouter;
+    skr::Arc<baldr::Router> mRouter;
 };
 
 TEST_F(OpenApiSpec, CachedIsStableUntilRegenerate)
 {
-    OpenApiOptions opts;
+    baldr::OpenApiOptions opts;
     opts.info.title = "Cached Test";
 
-    OpenApiSpecService svc(std::move(opts));
+    baldr::OpenApiSpecService svc(std::move(opts));
     svc.Regenerate(mRouter);
-    const std::string& first = svc.Cached(mRouter);
+    const std::string& first  = svc.Cached(mRouter);
     const std::string& second = svc.Cached(mRouter);
     EXPECT_EQ(&first, &second);
     EXPECT_FALSE(first.empty());
@@ -36,30 +33,30 @@ TEST_F(OpenApiSpec, CachedIsStableUntilRegenerate)
 
 TEST_F(OpenApiSpec, SpecContainsPathTemplatesAndMethods)
 {
-    Baldr::RouteOptions getOpts;
+    baldr::RouteOptions getOpts;
     getOpts.summary     = "Get user";
     getOpts.operationId = "getUser";
     getOpts.tags        = { "users" };
 
-    Baldr::RouteOptions postOpts;
+    baldr::RouteOptions postOpts;
     postOpts.summary     = "Create user";
     postOpts.operationId = "createUser";
     postOpts.tags        = { "users" };
     postOpts.deprecated  = true;
 
-    mRouter->insert(
-        HttpMethod::Get, "/users/:id", getOpts, "",
-        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
-    mRouter->insert(
-        HttpMethod::Post, "/users", postOpts, "",
-        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+    mRouter->insert(baldr::HttpMethod::Get, "/users/:id", getOpts, "",
+                    [](baldr::HttpRequest&, baldr::HttpResponse&,
+                       skr::Arc<skr::ServiceProvider>) {});
+    mRouter->insert(baldr::HttpMethod::Post, "/users", postOpts, "",
+                    [](baldr::HttpRequest&, baldr::HttpResponse&,
+                       skr::Arc<skr::ServiceProvider>) {});
 
-    OpenApiOptions opts;
-    OpenApiSpecService svc(std::move(opts));
+    baldr::OpenApiOptions     opts;
+    baldr::OpenApiSpecService svc(std::move(opts));
     svc.Regenerate(mRouter);
     const std::string& spec = svc.Cached(mRouter);
 
-    simdjson::dom::parser parser;
+    simdjson::dom::parser  parser;
     simdjson::dom::element doc;
     ASSERT_FALSE(parser.parse(spec).get(doc));
     simdjson::dom::object root;
@@ -90,12 +87,13 @@ TEST_F(OpenApiSpec, SpecContainsPathTemplatesAndMethods)
 
 TEST_F(OpenApiSpec, GroupPrefixIsPreservedInSnapshot)
 {
-    Baldr::RouteOptions opts;
+    baldr::RouteOptions opts;
     opts.tags = { "v1" };
 
     mRouter->insert(
-        HttpMethod::Get, "/api/v1/orders/:id", opts, "/api/v1",
-        [](HttpRequest&, HttpResponse&, skr::Arc<skr::ServiceProvider>) {});
+        baldr::HttpMethod::Get, "/api/v1/orders/:id", opts, "/api/v1",
+        [](baldr::HttpRequest&, baldr::HttpResponse&,
+           skr::Arc<skr::ServiceProvider>) {});
 
     auto entries = mRouter->Snapshot();
     ASSERT_EQ(entries.size(), 1u);

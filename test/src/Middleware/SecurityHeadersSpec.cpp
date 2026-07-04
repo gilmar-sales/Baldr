@@ -9,19 +9,19 @@ class SecurityHeadersMiddlewareSpec : public ::testing::Test
   protected:
     void SetUp() override
     {
-        mRequest.method  = HttpMethod::Get;
+        mRequest.method  = baldr::HttpMethod::Get;
         mRequest.path    = "/";
         mRequest.version = "HTTP/1.1";
-        mResponse        = HttpResponse(mRequest);
+        mResponse        = baldr::HttpResponse(mRequest);
     }
 
-    HttpRequest  mRequest;
-    HttpResponse mResponse;
+    baldr::HttpRequest  mRequest;
+    baldr::HttpResponse mResponse;
 };
 
 TEST_F(SecurityHeadersMiddlewareSpec, AppliesDefaultHeaders)
 {
-    SecurityHeadersMiddleware mw;
+    baldr::SecurityHeadersMiddleware mw;
     mw.Handle(mRequest, mResponse, []() {});
 
     EXPECT_EQ(mResponse.headers.at("X-Content-Type-Options"), "nosniff");
@@ -36,7 +36,7 @@ TEST_F(SecurityHeadersMiddlewareSpec, AppliesDefaultHeaders)
 
 TEST_F(SecurityHeadersMiddlewareSpec, DoesNotEmitHstsByDefault)
 {
-    SecurityHeadersMiddleware mw;
+    baldr::SecurityHeadersMiddleware mw;
     mw.Handle(mRequest, mResponse, []() {});
 
     EXPECT_EQ(mResponse.headers.count("Strict-Transport-Security"), 0u);
@@ -44,9 +44,9 @@ TEST_F(SecurityHeadersMiddlewareSpec, DoesNotEmitHstsByDefault)
 
 TEST_F(SecurityHeadersMiddlewareSpec, EmitsHstsWhenConfigured)
 {
-    SecurityHeadersOptions opts;
+    baldr::SecurityHeadersOptions opts;
     opts.strictTransportSecurity = "max-age=31536000; includeSubDomains";
-    SecurityHeadersMiddleware mw(opts);
+    baldr::SecurityHeadersMiddleware mw(opts);
     mw.Handle(mRequest, mResponse, []() {});
 
     EXPECT_EQ(mResponse.headers.at("Strict-Transport-Security"),
@@ -55,9 +55,9 @@ TEST_F(SecurityHeadersMiddlewareSpec, EmitsHstsWhenConfigured)
 
 TEST_F(SecurityHeadersMiddlewareSpec, AllowsOptingOutOfFrameOptions)
 {
-    SecurityHeadersOptions opts;
+    baldr::SecurityHeadersOptions opts;
     opts.frameOptions = std::nullopt;
-    SecurityHeadersMiddleware mw(opts);
+    baldr::SecurityHeadersMiddleware mw(opts);
     mw.Handle(mRequest, mResponse, []() {});
 
     EXPECT_EQ(mResponse.headers.count("X-Frame-Options"), 0u);

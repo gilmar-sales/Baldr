@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -7,8 +8,9 @@
 #include <string>
 #include <string_view>
 
-namespace Baldr
+namespace BALDR_NAMESPACE
 {
+
     struct TraceContext
     {
         std::uint8_t version { 0 };
@@ -178,4 +180,5 @@ namespace Baldr
         out.valid      = true;
         return true;
     }
-} // namespace Baldr
+
+} // namespace BALDR_NAMESPACE

@@ -5,7 +5,9 @@
 
 #include <string>
 
-class HttpRequestResponseSpec : public ::testing::Test {};
+class HttpRequestResponseSpec : public ::testing::Test
+{
+};
 
 // ============================================================================
 // Default-construction contracts for HttpRequest and HttpResponse.
@@ -19,9 +21,9 @@ class HttpRequestResponseSpec : public ::testing::Test {};
 
 TEST_F(HttpRequestResponseSpec, HttpRequestDefaultsAreEmpty)
 {
-    HttpRequest request;
+    baldr::HttpRequest request;
 
-    EXPECT_EQ(request.method, HttpMethod::Get);
+    EXPECT_EQ(request.method, baldr::HttpMethod::Get);
     EXPECT_TRUE(request.path.empty());
     EXPECT_TRUE(request.version.empty());
     EXPECT_TRUE(request.clientIp.empty());
@@ -37,7 +39,7 @@ TEST_F(HttpRequestResponseSpec, HttpResponseDefaultIsZeroStatus)
     // around the incoming request, so a default-constructed HttpResponse is
     // not on the hot path. Pin the actual default to surface accidental
     // changes to the struct layout.
-    HttpResponse response;
+    baldr::HttpResponse response;
 
     EXPECT_EQ(static_cast<int>(response.statusCode), 0);
     EXPECT_TRUE(response.version.empty());
@@ -48,15 +50,15 @@ TEST_F(HttpRequestResponseSpec, HttpResponseDefaultIsZeroStatus)
 
 TEST_F(HttpRequestResponseSpec, HttpResponseFromRequestDefaultsToNotFound)
 {
-    HttpRequest request;
-    request.method   = HttpMethod::Post;
-    request.path     = "/api/devices";
-    request.version  = "HTTP/1.1";
-    request.clientIp = "10.0.0.1";
+    baldr::HttpRequest request;
+    request.method          = baldr::HttpMethod::Post;
+    request.path            = "/api/devices";
+    request.version         = "HTTP/1.1";
+    request.clientIp        = "10.0.0.1";
     request.headers["host"] = "example.com";
-    request.body = "{}";
+    request.body            = "{}";
 
-    HttpResponse response(request);
+    baldr::HttpResponse response(request);
 
     // Connection inherits the protocol version so the response line keeps
     // the same major version as the request.
@@ -67,7 +69,7 @@ TEST_F(HttpRequestResponseSpec, HttpResponseFromRequestDefaultsToNotFound)
     // 404 line. Pin this contract — the Devices example relies on it
     // indirectly.
     EXPECT_EQ(static_cast<int>(response.statusCode),
-              static_cast<int>(StatusCode::NotFound));
+              static_cast<int>(baldr::StatusCode::NotFound));
     // Headers/body/cookies are reset to empty.
     EXPECT_TRUE(response.headers.empty());
     EXPECT_TRUE(response.cookies.empty());
@@ -76,17 +78,17 @@ TEST_F(HttpRequestResponseSpec, HttpResponseFromRequestDefaultsToNotFound)
 
 TEST_F(HttpRequestResponseSpec, HttpResponseMutabilityAfterConstruction)
 {
-    HttpRequest request;
+    baldr::HttpRequest request;
     request.version = "HTTP/1.1";
 
-    HttpResponse response(request);
-    response.statusCode = StatusCode::OK;
-    response.body       = "ok";
+    baldr::HttpResponse response(request);
+    response.statusCode                = baldr::StatusCode::OK;
+    response.body                      = "ok";
     response.headers["Content-Type"]   = "plain/text";
     response.headers["Content-Length"] = "2";
 
     EXPECT_EQ(static_cast<int>(response.statusCode),
-              static_cast<int>(StatusCode::OK));
+              static_cast<int>(baldr::StatusCode::OK));
     EXPECT_EQ(response.body, "ok");
     EXPECT_EQ(response.headers.at("Content-Type"), "plain/text");
     EXPECT_EQ(response.headers.at("Content-Length"), "2");
@@ -104,8 +106,8 @@ TEST_F(HttpRequestResponseSpec, HttpResponseMutabilityAfterConstruction)
 
 TEST_F(HttpRequestResponseSpec, ParserReturnsIncompleteOnByteByByteFeed)
 {
-    HttpRequestParser parser;
-    const std::string request =
+    baldr::HttpRequestParser parser;
+    const std::string        request =
         "GET /hello HTTP/1.1\r\nHost: example.com\r\n\r\n";
     std::string buffer;
 
@@ -113,14 +115,14 @@ TEST_F(HttpRequestResponseSpec, ParserReturnsIncompleteOnByteByByteFeed)
     {
         buffer.push_back(request[i]);
         auto status = parser.tryParse(buffer);
-        ASSERT_EQ(status.kind, HttpParseStatus::Kind::Incomplete)
+        ASSERT_EQ(status.kind, baldr::HttpParseStatus::Kind::Incomplete)
             << "feed index " << i;
     }
 
     buffer.push_back(request.back());
     auto status = parser.tryParse(buffer);
-    ASSERT_EQ(status.kind, HttpParseStatus::Kind::Complete);
-    EXPECT_EQ(status.request.method, HttpMethod::Get);
+    ASSERT_EQ(status.kind, baldr::HttpParseStatus::Kind::Complete);
+    EXPECT_EQ(status.request.method, baldr::HttpMethod::Get);
     EXPECT_EQ(status.request.path, "/hello");
     EXPECT_EQ(status.request.headers.at("host"), "example.com");
     EXPECT_EQ(status.consumedBytes, buffer.size());
@@ -128,40 +130,38 @@ TEST_F(HttpRequestResponseSpec, ParserReturnsIncompleteOnByteByByteFeed)
 
 TEST_F(HttpRequestResponseSpec, ParserConsumesPipelinedRequestsInOneBuffer)
 {
-    HttpRequestParser parser;
-    const std::string buffer =
-        "GET /a HTTP/1.1\r\nHost: example.com\r\n\r\n"
-        "GET /b HTTP/1.1\r\nHost: example.com\r\n\r\n";
+    baldr::HttpRequestParser parser;
+    const std::string buffer = "GET /a HTTP/1.1\r\nHost: example.com\r\n\r\n"
+                               "GET /b HTTP/1.1\r\nHost: example.com\r\n\r\n";
 
     auto first = parser.tryParse(buffer);
-    ASSERT_EQ(first.kind, HttpParseStatus::Kind::Complete);
+    ASSERT_EQ(first.kind, baldr::HttpParseStatus::Kind::Complete);
     EXPECT_EQ(first.request.path, "/a");
-    EXPECT_EQ(first.consumedBytes,
-              std::string("GET /a HTTP/1.1\r\nHost: example.com\r\n\r\n").size());
+    EXPECT_EQ(
+        first.consumedBytes,
+        std::string("GET /a HTTP/1.1\r\nHost: example.com\r\n\r\n").size());
 
-    auto second = parser.tryParse(
-        buffer.substr(first.consumedBytes));
-    ASSERT_EQ(second.kind, HttpParseStatus::Kind::Complete);
+    auto second = parser.tryParse(buffer.substr(first.consumedBytes));
+    ASSERT_EQ(second.kind, baldr::HttpParseStatus::Kind::Complete);
     EXPECT_EQ(second.request.path, "/b");
 }
 
 TEST_F(HttpRequestResponseSpec, ParserChunksHeadersAtArbitraryBoundaries)
 {
-    HttpRequestParser parser;
-    const std::string request =
-        "POST /submit HTTP/1.1\r\nHost: example.com\r\n"
-        "Content-Length: 5\r\n\r\nhello";
+    baldr::HttpRequestParser parser;
+    const std::string request = "POST /submit HTTP/1.1\r\nHost: example.com\r\n"
+                                "Content-Length: 5\r\n\r\nhello";
 
-    std::string buffer;
-    HttpParseStatus lastStatus {};
+    std::string            buffer;
+    baldr::HttpParseStatus lastStatus {};
     for (std::size_t i = 0; i < request.size(); i += 3)
     {
         buffer.append(request, i, std::min<std::size_t>(3, request.size() - i));
         lastStatus = parser.tryParse(buffer);
     }
 
-    ASSERT_EQ(lastStatus.kind, HttpParseStatus::Kind::Complete);
-    EXPECT_EQ(lastStatus.request.method, HttpMethod::Post);
+    ASSERT_EQ(lastStatus.kind, baldr::HttpParseStatus::Kind::Complete);
+    EXPECT_EQ(lastStatus.request.method, baldr::HttpMethod::Post);
     EXPECT_EQ(lastStatus.request.path, "/submit");
     EXPECT_EQ(lastStatus.request.body, "hello");
     EXPECT_EQ(lastStatus.consumedBytes, buffer.size());
@@ -169,21 +169,20 @@ TEST_F(HttpRequestResponseSpec, ParserChunksHeadersAtArbitraryBoundaries)
 
 TEST_F(HttpRequestResponseSpec, ParserParsesSingleCookie)
 {
-    HttpRequestParser parser;
-    auto status = parser.tryParse(
+    baldr::HttpRequestParser parser;
+    auto                     status = parser.tryParse(
         "GET / HTTP/1.1\r\nHost: x\r\nCookie: session=abc123\r\n\r\n");
-    ASSERT_EQ(status.kind, HttpParseStatus::Kind::Complete);
+    ASSERT_EQ(status.kind, baldr::HttpParseStatus::Kind::Complete);
     EXPECT_EQ(status.request.cookies.size(), 1);
     EXPECT_EQ(status.request.cookies.at("session"), "abc123");
 }
 
 TEST_F(HttpRequestResponseSpec, ParserParsesMultipleCookies)
 {
-    HttpRequestParser parser;
-    auto status = parser.tryParse(
-        "GET / HTTP/1.1\r\nHost: x\r\n"
-        "Cookie: a=1; b=2; c=3\r\n\r\n");
-    ASSERT_EQ(status.kind, HttpParseStatus::Kind::Complete);
+    baldr::HttpRequestParser parser;
+    auto status = parser.tryParse("GET / HTTP/1.1\r\nHost: x\r\n"
+                                  "Cookie: a=1; b=2; c=3\r\n\r\n");
+    ASSERT_EQ(status.kind, baldr::HttpParseStatus::Kind::Complete);
     EXPECT_EQ(status.request.cookies.size(), 3);
     EXPECT_EQ(status.request.cookies.at("a"), "1");
     EXPECT_EQ(status.request.cookies.at("b"), "2");
@@ -192,10 +191,9 @@ TEST_F(HttpRequestResponseSpec, ParserParsesMultipleCookies)
 
 TEST_F(HttpRequestResponseSpec, ParserSkipsEmptyCookieSegments)
 {
-    HttpRequestParser parser;
-    auto status = parser.tryParse(
-        "GET / HTTP/1.1\r\nHost: x\r\n"
-        "Cookie: a=1;;b=2; ;c=3\r\n\r\n");
-    ASSERT_EQ(status.kind, HttpParseStatus::Kind::Complete);
+    baldr::HttpRequestParser parser;
+    auto status = parser.tryParse("GET / HTTP/1.1\r\nHost: x\r\n"
+                                  "Cookie: a=1;;b=2; ;c=3\r\n\r\n");
+    ASSERT_EQ(status.kind, baldr::HttpParseStatus::Kind::Complete);
     EXPECT_EQ(status.request.cookies.size(), 3);
 }

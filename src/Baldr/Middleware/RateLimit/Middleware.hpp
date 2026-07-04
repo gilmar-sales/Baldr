@@ -1,7 +1,10 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <Baldr/Middleware/IMiddleware.hpp>
 #include <Baldr/Middleware/RateLimit/Limiter.hpp>
+
+namespace BALDR_NAMESPACE {
 
 class RateLimitMiddleware : public IMiddleware
 {
@@ -36,3 +39,5 @@ class RateLimitMiddleware : public IMiddleware
     skr::Arc<RateLimiter>                      mRateLimiter;
     skr::Arc<skr::Logger<RateLimitMiddleware>> mLogger;
 };
+
+} // namespace BALDR_NAMESPACE

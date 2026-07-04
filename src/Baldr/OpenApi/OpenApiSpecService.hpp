@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <Skirnir/Skirnir.hpp>
 
@@ -7,6 +8,8 @@
 #include "JsonSchemaEmitter.hpp"
 #include "OpenApiOptions.hpp"
 #include "SpecBuilder.hpp"
+
+namespace BALDR_NAMESPACE {
 
 class OpenApiSpecService
 {
@@ -27,3 +30,5 @@ class OpenApiSpecService
     std::string    mCache;
     bool           mRendered { false };
 };
+
+} // namespace BALDR_NAMESPACE

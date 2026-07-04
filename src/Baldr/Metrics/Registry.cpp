@@ -1,3 +1,4 @@
+#include <Baldr/Detail/Namespace.hpp>
 #include <Baldr/Metrics/Registry.hpp>
 
 #include <atomic>
@@ -6,24 +7,25 @@
 #include <sstream>
 #include <unordered_map>
 
-namespace Baldr::detail
+namespace BALDR_NAMESPACE
 {
-    struct MetricsRegistryImpl
-    {
-        mutable std::mutex                             mMutex;
-        std::unordered_map<std::string, std::uint64_t> mStatusCounts;
-        std::unordered_map<std::string, std::uint64_t> mMethodCounts;
-        std::unordered_map<MetricsRegistry::HistogramKey,
-                           MetricsRegistry::HistogramSnapshot,
-                           MetricsRegistry::HistogramKeyHash>
-                                   mLatency;
-        std::atomic<std::uint64_t> mRequestCount { 0 };
-        std::atomic<std::int64_t>  mInFlight { 0 };
-    };
-} // namespace Baldr::detail
 
-namespace Baldr
-{
+    namespace detail
+    {
+        struct MetricsRegistryImpl
+        {
+            mutable std::mutex                             mMutex;
+            std::unordered_map<std::string, std::uint64_t> mStatusCounts;
+            std::unordered_map<std::string, std::uint64_t> mMethodCounts;
+            std::unordered_map<MetricsRegistry::HistogramKey,
+                               MetricsRegistry::HistogramSnapshot,
+                               MetricsRegistry::HistogramKeyHash>
+                                       mLatency;
+            std::atomic<std::uint64_t> mRequestCount { 0 };
+            std::atomic<std::int64_t>  mInFlight { 0 };
+        };
+    } // namespace detail
+
     std::size_t MetricsRegistry::HistogramKeyHash::operator()(
         const HistogramKey& k) const
     {
@@ -95,7 +97,8 @@ namespace Baldr
     {
         std::ostringstream oss;
 
-        oss << "# HELP baldr_http_requests_total Total HTTP requests handled\n";
+        oss << "# HELP baldr_http_requests_total Total HTTP requests "
+               "handled\n";
         oss << "# TYPE baldr_http_requests_total counter\n";
 
         std::lock_guard<std::mutex> lock(mImpl->mMutex);
@@ -125,7 +128,8 @@ namespace Baldr
             for (std::size_t i = 0; i < h.upperBounds.size(); ++i)
             {
                 cumulative += h.bucketCounts[i];
-                oss << "baldr_http_request_duration_seconds_bucket{method=\""
+                oss << "baldr_http_request_duration_seconds_bucket{method="
+                       "\""
                     << key.method << "\",path=\"" << key.path << "\",le=\""
                     << std::fixed << std::setprecision(6) << h.upperBounds[i]
                     << "\"} " << cumulative << '\n';
@@ -142,7 +146,8 @@ namespace Baldr
                 << std::fixed << std::setprecision(6) << h.sum << '\n';
         }
 
-        oss << "# HELP baldr_http_in_flight_requests In-flight HTTP requests\n";
+        oss << "# HELP baldr_http_in_flight_requests In-flight HTTP "
+               "requests\n";
         oss << "# TYPE baldr_http_in_flight_requests gauge\n";
         oss << "baldr_http_in_flight_requests " << mImpl->mInFlight.load()
             << '\n';
@@ -167,4 +172,5 @@ namespace Baldr
         };
         return buckets;
     }
-} // namespace Baldr
+
+} // namespace BALDR_NAMESPACE

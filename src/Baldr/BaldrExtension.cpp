@@ -1,3 +1,4 @@
+#include <Baldr/Detail/Namespace.hpp>
 #include "BaldrExtension.hpp"
 
 #include <Baldr/Application/InFlightTracker.hpp>
@@ -8,6 +9,8 @@
 #include <Baldr/Http/Server.hpp>
 #include <Baldr/Middleware/Logging.hpp>
 #include <Baldr/Middleware/RateLimit/Middleware.hpp>
+
+namespace BALDR_NAMESPACE {
 
 void BaldrExtension::ConfigureServices(skr::ServiceCollection& services)
 {
@@ -34,3 +37,5 @@ void BaldrExtension::UseServices(skr::ServiceProvider& serviceProvider)
 
     webApp->Use<LoggingMiddleware>();
 }
+
+} // namespace BALDR_NAMESPACE

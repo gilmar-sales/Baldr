@@ -9,11 +9,11 @@ class MetricsRegistrySpec : public ::testing::Test
     void SetUp() override
     {
         // Test-only ctor to bypass the singleton.
-        mReg = std::make_unique<Baldr::MetricsRegistry>(
-            Baldr::MetricsRegistry::TestOnlyTag {});
+        mReg = std::make_unique<baldr::MetricsRegistry>(
+            baldr::MetricsRegistry::TestOnlyTag {});
     }
 
-    std::unique_ptr<Baldr::MetricsRegistry> mReg;
+    std::unique_ptr<baldr::MetricsRegistry> mReg;
 };
 
 TEST_F(MetricsRegistrySpec, IncrementsRequestCounts)
@@ -50,10 +50,10 @@ TEST_F(MetricsRegistrySpec, RendersPrometheusExposition)
     mReg->incRequest("POST", 201);
     mReg->observeLatencySeconds("GET", "/", 0.012);
     auto text = mReg->renderPrometheus();
-    EXPECT_NE(text.find("baldr_http_requests_total"),
-              std::string::npos) << text;
+    EXPECT_NE(text.find("baldr_http_requests_total"), std::string::npos)
+        << text;
     EXPECT_NE(text.find("status=\"200\""), std::string::npos) << text;
     EXPECT_NE(text.find("method=\"POST\""), std::string::npos) << text;
-    EXPECT_NE(text.find("baldr_http_in_flight_requests"),
-              std::string::npos) << text;
+    EXPECT_NE(text.find("baldr_http_in_flight_requests"), std::string::npos)
+        << text;
 }

@@ -1,4 +1,7 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
+
+namespace BALDR_NAMESPACE {
 
 enum class HttpMethod : int
 {
@@ -12,3 +15,5 @@ enum class HttpMethod : int
     Trace,
     Connect
 };
+
+} // namespace BALDR_NAMESPACE

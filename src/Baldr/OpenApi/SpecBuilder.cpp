@@ -1,3 +1,4 @@
+#include <Baldr/Detail/Namespace.hpp>
 #include "SpecBuilder.hpp"
 
 #include <cstdio>
@@ -7,6 +8,8 @@
 #include <unordered_map>
 
 #include "RouteIntrospector.hpp"
+
+namespace BALDR_NAMESPACE {
 
 std::string escapeString(const std::string& s)
 {
@@ -188,3 +191,5 @@ std::string SpecBuilder::Render(const std::vector<RouteEntry>& entries)
 
     return out;
 }
+
+} // namespace BALDR_NAMESPACE

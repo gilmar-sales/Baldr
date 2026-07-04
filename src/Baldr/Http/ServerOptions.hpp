@@ -1,6 +1,9 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <thread>
+
+namespace BALDR_NAMESPACE {
 
 struct HttpServerOptions
 {
@@ -29,3 +32,5 @@ struct HttpServerOptions
     // value to skip the drain and force-close immediately.
     int gracefulShutdownTimeoutSeconds = 30;
 };
+
+} // namespace BALDR_NAMESPACE

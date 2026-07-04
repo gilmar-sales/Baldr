@@ -1,9 +1,12 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <string>
 #include <unordered_set>
 
 #include <Baldr/Middleware/IMiddleware.hpp>
+
+namespace BALDR_NAMESPACE {
 
 struct CompressionOptions
 {
@@ -55,3 +58,5 @@ class CompressionMiddleware final : public IMiddleware
 
     CompressionOptions mOptions;
 };
+
+} // namespace BALDR_NAMESPACE

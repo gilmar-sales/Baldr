@@ -10,10 +10,10 @@ struct UserDto
 
 TEST(JsonBodyTest, ParsesValidJsonObjectIntoStruct)
 {
-    HttpRequest request;
+    baldr::HttpRequest request;
     request.body = R"({"name":"Alice","age":30})";
 
-    auto result = Baldr::parseJson<UserDto>(request);
+    auto result = baldr::parseJson<UserDto>(request);
 
     EXPECT_TRUE(result.isOk());
     EXPECT_EQ(result.value().name, "Alice");
@@ -22,51 +22,51 @@ TEST(JsonBodyTest, ParsesValidJsonObjectIntoStruct)
 
 TEST(JsonBodyTest, ReportsFieldMismatch)
 {
-    HttpRequest request;
+    baldr::HttpRequest request;
     request.body = R"({"name":"Bob"})"; // missing "age"
 
-    auto result = Baldr::parseJson<UserDto>(request);
+    auto result = baldr::parseJson<UserDto>(request);
 
     EXPECT_FALSE(result.isOk());
     EXPECT_EQ(static_cast<int>(result.error().statusCode),
-              static_cast<int>(StatusCode::BadRequest));
+              static_cast<int>(baldr::StatusCode::BadRequest));
 }
 
 TEST(JsonBodyTest, RejectsEmptyBody)
 {
-    HttpRequest request;
+    baldr::HttpRequest request;
     request.body = "";
 
-    auto result = Baldr::parseJsonObject(request);
+    auto result = baldr::parseJsonObject(request);
 
     EXPECT_FALSE(result.isOk());
     EXPECT_EQ(static_cast<int>(result.error().statusCode),
-              static_cast<int>(StatusCode::BadRequest));
+              static_cast<int>(baldr::StatusCode::BadRequest));
     EXPECT_FALSE(result.error().message.empty());
 }
 
 TEST(JsonBodyTest, RejectsMalformedJson)
 {
-    HttpRequest request;
+    baldr::HttpRequest request;
     request.body = "not-json";
 
-    auto result = Baldr::parseJsonObject(request);
+    auto result = baldr::parseJsonObject(request);
 
     EXPECT_FALSE(result.isOk());
     EXPECT_EQ(static_cast<int>(result.error().statusCode),
-              static_cast<int>(StatusCode::BadRequest));
+              static_cast<int>(baldr::StatusCode::BadRequest));
     EXPECT_NE(result.error().message.find("Invalid JSON"), std::string::npos);
 }
 
 TEST(JsonBodyTest, RejectsTopLevelNonObject)
 {
-    HttpRequest request;
+    baldr::HttpRequest request;
     request.body = "[1,2,3]";
 
-    auto result = Baldr::parseJsonObject(request);
+    auto result = baldr::parseJsonObject(request);
 
     EXPECT_FALSE(result.isOk());
     EXPECT_EQ(static_cast<int>(result.error().statusCode),
-              static_cast<int>(StatusCode::BadRequest));
+              static_cast<int>(baldr::StatusCode::BadRequest));
     EXPECT_NE(result.error().message.find("JSON object"), std::string::npos);
 }

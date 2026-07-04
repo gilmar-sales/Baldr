@@ -1,6 +1,9 @@
+#include <Baldr/Detail/Namespace.hpp>
 #include "JsonSchemaEmitter.hpp"
 
 #include <cstdint>
+
+namespace BALDR_NAMESPACE {
 
 bool SchemaRegistry::Register(std::string_view typeName, std::string schema)
 {
@@ -100,3 +103,5 @@ namespace Detail
         return "boolean";
     }
 } // namespace Detail
+
+} // namespace BALDR_NAMESPACE

@@ -10,19 +10,19 @@ class RequestIdTraceSpec : public ::testing::Test
   protected:
     void SetUp() override
     {
-        mRequest.method  = HttpMethod::Get;
+        mRequest.method  = baldr::HttpMethod::Get;
         mRequest.path    = "/";
         mRequest.version = "HTTP/1.1";
-        mResponse        = HttpResponse(mRequest);
+        mResponse        = baldr::HttpResponse(mRequest);
     }
 
-    HttpRequest  mRequest;
-    HttpResponse mResponse;
+    baldr::HttpRequest  mRequest;
+    baldr::HttpResponse mResponse;
 };
 
 TEST_F(RequestIdTraceSpec, GeneratesTraceContextWhenAbsent)
 {
-    RequestIdMiddleware mw;
+    baldr::RequestIdMiddleware mw;
     mw.Handle(mRequest, mResponse, []() {});
 
     ASSERT_TRUE(mRequest.traceContext.valid);
@@ -38,9 +38,9 @@ TEST_F(RequestIdTraceSpec, GeneratesTraceContextWhenAbsent)
 
 TEST_F(RequestIdTraceSpec, ParsesIncomingTraceparentAndMintsNewSpan)
 {
-    RequestIdMiddleware mw;
-    const std::string   incomingTraceId = "0af7651916cd43dd8448eb211c80319c";
-    const std::string   incomingSpanId  = "b7ad6b7169203331";
+    baldr::RequestIdMiddleware mw;
+    const std::string incomingTraceId = "0af7651916cd43dd8448eb211c80319c";
+    const std::string incomingSpanId  = "b7ad6b7169203331";
     mRequest.headers["traceparent"] =
         "00-" + incomingTraceId + "-" + incomingSpanId + "-01";
 
@@ -60,7 +60,7 @@ TEST_F(RequestIdTraceSpec, ParsesIncomingTraceparentAndMintsNewSpan)
 
 TEST_F(RequestIdTraceSpec, PreservesExplicitClientRequestId)
 {
-    RequestIdMiddleware mw;
+    baldr::RequestIdMiddleware mw;
     mRequest.headers["x-request-id"] = "client-supplied";
     mRequest.headers["traceparent"] =
         "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
@@ -73,7 +73,7 @@ TEST_F(RequestIdTraceSpec, PreservesExplicitClientRequestId)
 
 TEST_F(RequestIdTraceSpec, MalformedTraceparentFallsBackToGeneration)
 {
-    RequestIdMiddleware mw;
+    baldr::RequestIdMiddleware mw;
     mRequest.headers["traceparent"] = "not-a-traceparent";
 
     mw.Handle(mRequest, mResponse, []() {});
@@ -86,7 +86,7 @@ TEST_F(RequestIdTraceSpec, MalformedTraceparentFallsBackToGeneration)
 
 TEST_F(RequestIdTraceSpec, AllZeroTraceIdIsRegenerated)
 {
-    RequestIdMiddleware mw;
+    baldr::RequestIdMiddleware mw;
     mRequest.headers["traceparent"] =
         "00-00000000000000000000000000000000-b7ad6b7169203331-01";
 
@@ -100,9 +100,9 @@ TEST_F(RequestIdTraceSpec, AllZeroTraceIdIsRegenerated)
 
 TEST_F(RequestIdTraceSpec, DisablingResponsePropagationOmitsTraceparent)
 {
-    RequestIdOptions opts;
+    baldr::RequestIdOptions opts;
     opts.propagateTraceparentResponse = false;
-    RequestIdMiddleware mw(opts);
+    baldr::RequestIdMiddleware mw(opts);
 
     mw.Handle(mRequest, mResponse, []() {});
 
@@ -113,9 +113,9 @@ TEST_F(RequestIdTraceSpec, DisablingResponsePropagationOmitsTraceparent)
 
 TEST_F(RequestIdTraceSpec, DisablingRequestIdFallbackUsesGeneratedId)
 {
-    RequestIdOptions opts;
+    baldr::RequestIdOptions opts;
     opts.useTraceIdAsRequestIdFallback = false;
-    RequestIdMiddleware mw(opts);
+    baldr::RequestIdMiddleware mw(opts);
 
     mw.Handle(mRequest, mResponse, []() {});
 

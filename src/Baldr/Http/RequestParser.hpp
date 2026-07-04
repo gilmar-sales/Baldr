@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <optional>
 #include <string>
@@ -6,6 +7,8 @@
 
 #include <Baldr/Http/Request.hpp>
 #include <Baldr/Http/Results/HttpResult.hpp>
+
+namespace BALDR_NAMESPACE {
 
 struct HttpParseStatus
 {
@@ -37,3 +40,5 @@ class HttpRequestParser
     // number of bytes consumed, or Error with the reason.
     HttpParseStatus tryParse(std::string_view buffer) const;
 };
+
+} // namespace BALDR_NAMESPACE

@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <exception>
 #include <functional>
@@ -6,6 +7,8 @@
 #include <utility>
 
 #include <Baldr/Middleware/IMiddleware.hpp>
+
+namespace BALDR_NAMESPACE {
 
 struct ExceptionHandlerOptions
 {
@@ -75,3 +78,5 @@ class ExceptionHandlerMiddleware final : public IMiddleware
   private:
     ExceptionHandlerOptions mOptions;
 };
+
+} // namespace BALDR_NAMESPACE

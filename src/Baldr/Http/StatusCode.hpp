@@ -1,6 +1,9 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <iostream>
+
+namespace BALDR_NAMESPACE {
 
 enum class StatusCode : int
 {
@@ -78,3 +81,5 @@ inline std::ostream& operator<<(std::ostream& os, StatusCode code)
 
     return os;
 }
+
+} // namespace BALDR_NAMESPACE

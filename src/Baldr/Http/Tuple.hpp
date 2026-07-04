@@ -1,10 +1,13 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <tuple>
 #include <utility>
 
 #include <Baldr/Http/Request.hpp>
 #include <Baldr/Http/Response.hpp>
+
+namespace BALDR_NAMESPACE {
 
 template <typename... Ts>
 auto TupleOfPtr(std::tuple<Ts...>*)
@@ -102,3 +105,5 @@ auto transformTuple(Func func, PtrFunc ptrFunc, Tuple&& tuple)
         func, ptrFunc, std::forward<Tuple>(tuple),
         std::make_index_sequence<tupleSize> {});
 }
+
+} // namespace BALDR_NAMESPACE

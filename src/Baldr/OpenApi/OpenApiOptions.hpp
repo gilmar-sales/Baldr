@@ -1,7 +1,10 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <optional>
 #include <string>
+
+namespace BALDR_NAMESPACE {
 
 struct Info
 {
@@ -16,3 +19,5 @@ struct OpenApiOptions
     Info        info;
     bool        enabled = true;
 };
+
+} // namespace BALDR_NAMESPACE

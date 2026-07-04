@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <cctype>
 #include <cstring>
@@ -21,6 +22,8 @@
 #include <Baldr/Http/ServerOptions.hpp>
 #include <Baldr/Http/StatusCode.hpp>
 #include <Baldr/Middleware/MiddlewareProvider.hpp>
+
+namespace BALDR_NAMESPACE {
 
 class HttpConnection
 {
@@ -187,3 +190,5 @@ class HttpConnection
     skr::Arc<HttpRequestParser>           mParser;
     int                                   mRequestCount { 0 };
 };
+
+} // namespace BALDR_NAMESPACE

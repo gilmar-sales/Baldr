@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <Skirnir/Skirnir.hpp>
 
@@ -6,6 +7,8 @@
 
 #include "OpenApiOptions.hpp"
 #include "OpenApiSpecService.hpp"
+
+namespace BALDR_NAMESPACE {
 
 class BaldrOpenApiExtension : public skr::IExtension
 {
@@ -47,3 +50,5 @@ class BaldrOpenApiExtension : public skr::IExtension
   private:
     OpenApiOptions mOptions;
 };
+
+} // namespace BALDR_NAMESPACE

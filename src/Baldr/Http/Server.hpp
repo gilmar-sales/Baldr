@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <atomic>
 #include <memory>
@@ -7,6 +8,8 @@
 
 #include <Baldr/Application/InFlightTracker.hpp>
 #include <Baldr/Http/ServerOptions.hpp>
+
+namespace BALDR_NAMESPACE {
 
 class HttpServer
 {
@@ -29,3 +32,5 @@ class HttpServer
     struct Impl;
     std::unique_ptr<Impl> mImpl;
 };
+
+} // namespace BALDR_NAMESPACE

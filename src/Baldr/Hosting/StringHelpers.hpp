@@ -1,63 +1,69 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <iomanip>
 #include <optional>
 #include <sstream>
 #include <string>
 
-inline std::string trim(const std::string& str)
+namespace BALDR_NAMESPACE
 {
-    const size_t start = str.find_first_not_of(" \t\n\r\f\v");
 
-    const size_t end = str.find_last_not_of(" \t\n\r\f\v");
-
-    if (start == std::string::npos || end == std::string::npos)
+    inline std::string trim(const std::string& str)
     {
-        return "";
+        const size_t start = str.find_first_not_of(" \t\n\r\f\v");
+
+        const size_t end = str.find_last_not_of(" \t\n\r\f\v");
+
+        if (start == std::string::npos || end == std::string::npos)
+        {
+            return "";
+        }
+
+        return str.substr(start, end - start + 1);
     }
 
-    return str.substr(start, end - start + 1);
-}
-
-inline std::optional<std::string> decode_path(const std::string& path)
-{
-    std::ostringstream decoded;
-    for (size_t i = 0; i < path.size(); ++i)
+    inline std::optional<std::string> decode_path(const std::string& path)
     {
-        if (path[i] == '%')
+        std::ostringstream decoded;
+        for (size_t i = 0; i < path.size(); ++i)
         {
-            if (i + 2 < path.size())
+            if (path[i] == '%')
             {
-                std::string hex = path.substr(i + 1, 2);
-                char        decodedChar;
-                try
+                if (i + 2 < path.size())
                 {
-                    decodedChar =
-                        static_cast<char>(std::stoi(hex, nullptr, 16));
+                    std::string hex = path.substr(i + 1, 2);
+                    char        decodedChar;
+                    try
+                    {
+                        decodedChar =
+                            static_cast<char>(std::stoi(hex, nullptr, 16));
+                    }
+                    catch (const std::exception&)
+                    {
+                        return std::nullopt;
+                    }
+
+                    if (decodedChar == '\0')
+                    {
+                        return std::nullopt;
+                    }
+
+                    decoded << decodedChar;
+                    i += 2; // Skip the next two characters
                 }
-                catch (const std::exception&)
+                else
                 {
                     return std::nullopt;
                 }
-
-                if (decodedChar == '\0')
-                {
-                    return std::nullopt;
-                }
-
-                decoded << decodedChar;
-                i += 2; // Skip the next two characters
             }
             else
             {
-                return std::nullopt;
+                decoded << path[i];
             }
         }
-        else
-        {
-            decoded << path[i];
-        }
+
+        return decoded.str();
     }
 
-    return decoded.str();
-}
+} // namespace BALDR_NAMESPACE

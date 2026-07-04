@@ -1,4 +1,7 @@
+#include <Baldr/Detail/Namespace.hpp>
 #include "OpenApiSpecService.hpp"
+
+namespace BALDR_NAMESPACE {
 
 const std::string& OpenApiSpecService::Cached(const skr::Arc<Router>& router)
 {
@@ -27,3 +30,5 @@ void OpenApiSpecService::Regenerate(const skr::Arc<Router>& router)
     mCache    = builder.Render(entries);
     mRendered = true;
 }
+
+} // namespace BALDR_NAMESPACE

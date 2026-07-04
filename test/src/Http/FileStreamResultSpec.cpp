@@ -21,8 +21,8 @@ fs::path makeTempFile(const std::string& contents, const std::string& tag)
 
 TEST(FileStreamResult, HeadersIncludesContentTypeAndDisposition)
 {
-    std::ifstream    empty;
-    FileStreamResult r(std::move(empty), "application/pdf", "baldr.pdf");
+    std::ifstream           empty;
+    baldr::FileStreamResult r(std::move(empty), "application/pdf", "baldr.pdf");
 
     std::vector<std::pair<std::string, std::string>> headers;
     r.headers(headers);
@@ -39,8 +39,8 @@ TEST(FileStreamResult, NextChunkEmitsFileBytes)
     const std::string payload = "hello world\n";
     auto              path    = makeTempFile(payload, "emit");
 
-    std::ifstream    in(path, std::ios::binary);
-    FileStreamResult r(std::move(in), "text/plain", "data.bin");
+    std::ifstream           in(path, std::ios::binary);
+    baldr::FileStreamResult r(std::move(in), "text/plain", "data.bin");
 
     std::string concatenated;
     std::string chunk;
@@ -55,8 +55,8 @@ TEST(FileStreamResult, NextChunkReturnsFalseAfterEof)
     const std::string payload = "tiny";
     auto              path    = makeTempFile(payload, "eof");
 
-    std::ifstream    in(path, std::ios::binary);
-    FileStreamResult r(std::move(in), "text/plain", "data.bin");
+    std::ifstream           in(path, std::ios::binary);
+    baldr::FileStreamResult r(std::move(in), "text/plain", "data.bin");
 
     std::string chunk;
     while (r.nextChunk(chunk))
@@ -70,9 +70,10 @@ TEST(FileStreamResult, NextChunkReturnsFalseAfterEof)
 
 TEST(FileStreamResult, NextChunkReturnsFalseWhenFileCannotBeOpened)
 {
-    std::ifstream    empty;
-    FileStreamResult r(std::move(empty), "application/octet-stream",
-                       "missing.bin");
+    std::ifstream           empty;
+    baldr::FileStreamResult r(std::move(empty),
+                              "application/octet-stream",
+                              "missing.bin");
 
     std::string chunk;
     EXPECT_FALSE(r.nextChunk(chunk));
@@ -82,16 +83,19 @@ TEST(FileStreamResult, NextChunkReturnsFalseWhenFileCannotBeOpened)
 TEST(FileStreamResult, EmitsMultiChunkWhenPayloadExceedsBuffer)
 {
     std::string payload;
-    payload.reserve(FileStreamResult::kDefaultChunkBytes * 2 + 17);
-    for (std::size_t i = 0; i < FileStreamResult::kDefaultChunkBytes * 2 + 17;
+    payload.reserve(baldr::FileStreamResult::kDefaultChunkBytes * 2 + 17);
+    for (std::size_t i = 0;
+         i < baldr::FileStreamResult::kDefaultChunkBytes * 2 + 17;
          ++i)
     {
         payload.push_back(static_cast<char>('a' + (i % 26)));
     }
     auto path = makeTempFile(payload, "multi");
 
-    std::ifstream    in(path, std::ios::binary);
-    FileStreamResult r(std::move(in), "application/octet-stream", "data.bin");
+    std::ifstream           in(path, std::ios::binary);
+    baldr::FileStreamResult r(std::move(in),
+                              "application/octet-stream",
+                              "data.bin");
 
     std::size_t total = 0;
     int         calls = 0;
@@ -112,8 +116,8 @@ TEST(FileStreamResult, StreamIsReleasedAfterDestruction)
     auto              path    = makeTempFile(payload, "release");
 
     {
-        std::ifstream    in(path, std::ios::binary);
-        FileStreamResult r(std::move(in), "text/plain", "data.bin");
+        std::ifstream           in(path, std::ios::binary);
+        baldr::FileStreamResult r(std::move(in), "text/plain", "data.bin");
     }
 
     std::error_code ec;

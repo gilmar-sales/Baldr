@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <chrono>
 #include <cstddef>
@@ -9,6 +10,8 @@
 #include <string_view>
 
 #include <Baldr/Middleware/IMiddleware.hpp>
+
+namespace BALDR_NAMESPACE {
 
 struct CsrfOptions
 {
@@ -166,3 +169,5 @@ class CsrfMiddleware final : public IMiddleware
 
     CsrfOptions mOptions;
 };
+
+} // namespace BALDR_NAMESPACE

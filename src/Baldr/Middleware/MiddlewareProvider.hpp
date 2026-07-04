@@ -1,9 +1,12 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <stdexcept>
 #include <vector>
 
 #include <Baldr/Middleware/IMiddleware.hpp>
+
+namespace BALDR_NAMESPACE {
 
 using MiddlewareFactory =
     std::function<skr::Arc<IMiddleware>(const skr::Arc<skr::ServiceProvider>&)>;
@@ -47,3 +50,5 @@ class MiddlewareProvider
     MiddlewareFactoryList mMiddlewareFactories;
     MiddlewareFactoryList mSealedFactories;
 };
+
+} // namespace BALDR_NAMESPACE

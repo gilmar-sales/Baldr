@@ -1,4 +1,5 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -12,6 +13,8 @@
 #include <trantor/net/TcpConnection.h>
 
 #include <Baldr/Http/StatusCode.hpp>
+
+namespace BALDR_NAMESPACE {
 
 class IStreamingResult
 {
@@ -134,3 +137,5 @@ inline std::string formatStreamingHead(
     out.append("\r\n");
     return out;
 }
+
+} // namespace BALDR_NAMESPACE

@@ -1,7 +1,10 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <optional>
 #include <string>
+
+namespace BALDR_NAMESPACE {
 
 enum class SameSite
 {
@@ -19,3 +22,5 @@ struct CookieOptions
     bool                       httpOnly {};
     bool                       secure {};
 };
+
+} // namespace BALDR_NAMESPACE

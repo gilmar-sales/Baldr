@@ -1,10 +1,13 @@
 #pragma once
+#include <Baldr/Detail/Namespace.hpp>
 
 #include <Baldr/Http/Response.hpp>
 #include <Baldr/Http/StatusCode.hpp>
 
 #include <string>
 #include <utility>
+
+namespace BALDR_NAMESPACE {
 
 class IResult
 {
@@ -114,3 +117,5 @@ class Results
         return TextResult(std::move(body), StatusCode::NotFound);
     }
 };
+
+} // namespace BALDR_NAMESPACE
