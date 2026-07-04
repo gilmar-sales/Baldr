@@ -20,12 +20,12 @@ Malformed headers are treated as if absent: the middleware generates fresh `trac
 !!! tip "Forward compatibility"
     Per the W3C spec, unknown versions must still propagate. Baldr accepts and forwards any version whose first four fields are well-formed.
 
-## `Baldr::TraceContext`
+## `baldr::TraceContext`
 
 [`src/Baldr/Http/TraceContext.hpp`](https://github.com/gilmar-sales/Baldr/blob/main/src/Baldr/Http/TraceContext.hpp) exposes the parsed context on every request:
 
 ```cpp title="TraceContext.hpp"
-namespace Baldr {
+namespace baldr {
 struct TraceContext {
     std::uint8_t version{0};
     std::string  traceId;     // 32 hex chars

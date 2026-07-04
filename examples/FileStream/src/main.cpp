@@ -54,8 +54,8 @@ std::int64_t nowMillis()
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().WithExtension<BaldrExtension>();
-    auto app     = builder.Build<WebApplication>();
+    auto builder = skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
+    auto app     = builder.Build<baldr::WebApplication>();
 
     const auto      assets  = assetsDir();
     const auto      pdfPath = assets / "baldr.pdf";
@@ -65,12 +65,12 @@ int main()
 
     app->MapGet("/files/baldr.pdf", [pdfPath] {
         std::ifstream in(pdfPath, std::ios::binary);
-        return FileStreamResult(std::move(in), "application/pdf", "baldr.pdf");
+        return baldr::FileStreamResult(std::move(in), "application/pdf", "baldr.pdf");
     });
 
     app->MapPost(
         "/upload",
-        [uploads](const HttpRequest& request) -> JsonResult {
+        [uploads](const baldr::HttpRequest& request) -> baldr::JsonResult {
             const auto storedAs =
                 "upload-" + std::to_string(nowMillis()) + ".bin";
             const auto outPath = uploads / storedAs;
@@ -78,9 +78,9 @@ int main()
             std::ofstream out(outPath, std::ios::binary | std::ios::trunc);
             if (!out)
             {
-                return JsonResult(
+                return baldr::JsonResult(
                     std::string("{\"error\":\"could not open output file\"}"),
-                    StatusCode::InternalServerError);
+                    baldr::StatusCode::InternalServerError);
             }
 
             if (!request.body.empty())
@@ -99,7 +99,7 @@ int main()
                 contentType = it->second;
             }
 
-            return Results::Json(UploadResponse {
+            return baldr::Results::Json(UploadResponse {
                 storedAs, request.body.size(), digest, contentType });
         });
 

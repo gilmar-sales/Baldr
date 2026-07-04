@@ -7,9 +7,9 @@ struct Payload
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().WithExtension<BaldrExtension>();
+    auto builder = skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
 
-    auto app = builder.Build<WebApplication>();
+    auto app = builder.Build<baldr::WebApplication>();
 
     app->MapGet("/json",
                 [&] { return Payload { .message = "Hello, World!" }; });

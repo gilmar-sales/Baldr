@@ -71,8 +71,8 @@ class HtmlResult final : public IResult
 
 `HttpRequest::body` is a raw `std::string`. Use the helpers in `<Baldr/Http/Results/JsonBody.hpp>` to parse it:
 
-- `Baldr::parseJsonObject(request)` returns `JsonResult<simdjson::dom::object>` — either a parsed object or a populated error response.
-- `Baldr::parseJson<T>(request)` returns `JsonResult<T>` and uses C++26 reflection to populate every non-static data member of `T` from the JSON object. Supported field types are `std::string`, `std::string_view`, `int`, `int64_t`, `double`, and `bool`.
+- `baldr::parseJsonObject(request)` returns `JsonResult<simdjson::dom::object>` — either a parsed object or a populated error response.
+- `baldr::parseJson<T>(request)` returns `JsonResult<T>` and uses C++26 reflection to populate every non-static data member of `T` from the JSON object. Supported field types are `std::string`, `std::string_view`, `int`, `int64_t`, `double`, and `bool`.
 
 ```cpp title="src/main.cpp"
 struct LoginRequest
@@ -82,7 +82,7 @@ struct LoginRequest
 };
 
 app->MapPost("/login", [](const HttpRequest& req) -> IResult {
-    auto parsed = Baldr::parseJson<LoginRequest>(req);
+    auto parsed = baldr::parseJson<LoginRequest>(req);
     if (!parsed.isOk())
         return Results::Status(parsed.error().statusCode);
     // ...

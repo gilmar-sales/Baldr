@@ -7,10 +7,10 @@ int main()
 {
     auto builder =
         skr::ApplicationBuilder()
-            .WithExtension<BaldrExtension>()
-            .WithExtension<BaldrOpenApiExtension>(
-                [](BaldrOpenApiExtension& openApi) {
-                    OpenApiOptions opts;
+            .WithExtension<baldr::BaldrExtension>()
+            .WithExtension<baldr::BaldrOpenApiExtension>(
+                [](baldr::BaldrOpenApiExtension& openApi) {
+                    baldr::OpenApiOptions opts;
                     opts.info.title       = "Devices API";
                     opts.info.version     = "1.0.0";
                     opts.info.description = "Reference example demonstrating "
@@ -18,7 +18,7 @@ int main()
                     openApi.WithOptions(opts);
                 });
 
-    auto app = builder.Build<WebApplication>();
+    auto app = builder.Build<baldr::WebApplication>();
 
     app->MapGet("/api/devices")
         .WithSummary("List devices")
@@ -41,7 +41,7 @@ int main()
         group.MapGet("/users")
             .WithSummary("Fetch users")
             .WithTag("users")
-            .Handle([](HttpRequest& req) {
+            .Handle([](baldr::HttpRequest& req) {
                 return std::vector<User> { User { .id = 1, .name = "First" },
                                            User { .id = 2, .name = "Second" } };
             });

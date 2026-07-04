@@ -4,9 +4,9 @@
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().WithExtension<BaldrExtension>();
+    auto builder = skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
 
-    auto app = builder.Build<WebApplication>();
+    auto app = builder.Build<baldr::WebApplication>();
 
     app->MapGet("/api/devices", []() {
         auto devices = std::vector<Device> {
@@ -52,7 +52,7 @@ int main()
             },
         };
 
-        return Results::Json(devices);
+        return baldr::Results::Json(devices);
     });
 
     app->Run();

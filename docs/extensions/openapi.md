@@ -11,7 +11,7 @@ Prefer the DI-friendly extension form:
 
 int main()
 {
-    Baldr::OpenApi::OpenApiOptions opts;
+    baldr::OpenApi::OpenApiOptions opts;
     opts.info.title       = "My API";
     opts.info.version     = "1.0.0";
     opts.info.description = "Reference example.";
@@ -19,7 +19,7 @@ int main()
     auto builder =
         skr::ApplicationBuilder()
             .WithExtension<BaldrExtension>()
-            .WithExtension<Baldr::OpenApi::BaldrOpenApiExtension>(
+            .WithExtension<baldr::OpenApi::BaldrOpenApiExtension>(
                 [&opts](auto& ext) { ext.WithOptions(opts); });
 
     auto app = builder.Build<WebApplication>();
@@ -30,7 +30,7 @@ int main()
 
 `BaldrOpenApiExtension` registers an `OpenApiSpecService` singleton in the DI container and mounts a `GET` handler at `OpenApiOptions::mountPath` once `UseServices` runs.
 
-For an imperative flow that does not go through `skr::ApplicationBuilder`, call `Baldr::OpenApi::MapOpenApi(app, opts)` from `main()` after registering your routes:
+For an imperative flow that does not go through `skr::ApplicationBuilder`, call `baldr::OpenApi::MapOpenApi(app, opts)` from `main()` after registering your routes:
 
 ```cpp title="src/main.cpp"
 #include <Baldr/Baldr.hpp>
@@ -38,9 +38,9 @@ For an imperative flow that does not go through `skr::ApplicationBuilder`, call 
 
 int main()
 {
-    Baldr::WebApplication app;
+    baldr::WebApplication app;
     // ...register routes...
-    Baldr::OpenApi::MapOpenApi(app, /* opts */ {});
+    baldr::OpenApi::MapOpenApi(app, /* opts */ {});
     app.Run();
 }
 ```
