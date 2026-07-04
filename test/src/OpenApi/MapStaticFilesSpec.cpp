@@ -6,49 +6,46 @@
 
 #include <gtest/gtest.h>
 
-namespace
+class MapStaticFilesSpec : public ::testing::Test
 {
-    class MapStaticFilesSpec : public ::testing::Test
+  protected:
+    void SetUp() override
     {
-      protected:
-        void SetUp() override
-        {
-            mRoot = std::filesystem::temp_directory_path() /
-                    ("baldr_static_" +
-                     std::to_string(::testing::UnitTest::GetInstance()
-                                        ->random_seed()));
-            std::filesystem::remove_all(mRoot);
-            std::filesystem::create_directories(mRoot / "css");
-            std::filesystem::create_directories(mRoot / "assets");
-            std::filesystem::create_directories(mRoot / "assets" / "img");
+        mRoot =
+            std::filesystem::temp_directory_path() /
+            ("baldr_static_" +
+             std::to_string(::testing::UnitTest::GetInstance()->random_seed()));
+        std::filesystem::remove_all(mRoot);
+        std::filesystem::create_directories(mRoot / "css");
+        std::filesystem::create_directories(mRoot / "assets");
+        std::filesystem::create_directories(mRoot / "assets" / "img");
 
-            write(mRoot / "index.html", "<!doctype html>root");
-            write(mRoot / "css" / "site.css", "body{}");
-            write(mRoot / "assets" / "app.js", "console.log(1)");
-            write(mRoot / "assets" / "hello.txt", "hi");
-            write(mRoot / "assets" / "img" / "logo.svg", "<svg/>");
-        }
+        write(mRoot / "index.html", "<!doctype html>root");
+        write(mRoot / "css" / "site.css", "body{}");
+        write(mRoot / "assets" / "app.js", "console.log(1)");
+        write(mRoot / "assets" / "hello.txt", "hi");
+        write(mRoot / "assets" / "img" / "logo.svg", "<svg/>");
+    }
 
-        void TearDown() override
-        {
-            std::error_code ec;
-            std::filesystem::remove_all(mRoot, ec);
-        }
+    void TearDown() override
+    {
+        std::error_code ec;
+        std::filesystem::remove_all(mRoot, ec);
+    }
 
-        static void write(const std::filesystem::path& p,
-                          const std::string&            content)
-        {
-            std::ofstream(p) << content;
-        }
+    static void write(const std::filesystem::path& p,
+                      const std::string&           content)
+    {
+        std::ofstream(p) << content;
+    }
 
-        std::filesystem::path mRoot;
-    };
+    std::filesystem::path mRoot;
+};
 
-    using Baldr::Detail::resolveStaticFile;
-    using Baldr::Detail::makeEtag;
-    using Baldr::Detail::formatHttpDate;
-    using Baldr::Detail::parseHttpDate;
-}
+using Baldr::Detail::formatHttpDate;
+using Baldr::Detail::makeEtag;
+using Baldr::Detail::parseHttpDate;
+using Baldr::Detail::resolveStaticFile;
 
 TEST_F(MapStaticFilesSpec, ETagEncodesSizeAndLastWriteTime)
 {
@@ -62,8 +59,8 @@ TEST_F(MapStaticFilesSpec, ETagEncodesSizeAndLastWriteTime)
 TEST_F(MapStaticFilesSpec, HttpDateRoundTrip)
 {
     using namespace std::chrono;
-    auto tp = system_clock::time_point { seconds(1700000000) };
-    auto s  = formatHttpDate(tp);
+    auto tp  = system_clock::time_point { seconds(1700000000) };
+    auto s   = formatHttpDate(tp);
     auto tp2 = parseHttpDate(s);
     EXPECT_EQ(system_clock::to_time_t(tp), system_clock::to_time_t(tp2));
 }
@@ -88,8 +85,7 @@ TEST_F(MapStaticFilesSpec, ResolvedFileCarriesEtagAndLastModified)
     EXPECT_EQ(r.status, StatusCode::OK);
     EXPECT_FALSE(r.etag.empty());
     EXPECT_GT(r.fileSize, 0u);
-    EXPECT_NE(formatHttpDate(r.lastModified).find("GMT"),
-              std::string::npos);
+    EXPECT_NE(formatHttpDate(r.lastModified).find("GMT"), std::string::npos);
 }
 
 TEST_F(MapStaticFilesSpec, ServesRootIndexHtml)

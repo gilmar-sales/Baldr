@@ -19,76 +19,73 @@
 #include <Baldr/Http/StaticFilesInternal.hpp>
 #include <Baldr/Middleware/MiddlewareProvider.hpp>
 
-namespace
+const std::unordered_map<std::string, std::string>& mimeTypes()
 {
-    const std::unordered_map<std::string, std::string>& mimeTypes()
-    {
-        static const std::unordered_map<std::string, std::string> table = {
-            { ".html", "text/html" },     { ".htm", "text/html" },
-            { ".css",  "text/css" },      { ".js",  "application/javascript" },
-            { ".json", "application/json" }, { ".svg", "image/svg+xml" },
-            { ".png",  "image/png" },     { ".jpg",  "image/jpeg" },
-            { ".jpeg", "image/jpeg" },    { ".gif",  "image/gif" },
-            { ".webp", "image/webp" },    { ".ico",  "image/x-icon" },
-            { ".txt",  "text/plain" },    { ".pdf",  "application/pdf" },
-            { ".woff", "font/woff" },     { ".woff2", "font/woff2" },
-        };
-        return table;
-    }
+    static const std::unordered_map<std::string, std::string> table = {
+        { ".html", "text/html" },        { ".htm", "text/html" },
+        { ".css", "text/css" },          { ".js", "application/javascript" },
+        { ".json", "application/json" }, { ".svg", "image/svg+xml" },
+        { ".png", "image/png" },         { ".jpg", "image/jpeg" },
+        { ".jpeg", "image/jpeg" },       { ".gif", "image/gif" },
+        { ".webp", "image/webp" },       { ".ico", "image/x-icon" },
+        { ".txt", "text/plain" },        { ".pdf", "application/pdf" },
+        { ".woff", "font/woff" },        { ".woff2", "font/woff2" },
+    };
+    return table;
+}
 
-    std::string detectMimeType(const std::filesystem::path& p)
-    {
-        auto ext = p.extension().string();
-        for (auto& c : ext)
-            c = static_cast<char>(std::tolower(c));
-        auto it = mimeTypes().find(ext);
-        if (it != mimeTypes().end())
-            return it->second;
-        return "application/octet-stream";
-    }
+std::string detectMimeType(const std::filesystem::path& p)
+{
+    auto ext = p.extension().string();
+    for (auto& c : ext)
+        c = static_cast<char>(std::tolower(c));
+    auto it = mimeTypes().find(ext);
+    if (it != mimeTypes().end())
+        return it->second;
+    return "application/octet-stream";
+}
 
-    std::vector<std::string> splitSegments(const std::string& s)
+std::vector<std::string> splitSegments(const std::string& s)
+{
+    std::vector<std::string> out;
+    std::string              cur;
+    for (char c : s)
     {
-        std::vector<std::string> out;
-        std::string              cur;
-        for (char c : s)
+        if (c == '/')
         {
-            if (c == '/')
+            if (!cur.empty())
             {
-                if (!cur.empty())
-                {
-                    out.push_back(cur);
-                    cur.clear();
-                }
-            }
-            else
-            {
-                cur.push_back(c);
+                out.push_back(cur);
+                cur.clear();
             }
         }
-        if (!cur.empty())
-            out.push_back(cur);
-        return out;
-    }
-
-    std::string toLowerAscii(std::string_view s)
-    {
-        std::string out;
-        out.reserve(s.size());
-        for (char c : s)
+        else
         {
-            if (c >= 'A' && c <= 'Z')
-                out.push_back(static_cast<char>(c + 32));
-            else
-                out.push_back(c);
+            cur.push_back(c);
         }
-        return out;
     }
-} // namespace
+    if (!cur.empty())
+        out.push_back(cur);
+    return out;
+}
+
+std::string toLowerAscii(std::string_view s)
+{
+    std::string out;
+    out.reserve(s.size());
+    for (char c : s)
+    {
+        if (c >= 'A' && c <= 'Z')
+            out.push_back(static_cast<char>(c + 32));
+        else
+            out.push_back(c);
+    }
+    return out;
+}
 
 namespace Baldr::Detail
 {
-    std::string makeEtag(std::uintmax_t              size,
+    std::string makeEtag(std::uintmax_t                        size,
                          std::chrono::system_clock::time_point mtime)
     {
         std::ostringstream oss;
@@ -101,8 +98,8 @@ namespace Baldr::Detail
 
     std::string formatHttpDate(std::chrono::system_clock::time_point tp)
     {
-        std::time_t  tt = std::chrono::system_clock::to_time_t(tp);
-        std::tm      tm {};
+        std::time_t tt = std::chrono::system_clock::to_time_t(tp);
+        std::tm     tm {};
 #if defined(_WIN32)
         gmtime_s(&tm, &tt);
 #else
@@ -118,7 +115,7 @@ namespace Baldr::Detail
         if (v.empty())
             return {};
 
-        std::tm tm {};
+        std::tm            tm {};
         std::istringstream iss { std::string(v) };
         iss >> std::get_time(&tm, "%a, %d %b %Y %H:%M:%S GMT");
         if (iss.fail())
@@ -160,26 +157,25 @@ namespace Baldr::Detail
         }
 
         std::error_code ec;
-        const auto      rootCanonical =
-            std::filesystem::weakly_canonical(root, ec);
+        const auto rootCanonical = std::filesystem::weakly_canonical(root, ec);
         if (ec)
             return { StatusCode::InternalServerError, {}, {}, {} };
 
         std::filesystem::path requested =
             std::filesystem::path(root) / filepath;
-        const auto            canonical =
-            std::filesystem::weakly_canonical(requested, ec);
+        const auto canonical = std::filesystem::weakly_canonical(requested, ec);
         if (ec)
             return { StatusCode::NotFound, {}, {}, {} };
 
-        const std::string rootStr = rootCanonical.string();
-        const std::string fileStr = canonical.string();
+        const std::string rootStr   = rootCanonical.string();
+        const std::string fileStr   = canonical.string();
         const bool        exactRoot = (fileStr == rootStr);
         const bool        underRoot =
             fileStr.size() > rootStr.size() &&
             fileStr.compare(0, rootStr.size(), rootStr) == 0 &&
             (fileStr[rootStr.size()] == '/' ||
-             fileStr[rootStr.size()] == std::filesystem::path::preferred_separator);
+             fileStr[rootStr.size()] ==
+                 std::filesystem::path::preferred_separator);
 
         if (!exactRoot && !underRoot)
             return { StatusCode::Forbidden, {}, {}, {} };
@@ -202,12 +198,14 @@ namespace Baldr::Detail
         std::ostringstream ss;
         ss << file.rdbuf();
 
-        std::error_code            sizec;
-        auto                      sz  = std::filesystem::file_size(fileToServe, sizec);
-        auto                      mte = std::filesystem::last_write_time(fileToServe);
-        auto                      mtc = std::chrono::file_clock::to_sys(mte);
+        std::error_code sizec;
+        auto            sz  = std::filesystem::file_size(fileToServe, sizec);
+        auto            mte = std::filesystem::last_write_time(fileToServe);
+        auto            mtc = std::chrono::file_clock::to_sys(mte);
 
-        return { StatusCode::OK, fileToServe, detectMimeType(fileToServe),
+        return { StatusCode::OK,
+                 fileToServe,
+                 detectMimeType(fileToServe),
                  ss.str(),
                  /*fileSize=*/sizec ? 0 : sz,
                  /*lastModified=*/mtc,
@@ -256,71 +254,76 @@ void WebApplication::MapStaticFiles(const std::string& urlPrefix,
     const std::string prefix = urlPrefix;
     const std::string root   = rootPath;
 
-    MapGet(prefix + "/**", [prefix, root](HttpRequest& request,
-                                          HttpResponse& response) -> ContentResult {
-        (void)prefix;
-        (void)response;
-        auto it = request.params.find("filepath");
-        std::string filepath =
-            (it != request.params.end()) ? it->second : std::string {};
+    MapGet(
+        prefix + "/**",
+        [prefix,
+         root](HttpRequest& request, HttpResponse& response) -> ContentResult {
+            (void) prefix;
+            (void) response;
+            auto        it = request.params.find("filepath");
+            std::string filepath =
+                (it != request.params.end()) ? it->second : std::string {};
 
-        auto resolved = Baldr::Detail::resolveStaticFile(filepath, root);
-        if (resolved.status != StatusCode::OK)
-            return ContentResult("", "text/plain", resolved.status);
+            auto resolved = Baldr::Detail::resolveStaticFile(filepath, root);
+            if (resolved.status != StatusCode::OK)
+                return ContentResult("", "text/plain", resolved.status);
 
-        const std::string lastModifiedHeader =
-            Baldr::Detail::formatHttpDate(resolved.lastModified);
+            const std::string lastModifiedHeader =
+                Baldr::Detail::formatHttpDate(resolved.lastModified);
 
-        auto inmIt = request.headers.find("if-none-match");
-        if (inmIt != request.headers.end())
-        {
-            std::string inm = toLowerAscii(inmIt->second);
-            std::string tag = toLowerAscii(resolved.etag);
-            auto trim = [](std::string& s) {
-                while (!s.empty() && std::isspace(static_cast<unsigned char>(
-                                          s.back())))
-                    s.pop_back();
-                while (!s.empty() && std::isspace(static_cast<unsigned char>(
-                                          s.front())))
-                    s.erase(s.begin());
-            };
-            trim(inm);
-            trim(tag);
-            if (inm == tag || inm == "*")
+            auto inmIt = request.headers.find("if-none-match");
+            if (inmIt != request.headers.end())
             {
-                response.headers["ETag"]              = resolved.etag;
-                response.headers["Last-Modified"]     = lastModifiedHeader;
-                response.statusCode                   = StatusCode::NotModified;
-                return ContentResult("", resolved.mimeType,
-                                     StatusCode::NotModified);
-            }
-        }
-
-        auto imsIt = request.headers.find("if-modified-since");
-        if (imsIt != request.headers.end())
-        {
-            auto ts = Baldr::Detail::parseHttpDate(imsIt->second);
-            auto floorToSeconds =
-                [](std::chrono::system_clock::time_point tp) {
-                    return std::chrono::system_clock::time_point {
-                        std::chrono::duration_cast<std::chrono::seconds>(
-                            tp.time_since_epoch()) };
+                std::string inm  = toLowerAscii(inmIt->second);
+                std::string tag  = toLowerAscii(resolved.etag);
+                auto        trim = [](std::string& s) {
+                    while (!s.empty() &&
+                           std::isspace(static_cast<unsigned char>(s.back())))
+                        s.pop_back();
+                    while (!s.empty() &&
+                           std::isspace(static_cast<unsigned char>(s.front())))
+                        s.erase(s.begin());
                 };
-            if (floorToSeconds(resolved.lastModified) <= floorToSeconds(ts))
-            {
-                response.headers["ETag"]          = resolved.etag;
-                response.headers["Last-Modified"] = lastModifiedHeader;
-                response.statusCode               = StatusCode::NotModified;
-                return ContentResult("", resolved.mimeType,
-                                     StatusCode::NotModified);
+                trim(inm);
+                trim(tag);
+                if (inm == tag || inm == "*")
+                {
+                    response.headers["ETag"]          = resolved.etag;
+                    response.headers["Last-Modified"] = lastModifiedHeader;
+                    response.statusCode               = StatusCode::NotModified;
+                    return ContentResult("", resolved.mimeType,
+                                         StatusCode::NotModified);
+                }
             }
-        }
 
-        ContentResult body(resolved.body, resolved.mimeType, StatusCode::OK);
-        response.headers["ETag"]          = resolved.etag;
-        response.headers["Last-Modified"] = lastModifiedHeader;
-        return body;
-    });
+            auto imsIt = request.headers.find("if-modified-since");
+            if (imsIt != request.headers.end())
+            {
+                auto ts = Baldr::Detail::parseHttpDate(imsIt->second);
+                auto floorToSeconds =
+                    [](std::chrono::system_clock::time_point tp) {
+                        return std::chrono::system_clock::time_point {
+                            std::chrono::duration_cast<std::chrono::seconds>(
+                                tp.time_since_epoch())
+                        };
+                    };
+                if (floorToSeconds(resolved.lastModified) <= floorToSeconds(ts))
+                {
+                    response.headers["ETag"]          = resolved.etag;
+                    response.headers["Last-Modified"] = lastModifiedHeader;
+                    response.statusCode               = StatusCode::NotModified;
+                    return ContentResult("", resolved.mimeType,
+                                         StatusCode::NotModified);
+                }
+            }
+
+            ContentResult body(resolved.body,
+                               resolved.mimeType,
+                               StatusCode::OK);
+            response.headers["ETag"]          = resolved.etag;
+            response.headers["Last-Modified"] = lastModifiedHeader;
+            return body;
+        });
 }
 
 void WebApplication::Run()
@@ -361,33 +364,48 @@ Baldr::RouteRegistration WebApplication::RouteBuilder::MapGet(
     const std::string& route)
 {
     return Baldr::RouteRegistration(
-        mRouter, HttpMethod::Get, join(mPrefix, route), mPrefix);
+        mRouter,
+        HttpMethod::Get,
+        join(mPrefix, route),
+        mPrefix);
 }
 
 Baldr::RouteRegistration WebApplication::RouteBuilder::MapPost(
     const std::string& route)
 {
     return Baldr::RouteRegistration(
-        mRouter, HttpMethod::Post, join(mPrefix, route), mPrefix);
+        mRouter,
+        HttpMethod::Post,
+        join(mPrefix, route),
+        mPrefix);
 }
 
 Baldr::RouteRegistration WebApplication::RouteBuilder::MapPut(
     const std::string& route)
 {
     return Baldr::RouteRegistration(
-        mRouter, HttpMethod::Put, join(mPrefix, route), mPrefix);
+        mRouter,
+        HttpMethod::Put,
+        join(mPrefix, route),
+        mPrefix);
 }
 
 Baldr::RouteRegistration WebApplication::RouteBuilder::MapDelete(
     const std::string& route)
 {
     return Baldr::RouteRegistration(
-        mRouter, HttpMethod::Delete, join(mPrefix, route), mPrefix);
+        mRouter,
+        HttpMethod::Delete,
+        join(mPrefix, route),
+        mPrefix);
 }
 
 Baldr::RouteRegistration WebApplication::RouteBuilder::MapPatch(
     const std::string& route)
 {
     return Baldr::RouteRegistration(
-        mRouter, HttpMethod::Patch, join(mPrefix, route), mPrefix);
+        mRouter,
+        HttpMethod::Patch,
+        join(mPrefix, route),
+        mPrefix);
 }

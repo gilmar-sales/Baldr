@@ -22,6 +22,7 @@ FetchContent_Declare(
   trantor
   GIT_REPOSITORY "https://github.com/an-tao/trantor.git"
   GIT_TAG        "v1.5.28"
+  GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(trantor)
 
@@ -29,17 +30,21 @@ FetchContent_Declare(
   skirnir
   GIT_REPOSITORY "https://github.com/gilmar-sales/Skirnir.git"
   GIT_TAG        "v0.22.0"
+  GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(skirnir)
 
-# CompressionMiddleware uses libz (zlib) for gzip. AGENTS.md prefers
-# FetchContent for external dependencies, but zlib is small and
-# ubiquitous; locate it on the host system first.
-find_package(ZLIB QUIET)
+FetchContent_Declare(
+  zlib
+  GIT_REPOSITORY "https://github.com/madler/zlib.git"
+  GIT_TAG        "v1.3.2"
+  GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(zlib)
+if (NOT TARGET ZLIB::ZLIB)
+  add_library(ZLIB::ZLIB ALIAS zlib)
+endif ()
 
-# Explicit source list grouped by domain. Mirrors the directory layout
-# under src/Baldr/. Prefer adding files here over GLOB so CMake
-# re-runs reliably.
 set(BALDR_SOURCES
     # Top-level
     src/Baldr/BaldrExtension.cpp
@@ -72,18 +77,10 @@ add_library(baldr ${BALDR_SOURCES})
 
 add_library(baldr::baldr ALIAS baldr)
 
-target_link_libraries(baldr trantor skirnir::skirnir simdjson::simdjson)
-if (ZLIB_FOUND)
-  target_link_libraries(baldr ZLIB::ZLIB)
-else ()
-  message(FATAL_ERROR "zlib was not found; CompressionMiddleware requires it")
-endif ()
+target_link_libraries(baldr trantor skirnir::skirnir simdjson::simdjson ZLIB::ZLIB)
 
 target_include_directories(baldr PUBLIC src/)
 
-# Precompiled headers: stable, ubiquitous STL headers + the umbrella
-# Baldr header are reused across most translation units. Cuts the
-# first-byte cost of every .cpp by ~50-100 ms on this codebase.
 target_precompile_headers(baldr PRIVATE
     <string>
     <memory>
@@ -94,9 +91,6 @@ target_precompile_headers(baldr PRIVATE
     <Baldr/Baldr.hpp>
 )
 
-# Unity builds: collapse small groups of .cpp files into a single TU,
-# sidestepping per-TU include-graph work. A batch size of 4 keeps
-# incremental rebuilds narrow while still cutting first-build cost.
 set_target_properties(baldr PROPERTIES
     UNITY_BUILD ON
     UNITY_BUILD_BATCH_SIZE 4

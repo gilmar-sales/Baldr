@@ -13,28 +13,25 @@
 #include <filesystem>
 #include <string>
 
-namespace
+std::filesystem::path exeDir()
 {
-    std::filesystem::path exeDir()
-    {
 #if defined(_WIN32)
-        return std::filesystem::path(_pgmptr).parent_path();
+    return std::filesystem::path(_pgmptr).parent_path();
 #else
-        if (auto* argv0 = std::getenv("_"))
-            return std::filesystem::path(argv0).parent_path();
-        return std::filesystem::current_path();
+    if (auto* argv0 = std::getenv("_"))
+        return std::filesystem::path(argv0).parent_path();
+    return std::filesystem::current_path();
 #endif
-    }
+}
 
-    std::filesystem::path resolveWebRoot()
-    {
-        const auto nextToExe =
-            std::filesystem::weakly_canonical(exeDir()) / "wwwroot";
-        if (std::filesystem::is_directory(nextToExe))
-            return nextToExe;
+std::filesystem::path resolveWebRoot()
+{
+    const auto nextToExe =
+        std::filesystem::weakly_canonical(exeDir()) / "wwwroot";
+    if (std::filesystem::is_directory(nextToExe))
+        return nextToExe;
 
-        return std::filesystem::current_path() / "wwwroot";
-    }
+    return std::filesystem::current_path() / "wwwroot";
 }
 
 int main()

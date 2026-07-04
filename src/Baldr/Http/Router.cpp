@@ -11,23 +11,20 @@
 
 #include <Baldr/OpenApi/JsonSchemaEmitter.hpp>
 
-namespace
+struct TrieNode
 {
-    struct TrieNode
-    {
-        std::unordered_map<std::string, std::unique_ptr<TrieNode>> children;
-        std::optional<RouteEntry>                                 routeEntry;
-        bool isEndOfPath = false;
+    std::unordered_map<std::string, std::unique_ptr<TrieNode>> children;
+    std::optional<RouteEntry>                                  routeEntry;
+    bool isEndOfPath = false;
 
-        TrieNode()                               = default;
-        TrieNode(TrieNode&&) noexcept            = default;
-        TrieNode& operator=(TrieNode&&) noexcept = default;
-        TrieNode(const TrieNode&)                = delete;
-        TrieNode& operator=(const TrieNode&)     = delete;
+    TrieNode()                               = default;
+    TrieNode(TrieNode&&) noexcept            = default;
+    TrieNode& operator=(TrieNode&&) noexcept = default;
+    TrieNode(const TrieNode&)                = delete;
+    TrieNode& operator=(const TrieNode&)     = delete;
 
-        ~TrieNode() = default;
-    };
-} // namespace
+    ~TrieNode() = default;
+};
 
 std::unordered_map<std::string, std::string> RouteEntry::extractRouteParams(
     const std::string& path) const
@@ -59,129 +56,124 @@ struct Router::Impl
     skr::Arc<SchemaRegistry>                        mSchemaRegistry;
 };
 
-namespace
+RouteEntry makeEntry(HttpMethod method, std::string_view path,
+                     Baldr::RouteOptions options, std::string groupPrefix,
+                     const RouteHandler& handler)
 {
-    RouteEntry makeEntry(HttpMethod method, std::string_view path,
-                         Baldr::RouteOptions options, std::string groupPrefix,
-                         const RouteHandler& handler)
-    {
-        return RouteEntry {
-            .paramsNames = {},
-            .hasParams   = !path.empty() &&
-                         (path.find(':') != std::string::npos ||
-                           path.find("**") != std::string::npos),
-            .handler      = handler,
-            .options      = std::move(options),
-            .groupPrefix  = std::move(groupPrefix),
-            .pathTemplate = std::string(path),
-            .method       = method,
-        };
-    }
+    return RouteEntry {
+        .paramsNames  = {},
+        .hasParams    = !path.empty() && (path.find(':') != std::string::npos ||
+                                          path.find("**") != std::string::npos),
+        .handler      = handler,
+        .options      = std::move(options),
+        .groupPrefix  = std::move(groupPrefix),
+        .pathTemplate = std::string(path),
+        .method       = method,
+    };
+}
 
-    std::optional<RouteEntry> matchInTrieWithTemplate(
-        const std::map<HttpMethod, std::unique_ptr<TrieNode>>& mMethodsMap,
-        HttpMethod         method,
-        std::string_view   path,
-        std::string&       outTemplate)
-    {
-        auto root = mMethodsMap.at(method).get();
+std::optional<RouteEntry> matchInTrieWithTemplate(
+    const std::map<HttpMethod, std::unique_ptr<TrieNode>>& mMethodsMap,
+    HttpMethod                                             method,
+    std::string_view                                       path,
+    std::string&                                           outTemplate)
+{
+    auto root = mMethodsMap.at(method).get();
 
-        auto pathSegments =
-            path | std::views::split('/') |
-            std::views::filter([](const auto& s) { return s.size() > 0; });
+    auto pathSegments =
+        path | std::views::split('/') |
+        std::views::filter([](const auto& s) { return s.size() > 0; });
 
-        auto joinTemplate = [](const std::vector<std::string>& parts) {
-            std::string out;
-            for (const auto& p : parts)
-            {
-                out.push_back('/');
-                out.append(p);
-            }
-            if (out.empty())
-                return std::string("/");
-            return out;
-        };
-
-        if (pathSegments.empty())
+    auto joinTemplate = [](const std::vector<std::string>& parts) {
+        std::string out;
+        for (const auto& p : parts)
         {
-            if (root->children.contains("/") && root->children["/"]->isEndOfPath)
-            {
-                outTemplate = "/";
-                return root->children["/"]->routeEntry;
-            }
-
-            return {};
+            out.push_back('/');
+            out.append(p);
         }
+        if (out.empty())
+            return std::string("/");
+        return out;
+    };
 
-        struct Frame
+    if (pathSegments.empty())
+    {
+        if (root->children.contains("/") && root->children["/"]->isEndOfPath)
         {
-            TrieNode*                   node;
-            decltype(pathSegments.begin()) index;
-            std::vector<std::string>    parts;
-        };
-
-        auto stack = std::stack<Frame>(
-            { { root, pathSegments.begin(), {} } });
-
-        while (!stack.empty())
-        {
-            auto [node, index, parts] = stack.top();
-            stack.pop();
-
-            if (index == pathSegments.end())
-            {
-                if (node->isEndOfPath)
-                {
-                    outTemplate = joinTemplate(parts);
-                    return node->routeEntry;
-                }
-
-                if (node->children.contains("**") &&
-                    node->children["**"]->isEndOfPath)
-                {
-                    auto childParts = parts;
-                    childParts.emplace_back("**");
-                    outTemplate = joinTemplate(childParts);
-                    return node->children["**"]->routeEntry;
-                }
-
-                continue;
-            }
-
-            const auto& segment = std::string((*index).begin(), (*index).end());
-
-            if (node->children.contains("**") && node->children["**"]->isEndOfPath)
-            {
-                auto childParts = parts;
-                childParts.emplace_back("**");
-                stack.push(Frame { node->children["**"].get(), pathSegments.end(),
-                                  std::move(childParts) });
-            }
-
-            if (node->children.contains(segment))
-            {
-                auto childParts = parts;
-                childParts.emplace_back(segment);
-                stack.push(Frame { node->children[segment].get(),
-                                  std::next(index), std::move(childParts) });
-            }
-
-            if (node->children.contains("*"))
-            {
-                auto childParts = parts;
-                childParts.emplace_back("*");
-                stack.push(Frame { node->children["*"].get(), std::next(index),
-                                  std::move(childParts) });
-            }
+            outTemplate = "/";
+            return root->children["/"]->routeEntry;
         }
 
         return {};
     }
-} // namespace
+
+    struct Frame
+    {
+        TrieNode*                      node;
+        decltype(pathSegments.begin()) index;
+        std::vector<std::string>       parts;
+    };
+
+    auto stack = std::stack<Frame>({ { root, pathSegments.begin(), {} } });
+
+    while (!stack.empty())
+    {
+        auto [node, index, parts] = stack.top();
+        stack.pop();
+
+        if (index == pathSegments.end())
+        {
+            if (node->isEndOfPath)
+            {
+                outTemplate = joinTemplate(parts);
+                return node->routeEntry;
+            }
+
+            if (node->children.contains("**") &&
+                node->children["**"]->isEndOfPath)
+            {
+                auto childParts = parts;
+                childParts.emplace_back("**");
+                outTemplate = joinTemplate(childParts);
+                return node->children["**"]->routeEntry;
+            }
+
+            continue;
+        }
+
+        const auto& segment = std::string((*index).begin(), (*index).end());
+
+        if (node->children.contains("**") && node->children["**"]->isEndOfPath)
+        {
+            auto childParts = parts;
+            childParts.emplace_back("**");
+            stack.push(Frame { node->children["**"].get(), pathSegments.end(),
+                               std::move(childParts) });
+        }
+
+        if (node->children.contains(segment))
+        {
+            auto childParts = parts;
+            childParts.emplace_back(segment);
+            stack.push(Frame { node->children[segment].get(), std::next(index),
+                               std::move(childParts) });
+        }
+
+        if (node->children.contains("*"))
+        {
+            auto childParts = parts;
+            childParts.emplace_back("*");
+            stack.push(Frame { node->children["*"].get(), std::next(index),
+                               std::move(childParts) });
+        }
+    }
+
+    return {};
+}
 
 Router::Router() : mImpl(std::make_unique<Impl>())
 {
-    mImpl->mSchemaRegistry = skr::MakeArc<SchemaRegistry>();
+    mImpl->mSchemaRegistry                  = skr::MakeArc<SchemaRegistry>();
     mImpl->mMethodsMap[HttpMethod::Get]     = std::make_unique<TrieNode>();
     mImpl->mMethodsMap[HttpMethod::Post]    = std::make_unique<TrieNode>();
     mImpl->mMethodsMap[HttpMethod::Put]     = std::make_unique<TrieNode>();
@@ -198,19 +190,17 @@ Router::~Router() = default;
 void Router::insert(HttpMethod method, std::string path,
                     const RouteHandler& routeHandler) const
 {
-    insert(method, std::move(path), Baldr::RouteOptions {}, "",
-           routeHandler);
+    insert(method, std::move(path), Baldr::RouteOptions {}, "", routeHandler);
 }
 
 void Router::insert(HttpMethod method, std::string path,
-                    Baldr::RouteOptions options,
-                    std::string groupPrefix,
+                    Baldr::RouteOptions options, std::string groupPrefix,
                     const RouteHandler& routeHandler) const
 {
     std::unique_lock lock(mImpl->mMutex);
-    TrieNode* current = mImpl->mMethodsMap.at(method).get();
-    RouteEntry routeEntry = makeEntry(method, path, std::move(options),
-                                      std::move(groupPrefix), routeHandler);
+    TrieNode*        current    = mImpl->mMethodsMap.at(method).get();
+    RouteEntry       routeEntry = makeEntry(
+        method, path, std::move(options), std::move(groupPrefix), routeHandler);
 
     auto pathSegments =
         path | std::views::split('/') |
@@ -286,7 +276,7 @@ std::optional<RouteEntry> Router::match(HttpMethod  method,
                                         std::string path) const
 {
     std::shared_lock lock(mImpl->mMutex);
-    std::string unused;
+    std::string      unused;
     return matchInTrieWithTemplate(mImpl->mMethodsMap, method, path, unused);
 }
 
@@ -297,8 +287,8 @@ Router::MatchResult Router::matchWithAllow(HttpMethod  method,
 
     MatchResult result;
     std::string template_;
-    result.entry = matchInTrieWithTemplate(mImpl->mMethodsMap, method, path,
-                                           template_);
+    result.entry =
+        matchInTrieWithTemplate(mImpl->mMethodsMap, method, path, template_);
     if (result.entry.has_value())
         result.routeTemplate = result.entry->pathTemplate;
 
@@ -325,7 +315,8 @@ Router::MatchResult Router::matchWithAllow(HttpMethod  method,
     {
         if (m == method)
             continue;
-        if (matchInTrieWithTemplate(mImpl->mMethodsMap, m, path, template_).has_value())
+        if (matchInTrieWithTemplate(mImpl->mMethodsMap, m, path, template_)
+                .has_value())
             result.allowedMethodsOnPath.push_back(m);
     }
 
@@ -334,15 +325,15 @@ Router::MatchResult Router::matchWithAllow(HttpMethod  method,
 
 std::vector<RouteEntry> Router::Snapshot() const
 {
-    std::shared_lock lock(mImpl->mMutex);
+    std::shared_lock        lock(mImpl->mMutex);
     std::vector<RouteEntry> out;
 
     for (const auto& [method, root] : mImpl->mMethodsMap)
     {
         struct Frame
         {
-            TrieNode*                  node;
-            std::vector<std::string>   parts;
+            TrieNode*                node;
+            std::vector<std::string> parts;
         };
         std::stack<Frame> stack;
         stack.push(Frame { root.get(), {} });

@@ -16,26 +16,23 @@
 #include <Baldr/Http/Connection.hpp>
 #include <Baldr/Middleware/MiddlewareProvider.hpp>
 
-namespace
+HttpServer* gHttpServerInstance = nullptr;
+
+extern "C" void handleShutdownSignal(int signo)
 {
-    HttpServer* gHttpServerInstance = nullptr;
-
-    extern "C" void handleShutdownSignal(int signo)
+    if (gHttpServerInstance != nullptr)
     {
-        if (gHttpServerInstance != nullptr)
-        {
-            (void) signo;
-            gHttpServerInstance->Stop();
-        }
+        (void) signo;
+        gHttpServerInstance->Stop();
     }
+}
 
-    int resolveThreadCount(int configured)
-    {
-        return configured > 0
-                   ? configured
-                   : static_cast<int>(std::thread::hardware_concurrency());
-    }
-} // namespace
+int resolveThreadCount(int configured)
+{
+    return configured > 0
+               ? configured
+               : static_cast<int>(std::thread::hardware_concurrency());
+}
 
 struct HttpServer::Impl
 {
@@ -51,16 +48,16 @@ struct HttpServer::Impl
     std::atomic<bool>                             mRunning { false };
 };
 
-HttpServer::HttpServer(const skr::Arc<HttpServerOptions>&       httpServerOptions,
-                       const skr::Arc<skr::ServiceProvider>&    serviceProvider,
+HttpServer::HttpServer(const skr::Arc<HttpServerOptions>&    httpServerOptions,
+                       const skr::Arc<skr::ServiceProvider>& serviceProvider,
                        const skr::Arc<skr::Logger<HttpServer>>& logger,
-                       const skr::Arc<InFlightTracker>&         inFlightTracker) :
+                       const skr::Arc<InFlightTracker>& inFlightTracker) :
     mImpl(std::make_unique<Impl>())
 {
-    mImpl->mServiceProvider     = serviceProvider;
-    mImpl->mLogger              = logger;
-    mImpl->mHttpServerOptions   = httpServerOptions;
-    mImpl->mInFlightTracker     = inFlightTracker;
+    mImpl->mServiceProvider   = serviceProvider;
+    mImpl->mLogger            = logger;
+    mImpl->mHttpServerOptions = httpServerOptions;
+    mImpl->mInFlightTracker   = inFlightTracker;
     mImpl->mResolvedThreadCount =
         std::max(1, resolveThreadCount(mImpl->mHttpServerOptions->threadCount));
 }
@@ -101,7 +98,8 @@ void HttpServer::Run()
         "BaldrHttpServer",
         true,
         false);
-    mImpl->mServer->setIoLoopNum(static_cast<size_t>(mImpl->mResolvedThreadCount));
+    mImpl->mServer->setIoLoopNum(
+        static_cast<size_t>(mImpl->mResolvedThreadCount));
 
     auto serviceProvider = mImpl->mServiceProvider;
 
@@ -136,19 +134,16 @@ void HttpServer::Run()
     mImpl->mAcceptorLoop->loop();
 
     int  timeoutSec = mImpl->mHttpServerOptions->gracefulShutdownTimeoutSeconds;
-    bool immediate = timeoutSec < 0;
-    if (mImpl->mInFlightTracker &&
-        mImpl->mInFlightTracker->outstanding() > 0 &&
+    bool immediate  = timeoutSec < 0;
+    if (mImpl->mInFlightTracker && mImpl->mInFlightTracker->outstanding() > 0 &&
         !immediate)
     {
         mImpl->mLogger->LogInformation(
             "Draining {} in-flight requests (timeout {}s)...",
             mImpl->mInFlightTracker->outstanding(), timeoutSec);
-        mImpl->mInFlightTracker->waitDrained(
-            std::chrono::seconds(timeoutSec));
-        mImpl->mLogger->LogInformation(
-            "Drained ({} in-flight remaining)",
-            mImpl->mInFlightTracker->outstanding());
+        mImpl->mInFlightTracker->waitDrained(std::chrono::seconds(timeoutSec));
+        mImpl->mLogger->LogInformation("Drained ({} in-flight remaining)",
+                                       mImpl->mInFlightTracker->outstanding());
     }
 
     mImpl->mLogger->LogInformation("Server stopped.");

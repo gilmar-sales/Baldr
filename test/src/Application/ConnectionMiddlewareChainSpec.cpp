@@ -1,15 +1,13 @@
 #include <Baldr/Http/Connection.hpp>
 #include <Baldr/Http/Request.hpp>
 #include <Baldr/Http/Response.hpp>
+#include <Baldr/Http/Router.hpp>
 #include <Baldr/Middleware/IMiddleware.hpp>
 #include <Baldr/Middleware/MiddlewareProvider.hpp>
-#include <Baldr/Http/Router.hpp>
 
 #include <atomic>
 #include <vector>
 
-namespace
-{
 class FakeMiddleware : public IMiddleware
 {
   public:
@@ -28,7 +26,6 @@ class FakeMiddleware : public IMiddleware
   private:
     std::function<void(NextMiddleware)> mBody;
 };
-}
 
 class HttpConnectionMiddlewareChainSpec : public ::testing::Test
 {
@@ -42,16 +39,16 @@ class HttpConnectionMiddlewareChainSpec : public ::testing::Test
         mResponse         = HttpResponse(mRequest);
     }
 
-    static MiddlewareFactory makeFactory(std::function<void(NextMiddleware)> body)
+    static MiddlewareFactory makeFactory(
+        std::function<void(NextMiddleware)> body)
     {
-        return [body = std::move(body)](
-                   const skr::Arc<skr::ServiceProvider>&) {
+        return [body = std::move(body)](const skr::Arc<skr::ServiceProvider>&) {
             return skr::MakeArc<FakeMiddleware>(std::move(body));
         };
     }
 
-    HttpRequest  mRequest;
-    HttpResponse mResponse;
+    HttpRequest                    mRequest;
+    HttpResponse                   mResponse;
     skr::Arc<skr::ServiceProvider> mEmptyProvider =
         skr::MakeArc<skr::ServiceCollection>()->CreateServiceProvider();
 };
@@ -62,12 +59,12 @@ TEST_F(HttpConnectionMiddlewareChainSpec,
     MiddlewareFactoryList factories;
 
     std::atomic<bool> handlerRan { false };
-    RouteHandler       finalHandler =
+    RouteHandler      finalHandler =
         [&](HttpRequest&, HttpResponse&,
             const skr::Arc<skr::ServiceProvider>&) { handlerRan = true; };
 
-    HttpConnection::runMiddlewareChain(factories, mEmptyProvider, mRequest,
-                                       mResponse, finalHandler);
+    HttpConnection::runMiddlewareChain(
+        factories, mEmptyProvider, mRequest, mResponse, finalHandler);
 
     ASSERT_TRUE(handlerRan.load());
 }
@@ -91,16 +88,15 @@ TEST_F(HttpConnectionMiddlewareChainSpec,
     }));
 
     std::atomic<bool> handlerRan { false };
-    RouteHandler       finalHandler =
-        [&](HttpRequest&, HttpResponse&,
-            const skr::Arc<skr::ServiceProvider>&) {
-            int id = ++counter;
-            order.push_back(id);
-            handlerRan = true;
-        };
+    RouteHandler finalHandler = [&](HttpRequest&, HttpResponse&,
+                                    const skr::Arc<skr::ServiceProvider>&) {
+        int id = ++counter;
+        order.push_back(id);
+        handlerRan = true;
+    };
 
-    HttpConnection::runMiddlewareChain(factories, mEmptyProvider, mRequest,
-                                       mResponse, finalHandler);
+    HttpConnection::runMiddlewareChain(
+        factories, mEmptyProvider, mRequest, mResponse, finalHandler);
 
     ASSERT_TRUE(handlerRan.load());
     ASSERT_EQ(order.size(), 3u);
@@ -115,20 +111,16 @@ TEST_F(HttpConnectionMiddlewareChainSpec,
     MiddlewareFactoryList factories;
     std::atomic<int>      counter { 0 };
 
-    factories.push_back(makeFactory([&](NextMiddleware) {
-        ++counter;
-    }));
-    factories.push_back(makeFactory([&](NextMiddleware) {
-        ++counter;
-    }));
+    factories.push_back(makeFactory([&](NextMiddleware) { ++counter; }));
+    factories.push_back(makeFactory([&](NextMiddleware) { ++counter; }));
 
     std::atomic<bool> handlerRan { false };
-    RouteHandler       finalHandler =
+    RouteHandler      finalHandler =
         [&](HttpRequest&, HttpResponse&,
             const skr::Arc<skr::ServiceProvider>&) { handlerRan = true; };
 
-    HttpConnection::runMiddlewareChain(factories, mEmptyProvider, mRequest,
-                                       mResponse, finalHandler);
+    HttpConnection::runMiddlewareChain(
+        factories, mEmptyProvider, mRequest, mResponse, finalHandler);
 
     EXPECT_EQ(counter.load(), 1);
     EXPECT_FALSE(handlerRan.load());
@@ -157,8 +149,8 @@ TEST_F(HttpConnectionMiddlewareChainSpec,
 {
     MiddlewareFactoryList factories;
 
-    HttpRequest  seenRequest;
-    HttpResponse seenResponse;
+    HttpRequest       seenRequest;
+    HttpResponse      seenResponse;
     std::atomic<bool> nextReturned { false };
 
     factories.push_back(makeFactory([&](NextMiddleware next) {
@@ -183,8 +175,8 @@ TEST_F(HttpConnectionMiddlewareChainSpec,
             seenResponse = response;
         };
 
-    HttpConnection::runMiddlewareChain(factories, mEmptyProvider, mRequest,
-                                       mResponse, finalHandler);
+    HttpConnection::runMiddlewareChain(
+        factories, mEmptyProvider, mRequest, mResponse, finalHandler);
 
     ASSERT_TRUE(nextReturned.load());
     EXPECT_EQ(seenRequest.path, "/api/test");
@@ -203,30 +195,27 @@ TEST_F(HttpConnectionMiddlewareChainSpec,
     MiddlewareFactoryList factories;
 
     std::atomic<int>  observedStatusBeforeNext { -1 };
-    std::atomic<int>  observedStatusAfterNext  { -1 };
+    std::atomic<int>  observedStatusAfterNext { -1 };
     std::string       observedBodyAfterNext;
     std::atomic<bool> nextReturned { false };
 
     factories.push_back(makeFactory([&](NextMiddleware next) {
-        observedStatusBeforeNext =
-            static_cast<int>(mResponse.statusCode);
+        observedStatusBeforeNext = static_cast<int>(mResponse.statusCode);
         next();
-        nextReturned = true;
-        observedStatusAfterNext =
-            static_cast<int>(mResponse.statusCode);
-        observedBodyAfterNext = mResponse.body;
+        nextReturned            = true;
+        observedStatusAfterNext = static_cast<int>(mResponse.statusCode);
+        observedBodyAfterNext   = mResponse.body;
     }));
 
-    RouteHandler finalHandler =
-        [&](HttpRequest&, HttpResponse& response,
-            const skr::Arc<skr::ServiceProvider>&) {
-            response.statusCode = StatusCode::OK;
-            response.body       = "hello";
-            response.headers["Content-Type"] = "plain/text";
-        };
+    RouteHandler finalHandler = [&](HttpRequest&, HttpResponse& response,
+                                    const skr::Arc<skr::ServiceProvider>&) {
+        response.statusCode              = StatusCode::OK;
+        response.body                    = "hello";
+        response.headers["Content-Type"] = "plain/text";
+    };
 
-    HttpConnection::runMiddlewareChain(factories, mEmptyProvider, mRequest,
-                                       mResponse, finalHandler);
+    HttpConnection::runMiddlewareChain(
+        factories, mEmptyProvider, mRequest, mResponse, finalHandler);
 
     // Before next(): response carries its default (NotFound).
     EXPECT_EQ(observedStatusBeforeNext.load(),
@@ -234,8 +223,7 @@ TEST_F(HttpConnectionMiddlewareChainSpec,
     // After next(): the final handler has run, so the middleware sees
     // the real status code and body.
     EXPECT_TRUE(nextReturned.load());
-    EXPECT_EQ(observedStatusAfterNext.load(),
-              static_cast<int>(StatusCode::OK));
+    EXPECT_EQ(observedStatusAfterNext.load(), static_cast<int>(StatusCode::OK));
     EXPECT_EQ(observedBodyAfterNext, "hello");
     EXPECT_EQ(static_cast<int>(mResponse.statusCode),
               static_cast<int>(StatusCode::OK));
@@ -265,15 +253,14 @@ TEST_F(HttpConnectionMiddlewareChainSpec,
         innerAfterNext = static_cast<int>(mResponse.statusCode);
     }));
 
-    RouteHandler finalHandler =
-        [&](HttpRequest&, HttpResponse& response,
-            const skr::Arc<skr::ServiceProvider>&) {
-            response.statusCode = StatusCode::OK;
-            response.body       = "world";
-        };
+    RouteHandler finalHandler = [&](HttpRequest&, HttpResponse& response,
+                                    const skr::Arc<skr::ServiceProvider>&) {
+        response.statusCode = StatusCode::OK;
+        response.body       = "world";
+    };
 
-    HttpConnection::runMiddlewareChain(factories, mEmptyProvider, mRequest,
-                                       mResponse, finalHandler);
+    HttpConnection::runMiddlewareChain(
+        factories, mEmptyProvider, mRequest, mResponse, finalHandler);
 
     // Inner middleware: next() awaits the final handler, so it sees OK.
     EXPECT_EQ(innerAfterNext.load(), static_cast<int>(StatusCode::OK));
@@ -289,23 +276,21 @@ TEST_F(HttpConnectionMiddlewareChainSpec,
     MiddlewareFactoryList factories;
 
     factories.push_back(makeFactory([&](NextMiddleware next) {
-        mResponse.statusCode          = StatusCode::Accepted;
-        mResponse.headers["X-Pre"]    = "middleware";
+        mResponse.statusCode       = StatusCode::Accepted;
+        mResponse.headers["X-Pre"] = "middleware";
         next();
     }));
 
-    std::atomic<int> seenStatus { -1 };
+    std::atomic<int>  seenStatus { -1 };
     std::atomic<bool> seenHeader { false };
-    RouteHandler finalHandler =
-        [&](HttpRequest&, HttpResponse& response,
-            const skr::Arc<skr::ServiceProvider>&) {
-            seenStatus = static_cast<int>(response.statusCode);
-            seenHeader =
-                response.headers.find("X-Pre") != response.headers.end();
-        };
+    RouteHandler finalHandler = [&](HttpRequest&, HttpResponse& response,
+                                    const skr::Arc<skr::ServiceProvider>&) {
+        seenStatus = static_cast<int>(response.statusCode);
+        seenHeader = response.headers.find("X-Pre") != response.headers.end();
+    };
 
-    HttpConnection::runMiddlewareChain(factories, mEmptyProvider, mRequest,
-                                       mResponse, finalHandler);
+    HttpConnection::runMiddlewareChain(
+        factories, mEmptyProvider, mRequest, mResponse, finalHandler);
 
     EXPECT_EQ(seenStatus.load(), static_cast<int>(StatusCode::Accepted));
     EXPECT_TRUE(seenHeader.load());
@@ -324,18 +309,16 @@ TEST_F(HttpConnectionMiddlewareChainSpec,
 
     factories.push_back(makeFactory([&](NextMiddleware next) {
         next();
-        observedStatusAfterNext =
-            static_cast<int>(mResponse.statusCode);
+        observedStatusAfterNext = static_cast<int>(mResponse.statusCode);
     }));
 
-    RouteHandler finalHandler =
-        [&](HttpRequest&, HttpResponse&,
-            const skr::Arc<skr::ServiceProvider>&) {
-            // Intentionally do nothing.
-        };
+    RouteHandler finalHandler = [&](HttpRequest&, HttpResponse&,
+                                    const skr::Arc<skr::ServiceProvider>&) {
+        // Intentionally do nothing.
+    };
 
-    HttpConnection::runMiddlewareChain(factories, mEmptyProvider, mRequest,
-                                       mResponse, finalHandler);
+    HttpConnection::runMiddlewareChain(
+        factories, mEmptyProvider, mRequest, mResponse, finalHandler);
 
     EXPECT_EQ(observedStatusAfterNext.load(),
               static_cast<int>(StatusCode::NotFound));
@@ -355,12 +338,12 @@ TEST_F(HttpConnectionMiddlewareChainSpec,
     }));
 
     std::atomic<bool> handlerRan { false };
-    RouteHandler finalHandler =
+    RouteHandler      finalHandler =
         [&](HttpRequest&, HttpResponse&,
             const skr::Arc<skr::ServiceProvider>&) { handlerRan = true; };
 
-    HttpConnection::runMiddlewareChain(factories, mEmptyProvider, mRequest,
-                                       mResponse, finalHandler);
+    HttpConnection::runMiddlewareChain(
+        factories, mEmptyProvider, mRequest, mResponse, finalHandler);
 
     EXPECT_FALSE(handlerRan.load());
     EXPECT_EQ(static_cast<int>(mResponse.statusCode),
@@ -374,20 +357,18 @@ TEST_F(HttpConnectionMiddlewareChainSpec,
     MiddlewareFactoryList factories;
 
     std::atomic<bool> providerNonNull { false };
-    RouteHandler finalHandler =
-        [&](HttpRequest&, HttpResponse&,
-            const skr::Arc<skr::ServiceProvider>& sp) {
-            providerNonNull = sp != nullptr;
-        };
+    RouteHandler finalHandler = [&](HttpRequest&, HttpResponse&,
+                                    const skr::Arc<skr::ServiceProvider>& sp) {
+        providerNonNull = sp != nullptr;
+    };
 
-    HttpConnection::runMiddlewareChain(factories, mEmptyProvider, mRequest,
-                                       mResponse, finalHandler);
+    HttpConnection::runMiddlewareChain(
+        factories, mEmptyProvider, mRequest, mResponse, finalHandler);
 
     EXPECT_TRUE(providerNonNull.load());
 }
 
-TEST_F(HttpConnectionMiddlewareChainSpec,
-       HeadersAndBodySurviveTheChain)
+TEST_F(HttpConnectionMiddlewareChainSpec, HeadersAndBodySurviveTheChain)
 {
     MiddlewareFactoryList factories;
 
@@ -396,16 +377,15 @@ TEST_F(HttpConnectionMiddlewareChainSpec,
         next();
     }));
 
-    RouteHandler finalHandler =
-        [&](HttpRequest&, HttpResponse& response,
-            const skr::Arc<skr::ServiceProvider>&) {
-            response.headers["Content-Type"] = "application/json";
-            response.body                    = R"({"ok":true})";
-            response.statusCode              = StatusCode::OK;
-        };
+    RouteHandler finalHandler = [&](HttpRequest&, HttpResponse& response,
+                                    const skr::Arc<skr::ServiceProvider>&) {
+        response.headers["Content-Type"] = "application/json";
+        response.body                    = R"({"ok":true})";
+        response.statusCode              = StatusCode::OK;
+    };
 
-    HttpConnection::runMiddlewareChain(factories, mEmptyProvider, mRequest,
-                                       mResponse, finalHandler);
+    HttpConnection::runMiddlewareChain(
+        factories, mEmptyProvider, mRequest, mResponse, finalHandler);
 
     EXPECT_EQ(mResponse.headers.at("X-Mw"), "1");
     EXPECT_EQ(mResponse.headers.at("Content-Type"), "application/json");
