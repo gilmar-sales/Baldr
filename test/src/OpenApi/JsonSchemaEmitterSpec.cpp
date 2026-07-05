@@ -170,6 +170,42 @@ TEST(SpecBuilderSpec, MountedOpenApiPathIsExcludedFromSpec)
     EXPECT_NE(spec.find("/openapi.json"), std::string::npos);
 }
 
+TEST(SpecBuilderSpec, EmitsQueryAndPathParametersFromMetadata)
+{
+    baldr::RouteEntry entry;
+    entry.pathTemplate = "/users/:id";
+    entry.method       = baldr::HttpMethod::Get;
+    entry.options.metadata["queryParametersJson"] =
+        "[{\"name\":\"name\",\"in\":\"query\",\"required\":true,"
+        "\"schema\":{\"type\":\"string\"}}]";
+    entry.options.metadata["pathParametersJson"] =
+        "[{\"name\":\"id\",\"in\":\"path\",\"required\":true,"
+        "\"schema\":{\"type\":\"string\"}}]";
+    std::vector<baldr::RouteEntry> entries { entry };
+
+    baldr::OpenApiOptions opts;
+    baldr::SpecBuilder    builder(opts);
+    std::string           spec = builder.Render(entries);
+
+    simdjson::dom::parser  parser;
+    simdjson::dom::element doc;
+    ASSERT_FALSE(parser.parse(spec).get(doc));
+
+    simdjson::dom::object root;
+    ASSERT_FALSE(doc.get_object().get(root));
+
+    simdjson::dom::object paths;
+    ASSERT_FALSE(root["paths"].get_object().get(paths));
+    simdjson::dom::object users;
+    ASSERT_FALSE(paths["/users/{id}"].get_object().get(users));
+    simdjson::dom::object getOp;
+    ASSERT_FALSE(users["get"].get_object().get(getOp));
+
+    simdjson::dom::array params;
+    ASSERT_FALSE(getOp["parameters"].get_array().get(params));
+    EXPECT_EQ(params.size(), 2u);
+}
+
 struct AutoDevice
 {
     int         id;

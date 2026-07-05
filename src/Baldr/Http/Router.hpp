@@ -18,6 +18,8 @@
 #include <Skirnir/Skirnir.hpp>
 
 #include <Baldr/Http/FromBody.hpp>
+#include <Baldr/Http/FromParams.hpp>
+#include <Baldr/Http/FromQuery.hpp>
 #include <Baldr/Http/Method.hpp>
 #include <Baldr/Http/Request.hpp>
 #include <Baldr/Http/Response.hpp>
@@ -108,26 +110,29 @@ namespace BALDR_NAMESPACE
                     using HandlerArgsTuple = typename LambdaTraits<
                         std::remove_reference_t<decltype(handler)>>::ArgsTuple;
 
-                    // Pre-bind any FromBody<T> parameters against the current
-                    // request body. Each slot is either a FromBody<...> shell
-                    // (populated by bindFromBody) or std::monostate for slots
-                    // that are not FromBody bindings.
+                    // Pre-bind any pre-bound-wrapper parameters
+                    // (FromBody<T>, FromQuery<T>, FromParams<T>) against
+                    // the current request. Each slot is either the
+                    // wrapper's shell (populated by the appropriate
+                    // bindFrom* call) or EmptySlot for slots that are
+                    // not bound.
                     constexpr std::size_t N =
                         std::tuple_size_v<HandlerArgsTuple>;
                     using BoundBodiesTuple = typename detail::BuildBoundBodies<
                         HandlerArgsTuple>::type;
                     BoundBodiesTuple boundBodies {};
                     [&]<std::size_t... I>(std::index_sequence<I...>) {
-                        (detail::BindOneBody<I, HandlerArgsTuple>(
+                        (detail::BindOneBodySlot<I, HandlerArgsTuple>(
                              boundBodies, request),
                          ...);
                     }(std::make_index_sequence<N> {});
 
                     // Build the argument tuple by direct construction, one
                     // element at a time. This bypasses transformTuple so
-                    // FromBody<T> parameters can be sourced from
-                    // @c boundBodies without adding a new construct()
-                    // overload to Tuple.hpp.
+                    // FromBody<T> / FromQuery<T> / FromParams<T>
+                    // parameters can be sourced from @c boundBodies
+                    // without adding a new construct() overload to
+                    // Tuple.hpp.
                     auto args = detail::BuildArgsTuple<HandlerArgsTuple>(
                         [&](auto tag) -> typename decltype(tag)::type {
                             using TArg     = typename decltype(tag)::type;
@@ -141,11 +146,13 @@ namespace BALDR_NAMESPACE
                             {
                                 return response;
                             }
-                            else if constexpr (isFromBody_v<BareTArg>)
+                            else if constexpr (isFromBody_v<BareTArg> ||
+                                               isFromQuery_v<BareTArg> ||
+                                               isFromParams_v<BareTArg>)
                             {
                                 constexpr std::size_t Idx =
-                                    detail::IndexOfFromBody<HandlerArgsTuple,
-                                                            BareTArg>::value;
+                                    detail::IndexOfBoundBody<HandlerArgsTuple,
+                                                             BareTArg>::value;
                                 return std::get<Idx>(boundBodies);
                             }
                             else

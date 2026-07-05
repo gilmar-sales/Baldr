@@ -164,6 +164,31 @@ namespace BALDR_NAMESPACE
                     bodyContent += "}}";
                 }
 
+                std::string parametersBlock;
+                if (auto qit =
+                        entry->options.metadata.find("queryParametersJson");
+                    qit != entry->options.metadata.end() &&
+                    !qit->second.empty())
+                {
+                    parametersBlock += qit->second;
+                }
+                if (auto pit =
+                        entry->options.metadata.find("pathParametersJson");
+                    pit != entry->options.metadata.end() &&
+                    !pit->second.empty())
+                {
+                    if (!parametersBlock.empty())
+                        parametersBlock += ",";
+                    parametersBlock += pit->second;
+                }
+
+                if (!parametersBlock.empty())
+                {
+                    out += "\"parameters\":[";
+                    out += parametersBlock;
+                    out += "],";
+                }
+
                 if (hasBody)
                 {
                     out += "\"responses\":{\"200\":{\"description\":\"OK\","

@@ -243,7 +243,7 @@ namespace BALDR_NAMESPACE
                         HandlerArgsTuple>::type;
                     BoundBodiesTuple boundBodies {};
                     [&]<std::size_t... I>(std::index_sequence<I...>) {
-                        (detail::BindOneBody<I, HandlerArgsTuple>(
+                        (detail::BindOneBodySlot<I, HandlerArgsTuple>(
                              boundBodies, request),
                          ...);
                     }(std::make_index_sequence<N> {});
@@ -260,11 +260,13 @@ namespace BALDR_NAMESPACE
                             {
                                 return response;
                             }
-                            else if constexpr (isFromBody_v<TArg>)
+                            else if constexpr (isFromBody_v<TArg> ||
+                                               isFromQuery_v<TArg> ||
+                                               isFromParams_v<TArg>)
                             {
                                 constexpr std::size_t Idx =
-                                    detail::IndexOfFromBody<HandlerArgsTuple,
-                                                            TArg>::value;
+                                    detail::IndexOfBoundBody<HandlerArgsTuple,
+                                                             TArg>::value;
                                 return std::get<Idx>(boundBodies);
                             }
                             else

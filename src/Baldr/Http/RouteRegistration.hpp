@@ -17,6 +17,8 @@
 #include <Skirnir/Skirnir.hpp>
 
 #include <Baldr/Http/FromBody.hpp>
+#include <Baldr/Http/FromParams.hpp>
+#include <Baldr/Http/FromQuery.hpp>
 #include <Baldr/Http/Method.hpp>
 #include <Baldr/Http/RouteOptions.hpp>
 #include <Baldr/Http/Router.hpp>
@@ -182,6 +184,55 @@ namespace BALDR_NAMESPACE
             return *this;
         }
 
+        /**
+         * @brief Derive the @c parameters block (with @c in:"query") from
+         *        a reflectable C++ type @c T.
+         *
+         * Every non-static data member of @c T is emitted as a required
+         * query parameter. The schema for each field uses @ref
+         * JsonSchemaEmitter's primitive mapping. The result is stashed
+         * under @c mQueryParametersJson and forwarded into
+         * @c RouteOptions::metadata at @ref Handle time.
+         *
+         * @tparam T A reflectable struct whose members are all in the
+         *           supported primitive set.
+         */
+        template <typename T>
+        RouteRegistration& WithQueryType()
+        {
+            static_assert(
+                IsReflectableStruct<T>,
+                "RouteRegistration::WithQueryType<T>: T must be a "
+                "reflectable struct whose non-static data members are all "
+                "in the supported primitive set (std::string, "
+                "std::string_view, integral, double/float, bool).");
+            mQueryParametersJson = emitParameterList<T>("query");
+            return *this;
+        }
+
+        /**
+         * @brief Derive the @c parameters block (with @c in:"path") from
+         *        a reflectable C++ type @c T.
+         *
+         * Path parameters are always required. The schema for each field
+         * uses @ref JsonSchemaEmitter's primitive mapping.
+         *
+         * @tparam T A reflectable struct whose members are all in the
+         *           supported primitive set.
+         */
+        template <typename T>
+        RouteRegistration& WithPathType()
+        {
+            static_assert(
+                IsReflectableStruct<T>,
+                "RouteRegistration::WithPathType<T>: T must be a "
+                "reflectable struct whose non-static data members are all "
+                "in the supported primitive set (std::string, "
+                "std::string_view, integral, double/float, bool).");
+            mPathParametersJson = emitParameterList<T>("path");
+            return *this;
+        }
+
         /// @return The accumulated OpenAPI options.
         const RouteOptions& options() const { return mOptions; }
         /// @return The raw JSON Schema string for the request body, if set.
@@ -194,6 +245,16 @@ namespace BALDR_NAMESPACE
         {
             return mResponseSchemaJson;
         }
+        /// @return The raw JSON parameter array for query string, if set.
+        const std::string& queryParametersJson() const
+        {
+            return mQueryParametersJson;
+        }
+        /// @return The raw JSON parameter array for path params, if set.
+        const std::string& pathParametersJson() const
+        {
+            return mPathParametersJson;
+        }
         /// @return The HTTP method this registration targets.
         HttpMethod method() const { return mMethod; }
         /// @return The path template (without group prefix).
@@ -204,11 +265,12 @@ namespace BALDR_NAMESPACE
         /**
          * @brief Finalise the registration and bind @p handler.
          *
-         * If the handler declares a @c FromBody<T> parameter and no request
-         * schema was supplied, the framework derives one automatically from
-         * @c T. If the handler's return type is reflectable and no response
-         * schema was supplied, the framework derives one automatically.
-         * The route is inserted into the router and becomes dispatchable
+         * If the handler declares a @c FromBody<T>, @c FromQuery<T>, or
+         * @c FromParams<T> parameter and no matching OpenAPI metadata was
+         * supplied, the framework derives it automatically from @c T. If
+         * the handler's return type is reflectable and no response schema
+         * was supplied, the framework derives one automatically. The route
+         * is inserted into the router and becomes dispatchable
          * immediately.
          */
         template <typename Handler>
@@ -255,13 +317,24 @@ namespace BALDR_NAMESPACE
                 mOptions.metadata["responseSchemaJson"] = mResponseSchemaJson;
             }
 
+            if (!mQueryParametersJson.empty())
+            {
+                mOptions.metadata["queryParametersJson"] = mQueryParametersJson;
+            }
+
+            if (!mPathParametersJson.empty())
+            {
+                mOptions.metadata["pathParametersJson"] = mPathParametersJson;
+            }
+
             mRouter.MapRoute(mMethod, mPath, mGroupPrefix, mOptions,
                              std::forward<Handler>(handler));
         }
 
-        /// @brief If handler arg slot @c I is @c FromBody<U>, derive a
-        /// request schema for @c U and stash it. No-op for non-body args
-        /// or when a request schema was already supplied.
+        /// @brief If handler arg slot @c I is a pre-bound wrapper
+        /// (@c FromBody<U>, @c FromQuery<U>, @c FromParams<U>), derive the
+        /// corresponding OpenAPI metadata and stash it. No-op for other
+        /// argument shapes or when metadata was already supplied.
         template <std::size_t I, typename HandlerArgsTuple>
         void DeriveRequestSchemaFromBody()
         {
@@ -283,9 +356,71 @@ namespace BALDR_NAMESPACE
                     mRequestSchemaJson = std::move(*ref);
                 }
             }
+            else if constexpr (isFromQuery_v<BareArg>)
+            {
+                using Payload = typename BareArg::ValueType;
+                static_assert(
+                    IsReflectableStruct<Payload>,
+                    "FromQuery<T> payload type T must be reflectable with "
+                    "auto-derivable non-static data members "
+                    "(std::string, std::string_view, integral, "
+                    "double/float, bool).");
+                if (mQueryParametersJson.empty())
+                    mQueryParametersJson = emitParameterList<Payload>("query");
+            }
+            else if constexpr (isFromParams_v<BareArg>)
+            {
+                using Payload = typename BareArg::ValueType;
+                static_assert(
+                    IsReflectableStruct<Payload>,
+                    "FromParams<T> payload type T must be reflectable "
+                    "with auto-derivable non-static data members "
+                    "(std::string, std::string_view, integral, "
+                    "double/float, bool).");
+                if (mPathParametersJson.empty())
+                    mPathParametersJson = emitParameterList<Payload>("path");
+            }
         }
 
       private:
+        /// @brief Emit a JSON @c parameters array walking reflectable
+        /// members of @c T. Each member is rendered as a required
+        /// parameter located at @p location ("query" or "path").
+        template <typename T>
+        std::string emitParameterList(std::string_view location)
+        {
+            static_assert(
+                IsReflectableStruct<T>,
+                "emitParameterList<T>: T must be a reflectable struct");
+            std::string out;
+            out += "[";
+            bool first = true;
+            template for (constexpr auto member : std::define_static_array(
+                              std::meta::nonstatic_data_members_of(
+                                  ^^T, std::meta::access_context::current())))
+            {
+                constexpr auto name = std::meta::identifier_of(member);
+                T              obj {};
+                using FieldT = std::remove_cvref_t<decltype(obj.[:member:])>;
+                static_assert(
+                    Detail::IsSupportedField<FieldT>::value,
+                    "emitParameterList: member has an unsupported type "
+                    "for auto-introspection");
+                if (!first)
+                    out += ",";
+                first = false;
+                out += "{\"name\":\"";
+                out.append(name);
+                out += "\",\"in\":\"";
+                out.append(location);
+                out += "\",\"required\":true,\"schema\":{\"type\":\"";
+                out += Detail::PrimitiveTypeName<FieldT>();
+                out += "\"}}";
+            }
+            out += "]";
+            return out;
+        }
+
         Router&      mRouter;
         HttpMethod   mMethod;
         std::string  mPath;
@@ -293,6 +428,8 @@ namespace BALDR_NAMESPACE
         RouteOptions mOptions;
         std::string  mRequestSchemaJson;
         std::string  mResponseSchemaJson;
+        std::string  mQueryParametersJson;
+        std::string  mPathParametersJson;
         bool         mFinalised { false };
     };
 

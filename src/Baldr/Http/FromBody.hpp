@@ -37,6 +37,8 @@
 #include <type_traits>
 #include <utility>
 
+#include <Baldr/Http/FromParams.hpp>
+#include <Baldr/Http/FromQuery.hpp>
 #include <Baldr/Http/Request.hpp>
 #include <Baldr/Http/Results/JsonBody.hpp>
 #include <Baldr/Http/StatusCode.hpp>
@@ -188,27 +190,33 @@ namespace BALDR_NAMESPACE
             return out;
         }
 
-        /**
-         * @brief Slot type for the pre-bound @ref FromBody tuple.
-         *
-         * For each handler parameter index @c I:
-         * - If the parameter is @c FromBody<U>, the slot holds a
-         *   @ref FromBody<U> instance populated by @ref bindFromBody.
-         * - Otherwise the slot holds @c EmptySlot (never read).
-         */
-        template <typename Slot>
-        struct BodySlot
-        {
-            Slot value;
-        };
-
-        /// @brief Empty placeholder slot in @c boundBodies for non-FromBody
+        /// @brief Empty placeholder slot in @c boundBodies for non-wrapper
         /// parameters. Never read.
         struct EmptySlot
         {
         };
 
-        /// @brief Build the pre-bound tuple type for a handler argument list.
+        /// @brief @c true when @c T is any of the pre-bound wrappers
+        /// (@c FromBody<T>, @c FromQuery<T>, @c FromParams<T>).
+        template <typename T>
+        struct IsBoundWrapper
+            : std::bool_constant<isFromBody_v<T> || isFromQuery_v<T> ||
+                                 isFromParams_v<T>>
+        {
+        };
+
+        /// @brief Convenience alias for @ref IsBoundWrapper.
+        template <typename T>
+        inline constexpr bool IsBoundWrapper_v = IsBoundWrapper<T>::value;
+
+        /// @brief Build the pre-bound tuple type for a handler argument
+        /// list.
+        ///
+        /// For each handler parameter index @c I:
+        /// - If the parameter is any of the pre-bound wrappers, the slot
+        ///   holds that wrapper's value type (default-constructed and
+        ///   populated by the appropriate @c bindFrom* call).
+        /// - Otherwise the slot holds @c EmptySlot (never read).
         template <typename HandlerArgsTuple>
         struct BuildBoundBodies;
 
@@ -216,18 +224,21 @@ namespace BALDR_NAMESPACE
         struct BuildBoundBodies<std::tuple<Args...>>
         {
             using type =
-                std::tuple<std::conditional_t<isFromBody_v<Args>,
+                std::tuple<std::conditional_t<IsBoundWrapper_v<Args>,
                                               std::remove_cvref_t<Args>,
                                               EmptySlot>...>;
         };
 
-        /// @brief Bind slot @c I of @p boundBodies from @p request when the
-        /// corresponding handler parameter is a @ref FromBody<T>.
+        /// @brief Bind slot @c I of @p boundBodies from @p request when
+        /// the corresponding handler parameter is a pre-bound wrapper.
+        ///
+        /// Dispatches on @c isFromBody_v / @c isFromQuery_v /
+        /// @c isFromParams_v to call the correct binder.
         template <std::size_t I,
                   typename HandlerArgsTuple,
                   typename BoundBodiesTuple>
-        inline void BindOneBody(BoundBodiesTuple&  boundBodies,
-                                const HttpRequest& request)
+        inline void BindOneBodySlot(BoundBodiesTuple&  boundBodies,
+                                    const HttpRequest& request)
         {
             using Arg = std::tuple_element_t<I, HandlerArgsTuple>;
             if constexpr (isFromBody_v<Arg>)
@@ -235,22 +246,45 @@ namespace BALDR_NAMESPACE
                 using Payload            = typename Arg::ValueType;
                 std::get<I>(boundBodies) = bindFromBody<Payload>(request);
             }
+            else if constexpr (isFromQuery_v<Arg>)
+            {
+                using Payload            = typename Arg::ValueType;
+                std::get<I>(boundBodies) = bindFromQuery<Payload>(request);
+            }
+            else if constexpr (isFromParams_v<Arg>)
+            {
+                using Payload            = typename Arg::ValueType;
+                std::get<I>(boundBodies) = bindFromParams<Payload>(request);
+            }
         }
 
-        /// @brief Compile-time index of the first @c FromBody<TFromBody> in
-        /// the handler tuple. Fails to compile if there is no match.
-        template <typename HandlerArgsTuple, typename TFromBody>
-        struct IndexOfFromBody;
+        /// @brief Backwards-compatible alias for @ref BindOneBodySlot.
+        template <std::size_t I,
+                  typename HandlerArgsTuple,
+                  typename BoundBodiesTuple>
+        inline void BindOneBody(BoundBodiesTuple&  boundBodies,
+                                const HttpRequest& request)
+        {
+            BindOneBodySlot<I, HandlerArgsTuple, BoundBodiesTuple>(boundBodies,
+                                                                   request);
+        }
 
-        template <typename TFromBody, typename... Args>
-        struct IndexOfFromBody<std::tuple<Args...>, TFromBody>
+        /// @brief Compile-time index of the first @c TWrapper in the
+        /// handler tuple. Matches any of the pre-bound wrappers by
+        /// exact @c remove_cvref_t equality. Fails to compile when no
+        /// match is found.
+        template <typename HandlerArgsTuple, typename TWrapper>
+        struct IndexOfBoundBody;
+
+        template <typename TWrapper, typename... Args>
+        struct IndexOfBoundBody<std::tuple<Args...>, TWrapper>
         {
           private:
             template <typename A>
             static constexpr bool matches_v =
                 std::is_same_v<std::remove_cvref_t<A>,
-                               std::remove_cvref_t<TFromBody>> &&
-                isFromBody_v<std::remove_cvref_t<A>>;
+                               std::remove_cvref_t<TWrapper>> &&
+                IsBoundWrapper_v<std::remove_cvref_t<A>>;
 
             template <std::size_t I>
             static constexpr std::size_t find()
@@ -258,7 +292,7 @@ namespace BALDR_NAMESPACE
                 if constexpr (I >= sizeof...(Args))
                 {
                     static_assert(sizeof...(Args) == 0,
-                                  "IndexOfFromBody: TFromBody not found in "
+                                  "IndexOfBoundBody: TWrapper not found in "
                                   "HandlerArgsTuple");
                     return I;
                 }
@@ -276,6 +310,10 @@ namespace BALDR_NAMESPACE
           public:
             static constexpr std::size_t value = find<0>();
         };
+
+        /// @brief Backwards-compatible alias for @ref IndexOfBoundBody.
+        template <typename HandlerArgsTuple, typename TFromBody>
+        using IndexOfFromBody = IndexOfBoundBody<HandlerArgsTuple, TFromBody>;
 
         /// @brief Tag type carrying a handler argument type. Lets the caller
         /// pass @c HandlerArgsTuple elements to a generic factory without
