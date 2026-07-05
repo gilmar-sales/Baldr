@@ -87,6 +87,7 @@ Middleware = [
 Extensions = [
     "extensions/index.md",
     "extensions/openapi.md",
+    "extensions/openapi-ui.md",
 ]
 
 [[project.nav]]

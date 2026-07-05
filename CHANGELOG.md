@@ -16,8 +16,10 @@ All notable changes to Baldr are documented here. The format is based on [Keep a
 - `RequestIdMiddleware` (echoes `X-Request-ID` or generates a 16-char hex id).
 - `ExceptionHandlerMiddleware` (catches `std::exception` and unknown exceptions, emits 500).
 - `WorkerPool` service registered as a singleton in `BaldrExtension` for offloading blocking work to a thread pool.
+- `baldr::MapScalarUi(*app)` helper mounting an embedded Scalar API reference UI. The vendored Scalar 1.62.4 bundle (JS, CSS, HTML wrapper) is pulled into the translation unit via `std::embed` (C++26, P1967R14; requires gcc-15+) — no runtime files, no CDN. The helper registers `skr::Logger<ScalarUi>` through `BaldrExtension` and emits a ctrl+clickable `http://0.0.0.0:{port}{mount}` URL via `LogInformation` so terminals can open the UI directly from the log line.
 - Cookie parsing tests, content-result test, middleware tests, route-prefix test, real `RateLimiter` tests (capacity, refill, thread safety, LRU eviction).
 - Streamed-buffer integration tests (byte-by-byte feed, pipelining, arbitrary 3-byte chunking).
+- `ScalarUiSpec` covering embedded asset byte counts, placeholders, and `AsStringView` size invariants.
 
 ### Changed
 - `WebApplication::MapStaticFiles` rewritten to support arbitrary depth (`urlPrefix/**`), fall back to `index.html` on directory requests, and reject path-traversal attempts (raw `..`, percent-encoded `..`, backslashes, NUL) before any filesystem call. The canonical-target prefix check now requires the next byte to be a path separator, blocking sibling directories whose names share the root prefix.

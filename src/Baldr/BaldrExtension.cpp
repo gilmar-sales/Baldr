@@ -9,6 +9,7 @@
 #include <Baldr/Http/Server.hpp>
 #include <Baldr/Middleware/Logging.hpp>
 #include <Baldr/Middleware/RateLimit/Middleware.hpp>
+#include <Baldr/OpenApi/MapScalarUi.hpp>
 
 namespace BALDR_NAMESPACE
 {
@@ -25,6 +26,7 @@ namespace BALDR_NAMESPACE
 
         services.AddTransient<skr::Logger<HttpConnection>>();
         services.AddTransient<skr::Logger<WebApplication>>();
+        services.AddTransient<skr::Logger<ScalarUi>>();
         services.AddTransient<HttpRequestParser>();
         services.AddSingleton(
             skr::MakeArc<RateLimiter>(10, std::chrono::seconds(10)));

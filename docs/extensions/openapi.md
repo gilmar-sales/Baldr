@@ -139,7 +139,7 @@ The extension emits [JSON Schema draft-07](https://json-schema.org/draft-07/sche
 
 ## Limitations
 
-- Swagger UI is not bundled. To mount a UI yourself, serve a static HTML file from your application and have it fetch `/openapi.json`. The [Swagger UI CDN](https://swagger.io/docs/specification/swagger-ui/) works for this.
+- Swagger UI is not bundled *by default*. Baldr ships an embedded [Scalar API reference UI](openapi-ui.md) you can mount with a single call to `baldr::MapScalarUi(*app)`. To use Swagger UI or any other renderer, serve a static HTML file from your application and have it fetch `/openapi.json` — the [Swagger UI CDN](https://swagger.io/docs/specification/swagger-ui/) works for this.
 - Deep JSON Schema features (`oneOf`, `anyOf`, `allOf`, recursive types) are out of scope for v1.
 - `MapStaticFiles` routes are intentionally not included in the spec.
 - Server URL is not inferred from `HttpServerOptions`; pre-render and serve a static file if you need a stable `servers` entry.

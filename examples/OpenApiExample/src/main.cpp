@@ -47,6 +47,8 @@ int main()
             });
     });
 
+    baldr::MapScalarUi(*app);
+
     app->Run();
 
     return 0;
