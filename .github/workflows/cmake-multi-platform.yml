@@ -33,10 +33,10 @@ jobs:
             cc: gcc
             cxx: g++
           - os: windows-latest
-            c_compiler: 'C:\mingw64\bin\gcc.exe'
-            cpp_compiler: 'C:\mingw64\bin\g++.exe'
-            cc: 'C:\mingw64\bin\gcc.exe'
-            cxx: 'C:\mingw64\bin\g++.exe'
+            c_compiler: 'C:/mingw64-gcc16/bin/gcc.exe'
+            cpp_compiler: 'C:/mingw64-gcc16/bin/g++.exe'
+            cc: 'C:/mingw64-gcc16/bin/gcc.exe'
+            cxx: 'C:/mingw64-gcc16/bin/g++.exe'
 
     steps:
     - uses: actions/checkout@v4
@@ -59,23 +59,28 @@ jobs:
         $ErrorActionPreference = 'Stop'
         $url = 'https://github.com/niXman/mingw-builds-binaries/releases/download/16.1.0-rt_v14-rev1/x86_64-16.1.0-release-posix-seh-ucrt-rt_v14-rev1.7z'
         $zip = "$env:TEMP\mingw64.7z"
+        $toolchain = 'C:\mingw64-gcc16'
         Write-Host "Downloading $url"
         Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
-        Write-Host 'Extracting toolchain to C:\mingw64'
-        & 7z.exe x $zip -oC:\mingw64 -y | Out-Null
-        & "$env:GITHUB_PATH" "$env:GITHUB_PATH;C:\mingw64\bin"
-        $env:PATH = "C:\mingw64\bin;$env:PATH"
-        & C:\mingw64\bin\gcc.exe --version
-        Write-Host 'Removing preinstalled MinGW shadowing our toolchain'
-        $preinstalled = Get-ChildItem -Path 'C:\' -Filter 'msys64' -Directory -ErrorAction SilentlyContinue
-        if ($preinstalled) { Write-Host ("Found preinstalled: " + $preinstalled.FullName) }
-        # GitHub-hosted windows-latest ships with an older MinGW in PATH; remove the
-        # vendored mingw64 entries from the machine PATH so our GCC 16 wins.
+        Write-Host "Extracting toolchain to $toolchain"
+        if (Test-Path $toolchain) { Remove-Item -Recurse -Force $toolchain }
+        & 7z.exe x $zip -oC:\ -y | Out-Null
+        # The archive's top-level folder is the build name; rename it to a stable path.
+        $extracted = Get-ChildItem -Path 'C:\' -Directory |
+          Where-Object { $_.Name -like 'x86_64-16.1.0-*' } |
+          Select-Object -First 1
+        if (-not $extracted) { throw 'Could not locate extracted GCC 16 toolchain directory under C:\' }
+        Rename-Item -Path $extracted.FullName -NewName 'mingw64-gcc16'
+        $gcc = 'C:\mingw64-gcc16\bin\gcc.exe'
+        & $gcc --version
+        # Strip any preinstalled mingw64/msys64 entries from machine PATH so our
+        # GCC 16 wins, and prepend our toolchain.
         $sysPath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
         $newSysPath = ($sysPath -split ';' | Where-Object { $_ -and ($_ -notmatch 'mingw64') -and ($_ -notmatch 'msys64') }) -join ';'
+        $newSysPath = "C:\mingw64-gcc16\bin;$newSysPath"
         [Environment]::SetEnvironmentVariable('Path', $newSysPath, 'Machine')
         $env:Path = $newSysPath
-        & C:\mingw64\bin\gcc.exe --version
+        & $gcc --version
 
     - name: Cache CMake build directory
       uses: actions/cache@v4
@@ -89,7 +94,7 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: bash
       run: |
-        export PATH="/c/mingw64/bin:$PATH"
+        export PATH="/c/mingw64-gcc16/bin:$PATH"
         which gcc && gcc --version
         which g++ && g++ --version
 
@@ -107,12 +112,12 @@ jobs:
     - name: Build
       shell: bash
       run: |
-        export PATH="/c/mingw64/bin:$PATH"
+        export PATH="/c/mingw64-gcc16/bin:$PATH"
         cmake --build "build" --config ${{ matrix.build_type }}
 
     - name: Test
       shell: bash
       working-directory: build
       run: |
-        export PATH="/c/mingw64/bin:$PATH"
+        export PATH="/c/mingw64-gcc16/bin:$PATH"
         ctest --test-dir ./test --build-config ${{ matrix.build_type }}
