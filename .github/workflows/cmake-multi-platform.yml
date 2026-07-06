@@ -59,25 +59,36 @@ jobs:
         $ErrorActionPreference = 'Stop'
         $url = 'https://github.com/niXman/mingw-builds-binaries/releases/download/16.1.0-rt_v14-rev1/x86_64-16.1.0-release-posix-seh-ucrt-rt_v14-rev1.7z'
         $zip = "$env:TEMP\mingw64.7z"
+        $scratch = 'C:\mingw64-scratch'
         $toolchain = 'C:\mingw64-gcc16'
         Write-Host "Downloading $url"
         Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
-        Write-Host "Extracting toolchain to $toolchain"
-        if (Test-Path $toolchain) { Remove-Item -Recurse -Force $toolchain }
-        & 7z.exe x $zip -oC:\ -y | Out-Null
+        Write-Host "Extracting toolchain to $scratch"
+        if (Test-Path $scratch) { Remove-Item -Recurse -Force $scratch }
+        New-Item -ItemType Directory -Path $scratch | Out-Null
+        # Use forward-slash style output path; 7z requires the trailing slash to
+        # treat it as a directory rather than a prefix.
+        & 7z.exe x $zip "-o${scratch}\" -y | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "7z extraction failed with exit code $LASTEXITCODE" }
+        Write-Host 'Contents of scratch directory:'
+        Get-ChildItem -Path $scratch -Force | Select-Object Name, FullName | Format-Table -AutoSize | Out-String | Write-Host
         # The archive's top-level folder is the build name; rename it to a stable path.
-        $extracted = Get-ChildItem -Path 'C:\' -Directory |
-          Where-Object { $_.Name -like 'x86_64-16.1.0-*' } |
+        $extracted = Get-ChildItem -Path $scratch -Directory |
           Select-Object -First 1
-        if (-not $extracted) { throw 'Could not locate extracted GCC 16 toolchain directory under C:\' }
+        if (-not $extracted) { throw "No directory found under $scratch after 7z extraction" }
+        if (Test-Path $toolchain) { Remove-Item -Recurse -Force $toolchain }
         Rename-Item -Path $extracted.FullName -NewName 'mingw64-gcc16'
-        $gcc = 'C:\mingw64-gcc16\bin\gcc.exe'
+        # `Rename-Item` moves into the parent (i.e. $scratch), so move it up to C:\.
+        Move-Item -Path (Join-Path $scratch 'mingw64-gcc16') -Destination $toolchain -Force
+        Remove-Item -Recurse -Force $scratch
+        $gcc = Join-Path $toolchain 'bin\gcc.exe'
+        if (-not (Test-Path $gcc)) { throw "gcc.exe not found at $gcc" }
         & $gcc --version
         # Strip any preinstalled mingw64/msys64 entries from machine PATH so our
         # GCC 16 wins, and prepend our toolchain.
         $sysPath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
         $newSysPath = ($sysPath -split ';' | Where-Object { $_ -and ($_ -notmatch 'mingw64') -and ($_ -notmatch 'msys64') }) -join ';'
-        $newSysPath = "C:\mingw64-gcc16\bin;$newSysPath"
+        $newSysPath = "$toolchain\bin;$newSysPath"
         [Environment]::SetEnvironmentVariable('Path', $newSysPath, 'Machine')
         $env:Path = $newSysPath
         & $gcc --version
