@@ -8,6 +8,7 @@
 
 #include <string_view>
 
+#include <Baldr/Application/HealthCheckResult.hpp>
 #include <Baldr/Http/Request.hpp>
 
 namespace BALDR_NAMESPACE
@@ -28,8 +29,11 @@ namespace BALDR_NAMESPACE
      * Slow probes (database pings, remote calls) should cache their
      * last known result and use a short timeout.
      *
-     * Returning @c false marks the probe unhealthy; throwing is
-     * equivalent to returning @c false.
+     * The return value is a @ref HealthCheckResult. Aggregate severity
+     * determines the HTTP code (Healthy and Degraded -> 200, Unhealthy
+     * -> 503) and per-check detail is rendered in the JSON body.
+     * Throwing from @c Check is treated as an Unhealthy result with
+     * the exception @c what() (or a generic message) as the error.
      *
      * @code
      * class DatabaseHealthCheck : public baldr::IHealthCheck
@@ -40,9 +44,12 @@ namespace BALDR_NAMESPACE
      *         return "database";
      *     }
      *
-     *     bool Check(const baldr::HttpRequest&) override
+     *     HealthCheckResult Check(const baldr::HttpRequest&) override
      *     {
-     *         return mLastPingOk.load();
+     *         return mLastPingOk.load()
+     *                    ? HealthCheckResult::Healthy("primary db")
+     *                    : HealthCheckResult::Unhealthy(
+     *                          "primary db", "ping failed");
      *     }
      *
      *   private:
@@ -83,11 +90,12 @@ namespace BALDR_NAMESPACE
          * @param request The inbound probe request, useful for
          *                inspecting headers (e.g. forced failures in
          *                tests) or query parameters.
-         * @return @c true when healthy, @c false when unhealthy.
+         * @return A @ref HealthCheckResult describing the outcome.
          * @throws Anything — the framework catches and treats it as
-         *         unhealthy.
+         *         an @c Unhealthy result with the exception @c what()
+         *         as the @c error field.
          */
-        virtual bool Check(const HttpRequest& request) = 0;
+        virtual HealthCheckResult Check(const HttpRequest& request) = 0;
     };
 
 } // namespace BALDR_NAMESPACE

@@ -16,6 +16,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <Baldr/Application/HealthCheckResult.hpp>
 #include <Baldr/Application/HealthChecks.hpp>
 #include <Baldr/Application/IHealthCheck.hpp>
 #include <Baldr/Application/RouteListing.hpp>
@@ -328,54 +329,100 @@ namespace BALDR_NAMESPACE
             return out;
         }
 
+        const char* statusToString(HealthStatus s)
+        {
+            switch (s)
+            {
+                case HealthStatus::Healthy:
+                    return "healthy";
+                case HealthStatus::Degraded:
+                    return "degraded";
+                case HealthStatus::Unhealthy:
+                    return "unhealthy";
+            }
+            return "unhealthy";
+        }
+
         ContentResult buildHealthResponse(
             const std::vector<HealthCheckRegistration>& checks,
             const HttpRequest&                          request)
         {
-            std::unordered_map<std::string, bool> results;
-            bool                                  healthy = true;
+            std::vector<std::pair<std::string, HealthCheckResult>> entries;
+            entries.reserve(checks.size());
+            bool anyUnhealthy = false;
 
             for (const auto& c : checks)
             {
-                bool ok = false;
-                try
+                HealthCheckResult result {
+                    HealthStatus::Unhealthy, std::string {},
+                    std::string { "missing check" }, std::nullopt
+                };
+                if (c.check)
                 {
-                    ok = c.check ? c.check(request) : true;
+                    try
+                    {
+                        result = c.check(request);
+                    }
+                    catch (const std::exception& ex)
+                    {
+                        result = HealthCheckResult::Unhealthy({}, ex.what());
+                    }
+                    catch (...)
+                    {
+                        result = HealthCheckResult::Unhealthy(
+                            {}, "unknown exception");
+                    }
                 }
-                catch (...)
-                {
-                    ok = false;
-                }
-                results.emplace(c.name, ok);
-                if (!ok)
-                    healthy = false;
+                if (result.status == HealthStatus::Unhealthy)
+                    anyUnhealthy = true;
+                entries.emplace_back(c.name, std::move(result));
             }
 
             std::string body;
-            body.reserve(64 + results.size() * 16);
+            body.reserve(128 + entries.size() * 64);
             body += "{\"status\":\"";
-            body += healthy ? "healthy" : "unhealthy";
+            body += anyUnhealthy ? "unhealthy" : "healthy";
             body += "\"";
 
-            if (!results.empty())
+            if (!entries.empty())
             {
                 body += ",\"checks\":{";
                 bool first = true;
-                for (const auto& [name, ok] : results)
+                for (const auto& [name, r] : entries)
                 {
                     if (!first)
                         body += ',';
                     first = false;
                     body += '"';
                     body += jsonEscape(name);
-                    body += "\":";
-                    body += ok ? "true" : "false";
+                    body += "\":{";
+                    body += "\"status\":\"";
+                    body += statusToString(r.status);
+                    body += "\"";
+                    if (!r.description.empty())
+                    {
+                        body += ",\"description\":\"";
+                        body += jsonEscape(r.description);
+                        body += '"';
+                    }
+                    if (r.error.has_value())
+                    {
+                        body += ",\"error\":\"";
+                        body += jsonEscape(*r.error);
+                        body += '"';
+                    }
+                    if (r.data.has_value())
+                    {
+                        body += ",\"data\":";
+                        body += *r.data;
+                    }
+                    body += '}';
                 }
                 body += '}';
             }
             body += '}';
 
-            const auto status = (checks.empty() || healthy)
+            const auto status = (checks.empty() || !anyUnhealthy)
                                     ? StatusCode::OK
                                     : StatusCode::ServiceUnavailable;
 

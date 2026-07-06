@@ -1,18 +1,30 @@
 #include <Baldr/Baldr.hpp>
 
-class DatabaseHealthCheck : public baldr::IHealthCheck
+namespace
 {
-  public:
-    std::string_view CheckName() const noexcept override { return "db"; }
-    bool             Check(const baldr::HttpRequest&) override { return true; }
-};
+    class DatabaseHealthCheck : public baldr::IHealthCheck
+    {
+      public:
+        std::string_view CheckName() const noexcept override { return "db"; }
+        baldr::HealthCheckResult Check(const baldr::HttpRequest&) override
+        {
+            return baldr::HealthCheckResult::Unhealthy(
+                "primary database", "connection refused",
+                R"({"host":"db.internal","port":5432})");
+        }
+    };
 
-class CacheHealthCheck : public baldr::IHealthCheck
-{
-  public:
-    std::string_view CheckName() const noexcept override { return "cache"; }
-    bool             Check(const baldr::HttpRequest&) override { return true; }
-};
+    class CacheHealthCheck : public baldr::IHealthCheck
+    {
+      public:
+        std::string_view CheckName() const noexcept override { return "cache"; }
+        baldr::HealthCheckResult Check(const baldr::HttpRequest&) override
+        {
+            return baldr::HealthCheckResult::Degraded(
+                "redis replica", std::nullopt, R"({"hitRatio":0.42})");
+        }
+    };
+} // namespace
 
 int main()
 {

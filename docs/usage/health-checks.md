@@ -11,14 +11,27 @@ class DatabaseHealthCheck : public baldr::IHealthCheck
 {
   public:
     std::string_view CheckName() const noexcept override { return "db"; }
-    bool Check(const baldr::HttpRequest&) override { return pingDatabase(); }
+    baldr::HealthCheckResult Check(const baldr::HttpRequest&) override
+    {
+        return pingDatabase()
+                   ? baldr::HealthCheckResult::Healthy("primary db")
+                   : baldr::HealthCheckResult::Unhealthy(
+                         "primary db", "ping failed");
+    }
 };
 
 class CacheHealthCheck : public baldr::IHealthCheck
 {
   public:
     std::string_view CheckName() const noexcept override { return "cache"; }
-    bool Check(const baldr::HttpRequest&) override { return cacheOk(); }
+    baldr::HealthCheckResult Check(const baldr::HttpRequest&) override
+    {
+        if (cacheOk())
+            return baldr::HealthCheckResult::Healthy();
+        return baldr::HealthCheckResult::Degraded(
+            "redis replica", "high miss rate",
+            R"({"hitRatio":0.42})");
+    }
 };
 
 auto builder = skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
@@ -36,23 +49,42 @@ Three endpoints are registered:
 - `GET /healthz` and `GET /readyz` — run every `IHealthCheck`, return the aggregated result.
 - `GET /livez` — unconditional liveness check, always returns `200`.
 
-A successful response (all checks return `true`) looks like:
+A successful response (all checks return `Healthy`) looks like:
 
 ```http title="Response"
 HTTP/1.1 200 OK
 Content-Type: application/json
-Content-Length: 47
 
-{"status":"healthy","checks":{"db":true,"cache":true}}
+{
+  "status": "healthy",
+  "checks": {
+    "db":    { "status": "healthy", "description": "primary db" },
+    "cache": { "status": "healthy" }
+  }
+}
 ```
 
-When any check returns `false` the status becomes `503 Service Unavailable` and the body shows which check failed:
+When any check returns `Unhealthy` the top-level status becomes `"unhealthy"` and the HTTP code flips to `503 Service Unavailable`. A `Degraded` check keeps the endpoint at `200` but surfaces `"status":"degraded"` per-check:
 
-```json title="Response"
-{"status":"unhealthy","checks":{"db":true,"cache":false}}
+```http title="Response"
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "status": "healthy",
+  "checks": {
+    "db":    { "status": "healthy" },
+    "cache": {
+      "status":      "degraded",
+      "description": "redis replica",
+      "error":       "high miss rate",
+      "data":        { "hitRatio": 0.42 }
+    }
+  }
+}
 ```
 
-A check that throws an exception is treated as `false` (the framework swallows the exception and marks the check unhealthy).
+A check that throws an exception is converted to `Unhealthy` automatically; the framework catches it and records `what()` as the `error` field.
 
 ## Endpoint shapes
 
@@ -76,13 +108,47 @@ class IHealthCheck
     /** @brief Stable identifier surfaced in the JSON body. */
     virtual std::string_view CheckName() const noexcept = 0;
 
-    /** @brief Run the probe. Return false (or throw) for unhealthy. */
-    virtual bool Check(const HttpRequest& request) = 0;
+    /** @brief Run the probe. Throw on failure, or return HealthCheckResult. */
+    virtual baldr::HealthCheckResult Check(const HttpRequest& request) = 0;
+};
+```
+
+`Check` returns a [`HealthCheckResult`](../../api/Application/HealthCheckResult.md):
+
+```cpp title="include/Baldr/Application/HealthCheckResult.hpp" linenums="1"
+enum class HealthStatus : std::uint8_t { Healthy, Degraded, Unhealthy };
+
+struct HealthCheckResult
+{
+    HealthStatus                 status;
+    std::string                  description;
+    std::optional<std::string>   error;
+    std::optional<std::string>   data;  // pre-serialized JSON
+
+    static HealthCheckResult Healthy(std::string description = {});
+    static HealthCheckResult Degraded(std::string                  description = {},
+                                      std::optional<std::string>   error = std::nullopt,
+                                      std::optional<std::string>   data  = std::nullopt);
+    static HealthCheckResult Unhealthy(std::string                  description = {},
+                                       std::optional<std::string>   error = std::nullopt,
+                                       std::optional<std::string>   data  = std::nullopt);
 };
 ```
 
 - `CheckName` is part of the public contract of the probe and must be stable across calls. It is surfaced verbatim as the key under `checks` in the response body.
 - `Check` runs **synchronously on the request thread** for every probe request and must be cheap and non-blocking. Cache the result of slow upstream calls and return the most recent cached value.
+- `data` is a pre-serialized JSON fragment inlined verbatim into the response body — supply `R"({"latencyMs":42})"` or similar from the check. The framework does not parse or re-serialize it.
+- Throwing from `Check` is equivalent to returning `Unhealthy({}, ex.what())`.
+
+## Status mapping
+
+| Per-check status | Contribution to top-level status | HTTP status |
+|---|---|---|
+| `Healthy`   | `"healthy"` | `200` |
+| `Degraded`  | `"healthy"` | `200` |
+| `Unhealthy` | `"unhealthy"` | `503` |
+
+Top-level status is `"unhealthy"` only when **at least one** check is `Unhealthy`. The per-check `status` is always one of `"healthy"`, `"degraded"`, or `"unhealthy"`.
 
 !!! note "Register checks as Transient"
     The framework resolves `IHealthCheck` instances with `GetServices<IHealthCheck>()`. Register each check as `Transient` (the recommended lifetime for stateless probes). Registering two `IHealthCheck` implementations as `Singleton` collapses them to a single instance because the DI cache is keyed by interface type, not implementation.
@@ -96,7 +162,12 @@ class IHealthCheck
       public:
         explicit DatabaseHealthCheck(ConnectionPool& pool) : mPool(pool) {}
         std::string_view CheckName() const noexcept override { return "db"; }
-        bool Check(const baldr::HttpRequest&) override { return mPool.lastPingOk(); }
+        baldr::HealthCheckResult Check(const baldr::HttpRequest&) override
+        {
+            return mPool.lastPingOk()
+                       ? baldr::HealthCheckResult::Healthy()
+                       : baldr::HealthCheckResult::Unhealthy({}, "ping failed");
+        }
       private:
         ConnectionPool& mPool;
     };
