@@ -3,6 +3,7 @@
 #
 # NOTE: Windows / MSVC (`cl`) and Clang are intentionally not part of the
 # matrix because neither implements C++26 reflection, which Baldr relies on.
+# Windows builds use the MinGW-w64 GCC 16 toolchain from niXman/mingw-builds-binaries.
 name: CMake on multiple platforms
 
 on:
@@ -22,18 +23,20 @@ jobs:
       # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
       fail-fast: false
 
-      # Set up a matrix to run the following configuration:
-      # 1. <Linux, Release, latest GCC compiler toolchain on the default runner image, default generator>
-      #
-      # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, windows-latest]
         build_type: [Release]
-        c_compiler: [gcc]
         include:
           - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
+            cc: gcc
+            cxx: g++
+          - os: windows-latest
+            c_compiler: gcc
+            cpp_compiler: g++
+            cc: 'C:\mingw64\bin\gcc.exe'
+            cxx: 'C:\mingw64\bin\g++.exe'
 
     steps:
     - uses: actions/checkout@v4
@@ -46,7 +49,7 @@ jobs:
         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
     - name: switch to gcc-16 on linux
-      if: matrix.os == 'ubuntu-latest' && matrix.c_compiler == 'gcc'
+      if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
         sudo apt-get install -y software-properties-common
@@ -55,6 +58,21 @@ jobs:
         sudo apt-get install -y gcc-16 g++-16
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-16 100 --slave /usr/bin/g++ g++ /usr/bin/g++-16 --slave /usr/bin/gcov gcov /usr/bin/gcov-16
         sudo update-alternatives --set gcc /usr/bin/gcc-16
+
+    - name: Install MinGW-w64 GCC 16 (niXman mingw-builds) on Windows
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $url = 'https://github.com/niXman/mingw-builds-binaries/releases/download/16.1.0-rt_v14-rev1/x86_64-16.1.0-release-posix-seh-ucrt-rt_v14-rev1.7z'
+        $zip = "$env:TEMP\mingw64.7z"
+        Write-Host "Downloading $url"
+        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+        Write-Host 'Extracting toolchain to C:\mingw64'
+        & 7z.exe x $zip -oC:\mingw64 -y | Out-Null
+        & "$env:GITHUB_PATH" "$env:GITHUB_PATH;C:\mingw64\bin"
+        $env:PATH = "C:\mingw64\bin;$env:PATH"
+        & C:\mingw64\bin\gcc.exe --version
 
     - name: Cache CMake build directory
       uses: actions/cache@v4
@@ -65,10 +83,10 @@ jobs:
           ${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-
 
     - name: Configure CMake
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      shell: bash
       run: >
         cmake -B ${{ steps.strings.outputs.build-output-dir }}
+        -G "Ninja"
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
@@ -76,8 +94,10 @@ jobs:
         -S ${{ github.workspace }}
 
     - name: Build
+      shell: bash
       run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
     - name: Test
+      shell: bash
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
       run: ctest --test-dir ./test --build-config ${{ matrix.build_type }}
