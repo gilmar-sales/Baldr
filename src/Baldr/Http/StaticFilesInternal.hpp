@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <string>
 
 #include <Baldr/Http/StatusCode.hpp>
@@ -50,6 +51,17 @@ namespace BALDR_NAMESPACE
          */
         StaticResolve resolveStaticFile(const std::string& filepath,
                                         const std::string& root);
+
+        /**
+         * @brief Stream-friendly variant of @ref resolveStaticFile.
+         *
+         * Does not load the file body into memory. Instead, opens the
+         * resolved file as a binary stream and returns it via @p outFile.
+         * The @c body field of the returned struct is always empty.
+         */
+        StaticResolve resolveStaticFileStreaming(const std::string& filepath,
+                                                 const std::string& root,
+                                                 std::ifstream&     outFile);
 
         /**
          * @brief Build a strong ETag of the form @c "<size>-<mtime>".

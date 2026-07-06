@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <string>
 
+#include <Baldr/Hosting/SecureRandom.hpp>
 #include <Baldr/Http/TraceContext.hpp>
 #include <Baldr/Middleware/IMiddleware.hpp>
 
@@ -133,17 +134,7 @@ namespace BALDR_NAMESPACE
         }
 
       private:
-        static std::string generate()
-        {
-            static thread_local std::uint64_t counter = 0;
-            const auto                        now = static_cast<std::uint64_t>(
-                std::chrono::system_clock::now().time_since_epoch().count());
-            const auto mix = now ^ (++counter * 0x9E3779B97F4A7C15ULL);
-            char       buf[17];
-            std::snprintf(buf, sizeof(buf), "%016llx",
-                          static_cast<unsigned long long>(mix));
-            return buf;
-        }
+        static std::string generate() { return RandomHex(16); }
 
         RequestIdOptions mOptions;
     };

@@ -18,6 +18,7 @@
 
 #include <trantor/net/TcpConnection.h>
 
+#include <Baldr/Hosting/StringHelpers.hpp>
 #include <Baldr/Http/StatusCode.hpp>
 
 namespace BALDR_NAMESPACE
@@ -115,9 +116,15 @@ namespace BALDR_NAMESPACE
      */
     inline std::string formatChunk(std::string_view data)
     {
+        static_assert(sizeof(std::size_t) <= sizeof(unsigned long long),
+                      "size_t larger than unsigned long long is not "
+                      "representable by the chunk-size formatter");
         char        header[32];
         auto        size = data.size();
-        int         n = std::snprintf(header, sizeof(header), "%zx\r\n", size);
+        int         n    = std::snprintf(header,
+                                         sizeof(header),
+                                         "%llx\r\n",
+                                         static_cast<unsigned long long>(size));
         std::string out;
         out.reserve(n + 2 + size + 2);
         out.append(header, static_cast<std::size_t>(n));
@@ -138,14 +145,38 @@ namespace BALDR_NAMESPACE
      * @brief Assemble the status line, headers and @c Set-Cookie lines for a
      *        streaming response. Adds @c Transfer-Encoding: chunked when not
      *        already supplied.
+     *
+     * Validates each header name (RFC 9110 token) and each header/cookie
+     * value (no CR or LF). If any value fails validation the function
+     * returns an empty string and sets @p ok to @c false; callers MUST
+     * check @p ok before transmitting the result.
      */
     inline std::string formatStreamingHead(
         StatusCode                                              status,
         const std::string&                                      version,
         const std::vector<std::pair<std::string, std::string>>& headers,
         const std::vector<std::pair<std::string, std::string>>& cookies,
-        const std::function<const char*(StatusCode)>&           reasonPhrase)
+        const std::function<const char*(StatusCode)>&           reasonPhrase,
+        bool&                                                   ok)
     {
+        ok = true;
+        for (const auto& [name, value] : headers)
+        {
+            if (!isValidHeaderName(name) || containsCrlf(value))
+            {
+                ok = false;
+                return {};
+            }
+        }
+        for (const auto& [name, value] : cookies)
+        {
+            if (containsCrlf(name) || containsCrlf(value))
+            {
+                ok = false;
+                return {};
+            }
+        }
+
         std::string out;
         out.reserve(128);
         out.append(version);

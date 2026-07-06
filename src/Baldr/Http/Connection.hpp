@@ -96,6 +96,44 @@ namespace BALDR_NAMESPACE
             HttpResponse&                         response,
             const RouteHandler&                   finalHandler);
 
+        /**
+         * @brief Validate that every outgoing header name is a valid RFC 9110
+         *        token and every value is free of CR/LF.
+         *
+         * Returns @c false (and @p firstBadName / @p firstBadValue describe
+         * the violation) when a header would inject a new line into the
+         * response wire format (HTTP response splitting, CWE-93).
+         */
+        static bool ValidateResponseHeaders(
+            const std::unordered_map<std::string, std::string>&   headers,
+            const std::unordered_map<std::string, CookieOptions>& cookies,
+            std::string&                                          firstBadName,
+            std::string&                                          firstBadValue)
+        {
+            for (const auto& [name, value] : headers)
+            {
+                if (name == "Connection")
+                    continue;
+                if (!isValidHeaderName(name) || containsCrlf(value))
+                {
+                    firstBadName  = name;
+                    firstBadValue = value;
+                    return false;
+                }
+            }
+            for (const auto& [name, opts] : cookies)
+            {
+                if (containsCrlf(name) || containsCrlf(opts.value) ||
+                    (opts.domain.has_value() && containsCrlf(*opts.domain)))
+                {
+                    firstBadName  = name;
+                    firstBadValue = opts.value;
+                    return false;
+                }
+            }
+            return true;
+        }
+
       private:
         void handle(HttpRequest request);
 
@@ -107,20 +145,6 @@ namespace BALDR_NAMESPACE
             const IStreamingResult&                               result,
             const std::string&                                    version,
             const std::unordered_map<std::string, CookieOptions>& cookies);
-
-        static std::string toLowerAscii(std::string_view s)
-        {
-            std::string out;
-            out.reserve(s.size());
-            for (char c : s)
-            {
-                if (c >= 'A' && c <= 'Z')
-                    out.push_back(static_cast<char>(c + 32));
-                else
-                    out.push_back(c);
-            }
-            return out;
-        }
 
         static void parseQuery(std::string_view query, HttpRequest& request)
         {

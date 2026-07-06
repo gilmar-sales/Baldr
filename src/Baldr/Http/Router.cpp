@@ -77,6 +77,8 @@ namespace BALDR_NAMESPACE
         };
     }
 
+    constexpr std::size_t kMaxWildcardSegments = 32;
+
     std::optional<RouteEntry> matchInTrieWithTemplate(
         const std::map<HttpMethod, std::unique_ptr<TrieNode>>& mMethodsMap,
         HttpMethod                                             method,
@@ -228,8 +230,9 @@ namespace BALDR_NAMESPACE
             return;
         }
 
-        std::string regexStr  = "^/";
-        bool        greedySet = false;
+        std::string regexStr      = "^/";
+        bool        greedySet     = false;
+        std::size_t wildcardCount = 0;
 
         for (auto segment : pathSegments)
         {
@@ -242,6 +245,10 @@ namespace BALDR_NAMESPACE
                         "Router: '**' may only appear once per route");
 
                 greedySet = true;
+                ++wildcardCount;
+                if (wildcardCount > kMaxWildcardSegments)
+                    throw std::invalid_argument(
+                        "Router: route contains too many wildcard segments");
                 routeEntry.paramsNames.emplace_back("filepath");
                 regexStr += "(?:/(.*))?";
                 sv = "**";
@@ -252,6 +259,10 @@ namespace BALDR_NAMESPACE
                     throw std::invalid_argument(
                         "Router: '**' must be the final segment");
 
+                ++wildcardCount;
+                if (wildcardCount > kMaxWildcardSegments)
+                    throw std::invalid_argument(
+                        "Router: route contains too many wildcard segments");
                 routeEntry.paramsNames.emplace_back(sv.substr(1));
                 regexStr += "([^/]+)/?";
                 sv = "*";
@@ -273,7 +284,8 @@ namespace BALDR_NAMESPACE
             current = current->children[sv].get();
         }
 
-        routeEntry.extractParamsRegex = std::regex(regexStr + "$");
+        routeEntry.extractParamsRegex =
+            std::regex(regexStr + "$", std::regex::optimize);
 
         current->routeEntry  = routeEntry;
         current->isEndOfPath = true;

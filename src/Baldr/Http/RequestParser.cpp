@@ -293,8 +293,10 @@ namespace BALDR_NAMESPACE
             }
 
             std::string key(line.substr(0, colon));
-            std::transform(key.begin(), key.end(), key.begin(),
-                           [](unsigned char c) { return std::tolower(c); });
+            std::transform(
+                key.begin(), key.end(), key.begin(), [](unsigned char c) {
+                    return static_cast<char>(c >= 'A' && c <= 'Z' ? c + 32 : c);
+                });
 
             if (key.empty() || key.size() > 64)
             {
@@ -331,6 +333,14 @@ namespace BALDR_NAMESPACE
                     out.statusCode = StatusCode::BadRequest;
                     return out;
                 }
+                const std::size_t maxDigits =
+                    std::to_string(maxBodySize).size();
+                if (value.size() > maxDigits)
+                {
+                    out.error      = "Invalid Content-Length header";
+                    out.statusCode = StatusCode::BadRequest;
+                    return out;
+                }
                 std::size_t parsed = 0;
                 for (char c : value)
                 {
@@ -340,7 +350,14 @@ namespace BALDR_NAMESPACE
                         out.statusCode = StatusCode::BadRequest;
                         return out;
                     }
-                    parsed = parsed * 10 + static_cast<std::size_t>(c - '0');
+                    const std::size_t digit = static_cast<std::size_t>(c - '0');
+                    if (parsed > (maxBodySize - digit) / 10)
+                    {
+                        out.error      = "Invalid Content-Length header";
+                        out.statusCode = StatusCode::BadRequest;
+                        return out;
+                    }
+                    parsed = parsed * 10 + digit;
                 }
                 if (parsed == 0)
                 {
@@ -516,6 +533,15 @@ namespace BALDR_NAMESPACE
                         }
                         value = value.substr(begin, end - begin);
 
+                        const std::size_t maxDigits =
+                            std::to_string(maxBodySize).size();
+                        if (value.size() > maxDigits)
+                        {
+                            result.kind  = ContentLengthLookup::Invalid;
+                            result.value = 0;
+                            return result;
+                        }
+
                         std::size_t parsed = 0;
                         for (char c : value)
                         {
@@ -525,8 +551,15 @@ namespace BALDR_NAMESPACE
                                 result.value = 0;
                                 return result;
                             }
-                            parsed =
-                                parsed * 10 + static_cast<std::size_t>(c - '0');
+                            const std::size_t digit =
+                                static_cast<std::size_t>(c - '0');
+                            if (parsed > (maxBodySize - digit) / 10)
+                            {
+                                result.kind  = ContentLengthLookup::Invalid;
+                                result.value = 0;
+                                return result;
+                            }
+                            parsed = parsed * 10 + digit;
                         }
 
                         if (parsed == 0)

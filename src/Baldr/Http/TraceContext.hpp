@@ -13,6 +13,8 @@
 #include <string>
 #include <string_view>
 
+#include <Baldr/Hosting/SecureRandom.hpp>
+
 namespace BALDR_NAMESPACE
 {
 
@@ -80,21 +82,14 @@ namespace BALDR_NAMESPACE
     /**
      * @brief Generate a new 32-hex-character trace identifier.
      *
-     * Mixes the wall clock with a thread-local counter. If the result is
-     * all-zero (unlikely) the first nibble is forced to @c '1' because
-     * all-zero is reserved and rejected by the parser.
+     * Backed by the framework's cryptographic RNG (random_device + mt19937_64).
+     * If the result is all-zero (1 in 2^128, negligible) the first nibble
+     * is forced to @c '1' because all-zero is reserved and rejected by the
+     * parser.
      */
     inline std::string NewTraceId() noexcept
     {
-        static thread_local std::uint64_t counter = 0;
-        const auto                        now     = static_cast<std::uint64_t>(
-            std::chrono::system_clock::now().time_since_epoch().count());
-        const auto mix = now ^ (++counter * 0x9E3779B97F4A7C15ULL);
-        char       buf[33];
-        std::snprintf(buf, sizeof(buf), "%016llx%016llx",
-                      static_cast<unsigned long long>(mix),
-                      static_cast<unsigned long long>(now));
-        std::string id(buf);
+        std::string id = RandomHex(32);
         if (IsAllZeroHex(id))
         {
             id.front() = '1';
@@ -107,17 +102,9 @@ namespace BALDR_NAMESPACE
      */
     inline std::string NewSpanId() noexcept
     {
-        static thread_local std::mt19937_64 rng { static_cast<std::uint64_t>(
-            std::chrono::steady_clock::now().time_since_epoch().count()) };
-        const auto                          a = rng();
-        char                                buf[17];
-        std::snprintf(buf, sizeof(buf), "%016llx",
-                      static_cast<unsigned long long>(a));
-        std::string id(buf);
+        std::string id = RandomHex(16);
         if (IsAllZeroHex(id))
         {
-            buf[0]     = '1';
-            id         = buf;
             id.front() = '1';
         }
         return id;

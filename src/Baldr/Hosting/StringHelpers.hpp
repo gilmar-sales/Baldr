@@ -11,6 +11,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 
 namespace BALDR_NAMESPACE
 {
@@ -90,6 +91,47 @@ namespace BALDR_NAMESPACE
         }
 
         return decoded.str();
+    }
+
+    /**
+     * @brief @c true when @p s contains a CR or LF byte.
+     *
+     * Used to reject values that would inject extra header lines into
+     * outgoing HTTP responses (HTTP response splitting / CWE-93).
+     */
+    inline bool containsCrlf(std::string_view s) noexcept
+    {
+        for (char c : s)
+        {
+            if (c == '\r' || c == '\n')
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * @brief Validate an outgoing HTTP header name per RFC 9110 token rules.
+     *
+     * Rejects empty names, names containing CR/LF, separators, and other
+     * characters that are illegal in field-names. Used by the response
+     * writer to prevent header injection.
+     */
+    inline bool isValidHeaderName(std::string_view s) noexcept
+    {
+        if (s.empty() || s.size() > 64)
+            return false;
+        for (char c : s)
+        {
+            const bool ok =
+                (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
+                (c >= 'A' && c <= 'Z') || c == '!' || c == '#' || c == '$' ||
+                c == '%' || c == '&' || c == '\'' || c == '*' || c == '+' ||
+                c == '-' || c == '.' || c == '^' || c == '_' || c == '`' ||
+                c == '|' || c == '~';
+            if (!ok)
+                return false;
+        }
+        return true;
     }
 
 } // namespace BALDR_NAMESPACE

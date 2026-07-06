@@ -38,7 +38,6 @@ namespace BALDR_NAMESPACE
          */
         void leave()
         {
-            std::lock_guard<std::mutex> lock(mMutex);
             if (mCount.fetch_sub(1, std::memory_order_acq_rel) == 1)
                 mCv.notify_all();
         }
@@ -69,8 +68,8 @@ namespace BALDR_NAMESPACE
 
       private:
         std::atomic<std::size_t> mCount { 0 };
-        std::mutex               mMutex;
         std::condition_variable  mCv;
+        std::mutex               mMutex;
     };
 
 } // namespace BALDR_NAMESPACE

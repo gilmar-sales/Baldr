@@ -20,14 +20,15 @@
 namespace BALDR_NAMESPACE
 {
 
-    HttpServer* gHttpServerInstance = nullptr;
+    std::atomic<HttpServer*> gHttpServerInstance { nullptr };
 
     extern "C" void handleShutdownSignal(int signo)
     {
-        if (gHttpServerInstance != nullptr)
+        auto* instance = gHttpServerInstance.load(std::memory_order_acquire);
+        if (instance != nullptr)
         {
             (void) signo;
-            gHttpServerInstance->Stop();
+            instance->Stop();
         }
     }
 
@@ -77,7 +78,7 @@ namespace BALDR_NAMESPACE
         if (mImpl->mRunning.exchange(true))
             return;
 
-        gHttpServerInstance = this;
+        gHttpServerInstance.store(this, std::memory_order_release);
         std::signal(SIGINT, handleShutdownSignal);
         std::signal(SIGTERM, handleShutdownSignal);
 
@@ -159,9 +160,9 @@ namespace BALDR_NAMESPACE
         mImpl->mIoLoopPool.reset();
         mImpl->mAcceptorLoop.reset();
         mImpl->mRunning.store(false);
-        if (gHttpServerInstance == this)
+        if (gHttpServerInstance.load(std::memory_order_acquire) == this)
         {
-            gHttpServerInstance = nullptr;
+            gHttpServerInstance.store(nullptr, std::memory_order_release);
             std::signal(SIGINT, SIG_DFL);
             std::signal(SIGTERM, SIG_DFL);
         }

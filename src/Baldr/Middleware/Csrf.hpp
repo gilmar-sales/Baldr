@@ -14,6 +14,7 @@
 #include <string>
 #include <string_view>
 
+#include <Baldr/Hosting/SecureRandom.hpp>
 #include <Baldr/Middleware/IMiddleware.hpp>
 
 namespace BALDR_NAMESPACE
@@ -174,19 +175,10 @@ namespace BALDR_NAMESPACE
 
         static std::string generateToken()
         {
-            // Same approach as RequestIdMiddleware: not cryptographic, but
-            // good enough for the double-submit pattern. Strong entropy
-            // comes from the source randomness of the request environment
-            // and uniqueness is enforced by the per-client cookie.
-            static thread_local std::uint64_t counter = 0;
-            const auto                        now = static_cast<std::uint64_t>(
-                std::chrono::system_clock::now().time_since_epoch().count());
-            const auto mix = now ^ (++counter * 0x9E3779B97F4A7C15ULL);
-            char       buf[33];
-            std::snprintf(buf, sizeof(buf), "%016llx%016llx",
-                          static_cast<unsigned long long>(mix),
-                          static_cast<unsigned long long>(mix >> 32));
-            return buf;
+            // 128 bits of entropy from std::random_device + mt19937_64;
+            // sufficient for the double-submit pattern when the cookie
+            // is bound to a session origin.
+            return RandomHex(32);
         }
 
         void reject(HttpResponse& response, const std::string& message)

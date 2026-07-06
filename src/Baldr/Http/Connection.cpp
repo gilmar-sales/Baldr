@@ -273,13 +273,14 @@ namespace BALDR_NAMESPACE
         catch (const std::exception& e)
         {
             mLogger->LogError("handler exception: {}", e.what());
-            sendErrorResponse(StatusCode::InternalServerError, e.what());
+            sendErrorResponse(StatusCode::InternalServerError,
+                              "Internal Server Error");
         }
         catch (...)
         {
             mLogger->LogError("handler unknown exception");
             sendErrorResponse(StatusCode::InternalServerError,
-                              "internal error");
+                              "Internal Server Error");
         }
     }
 
@@ -304,6 +305,19 @@ namespace BALDR_NAMESPACE
 
         std::string out;
         size_t      headersBytes = 0;
+
+        std::string badName;
+        std::string badValue;
+        if (!ValidateResponseHeaders(
+                response.headers, response.cookies, badName, badValue))
+        {
+            mLogger->LogError(
+                "rejecting response: invalid header name or CRLF in value");
+            if (mConnection && mConnection->connected())
+                mConnection->forceClose();
+            return;
+        }
+
         for (const auto& [name, value] : response.headers)
         {
             if (name == "Connection")
@@ -387,6 +401,8 @@ namespace BALDR_NAMESPACE
         if (!mConnection || !mConnection->connected())
             return;
 
+        bool ok = true;
+
         std::vector<std::pair<std::string, std::string>> headers;
         result.headers(headers);
         headers.emplace_back("Content-Type", "application/octet-stream");
@@ -421,7 +437,16 @@ namespace BALDR_NAMESPACE
 
         std::string out = formatStreamingHead(
             result.statusCode(), version.empty() ? "HTTP/1.1" : version,
-            headers, cookieStrings, &HttpConnection::reasonPhrase);
+            headers, cookieStrings, &HttpConnection::reasonPhrase, ok);
+
+        if (!ok)
+        {
+            mLogger->LogError(
+                "rejecting streaming response: invalid header or cookie");
+            if (mConnection && mConnection->connected())
+                mConnection->forceClose();
+            return;
+        }
 
         mConnection->send(std::move(out));
 

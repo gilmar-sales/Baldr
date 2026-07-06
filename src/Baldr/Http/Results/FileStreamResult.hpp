@@ -1,7 +1,7 @@
 /**
  * @file Http/Results/FileStreamResult.hpp
  * @brief Streaming result that reads from an open @c std::ifstream in
- *        64 KiB chunks and forces a download via @c Content-Disposition.
+ *        64 KiB chunks.
  */
 
 #pragma once
@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include <Baldr/Hosting/StringHelpers.hpp>
 #include <Baldr/Http/Results/StreamingResult.hpp>
 
 namespace BALDR_NAMESPACE
@@ -23,9 +24,10 @@ namespace BALDR_NAMESPACE
      * @brief Streams a file to the client via chunked transfer encoding.
      *
      * The file is read lazily in @ref kDefaultChunkBytes chunks; EOF
-     * terminates the stream. The response advertises @c Content-Type and a
-     * @c Content-Disposition: attachment header carrying the original
-     * filename.
+     * terminates the stream. The response advertises @c Content-Type and
+     * an optional @c Content-Disposition header carrying the original
+     * filename. When @p asAttachment is @c false the file is served
+     * inline (used by the static-files handler).
      */
     class FileStreamResult final : public IStreamingResult
     {
@@ -36,18 +38,22 @@ namespace BALDR_NAMESPACE
         /**
          * @brief Wrap an already-opened file in a streaming result.
          *
-         * @param file        Open input stream positioned at the start of the
-         *                    payload (taken by move; the stream is closed
-         *                    automatically when the result is destroyed).
-         * @param contentType MIME type to advertise.
-         * @param fileName    File name used in the @c Content-Disposition
-         *                    header.
+         * @param file         Open input stream positioned at the start of the
+         *                     payload (taken by move; the stream is closed
+         *                     automatically when the result is destroyed).
+         * @param contentType  MIME type to advertise.
+         * @param fileName     File name used in the @c Content-Disposition
+         *                     header.
+         * @param asAttachment When @c true, emit @c
+         *                     @c Content-Disposition: attachment. When @c
+         * false, emit @c Content-Disposition: inline.
          */
         FileStreamResult(std::ifstream file,
                          std::string   contentType,
-                         std::string   fileName) :
+                         std::string   fileName,
+                         bool          asAttachment = true) :
             mFile(std::move(file)), mContentType(std::move(contentType)),
-            mFileName(std::move(fileName))
+            mFileName(std::move(fileName)), mAsAttachment(asAttachment)
         {
         }
 
@@ -56,8 +62,16 @@ namespace BALDR_NAMESPACE
         {
             out.clear();
             out.emplace_back("Content-Type", mContentType);
+            const std::string disposition =
+                (mAsAttachment ? "attachment" : "inline");
+            std::string safeName = mFileName;
+            for (auto& c : safeName)
+            {
+                if (c == '\r' || c == '\n' || c == '"' || c == '\\')
+                    c = '_';
+            }
             out.emplace_back("Content-Disposition",
-                             "attachment; filename=\"" + mFileName + "\"");
+                             disposition + "; filename=\"" + safeName + "\"");
         }
 
         bool nextChunk(std::string& out) const override
@@ -80,6 +94,7 @@ namespace BALDR_NAMESPACE
         mutable std::ifstream mFile;
         std::string           mContentType;
         std::string           mFileName;
+        bool                  mAsAttachment;
     };
 
 } // namespace BALDR_NAMESPACE

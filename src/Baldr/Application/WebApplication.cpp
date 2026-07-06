@@ -20,6 +20,7 @@
 #include <Baldr/Application/HealthChecks.hpp>
 #include <Baldr/Application/IHealthCheck.hpp>
 #include <Baldr/Application/RouteListing.hpp>
+#include <Baldr/Http/Results/FileStreamResult.hpp>
 #include <Baldr/Http/Router.hpp>
 #include <Baldr/Http/Server.hpp>
 #include <Baldr/Http/StaticFilesInternal.hpp>
@@ -226,6 +227,77 @@ namespace BALDR_NAMESPACE
                      fileToServe,
                      detectMimeType(fileToServe),
                      ss.str(),
+                     /*fileSize=*/sizec ? 0 : sz,
+                     /*lastModified=*/mtc,
+                     /*etag=*/Detail::makeEtag(sizec ? 0 : sz, mtc) };
+        }
+
+        StaticResolve resolveStaticFileStreaming(const std::string& filepath,
+                                                 const std::string& root,
+                                                 std::ifstream&     outFile)
+        {
+            if (filepath.find('\0') != std::string::npos ||
+                filepath.find('\\') != std::string::npos)
+            {
+                return { StatusCode::BadRequest, {}, {}, {} };
+            }
+
+            for (const auto& seg : splitSegments(filepath))
+            {
+                if (seg == ".." || seg == ".")
+                    return { StatusCode::BadRequest, {}, {}, {} };
+            }
+
+            std::error_code ec;
+            const auto      rootCanonical =
+                std::filesystem::weakly_canonical(root, ec);
+            if (ec)
+                return { StatusCode::InternalServerError, {}, {}, {} };
+
+            std::filesystem::path requested =
+                std::filesystem::path(root) / filepath;
+            const auto canonical =
+                std::filesystem::weakly_canonical(requested, ec);
+            if (ec)
+                return { StatusCode::NotFound, {}, {}, {} };
+
+            const std::string rootStr   = rootCanonical.string();
+            const std::string fileStr   = canonical.string();
+            const bool        exactRoot = (fileStr == rootStr);
+            const bool        underRoot =
+                fileStr.size() > rootStr.size() &&
+                fileStr.compare(0, rootStr.size(), rootStr) == 0 &&
+                (fileStr[rootStr.size()] == '/' ||
+                 fileStr[rootStr.size()] ==
+                     std::filesystem::path::preferred_separator);
+
+            if (!exactRoot && !underRoot)
+                return { StatusCode::Forbidden, {}, {}, {} };
+
+            std::filesystem::path fileToServe = canonical;
+
+            std::error_code isDirEc;
+            if (std::filesystem::is_directory(canonical, isDirEc))
+            {
+                fileToServe = canonical / "index.html";
+            }
+
+            if (!std::filesystem::is_regular_file(fileToServe, ec))
+                return { StatusCode::NotFound, {}, {}, {} };
+
+            outFile.open(fileToServe, std::ios::binary);
+            if (!outFile)
+                return { StatusCode::InternalServerError, {}, {}, {} };
+
+            std::error_code sizec;
+            auto            sz = std::filesystem::file_size(fileToServe, sizec);
+            auto            mte = std::filesystem::last_write_time(fileToServe);
+            auto            mtc = std::chrono::file_clock::to_sys(mte);
+
+            return { StatusCode::OK,
+                     fileToServe,
+                     detectMimeType(fileToServe),
+                     /*body=*/std::string {},
                      /*fileSize=*/sizec ? 0 : sz,
                      /*lastModified=*/mtc,
                      /*etag=*/Detail::makeEtag(sizec ? 0 : sz, mtc) };
@@ -472,17 +544,22 @@ namespace BALDR_NAMESPACE
 
         MapGet(
             prefix + "/**",
-            [prefix, root](HttpRequest&  request,
-                           HttpResponse& response) -> ContentResult {
+            [prefix, root](HttpRequest& request, HttpResponse& response) {
                 (void) prefix;
-                (void) response;
                 auto        it = request.params.find("filepath");
                 std::string filepath =
                     (it != request.params.end()) ? it->second : std::string {};
 
-                auto resolved = Detail::resolveStaticFile(filepath, root);
+                std::ifstream file;
+                auto          resolved =
+                    Detail::resolveStaticFileStreaming(filepath, root, file);
                 if (resolved.status != StatusCode::OK)
-                    return ContentResult("", "text/plain", resolved.status);
+                {
+                    response.statusCode              = resolved.status;
+                    response.body                    = "";
+                    response.headers["Content-Type"] = "text/plain";
+                    return;
+                }
 
                 const std::string lastModifiedHeader =
                     Detail::formatHttpDate(resolved.lastModified);
@@ -509,8 +586,7 @@ namespace BALDR_NAMESPACE
                         response.headers["ETag"]          = resolved.etag;
                         response.headers["Last-Modified"] = lastModifiedHeader;
                         response.statusCode = StatusCode::NotModified;
-                        return ContentResult("", resolved.mimeType,
-                                             StatusCode::NotModified);
+                        return;
                     }
                 }
 
@@ -531,17 +607,19 @@ namespace BALDR_NAMESPACE
                         response.headers["ETag"]          = resolved.etag;
                         response.headers["Last-Modified"] = lastModifiedHeader;
                         response.statusCode = StatusCode::NotModified;
-                        return ContentResult("", resolved.mimeType,
-                                             StatusCode::NotModified);
+                        return;
                     }
                 }
 
-                ContentResult body(resolved.body,
-                                   resolved.mimeType,
-                                   StatusCode::OK);
                 response.headers["ETag"]          = resolved.etag;
                 response.headers["Last-Modified"] = lastModifiedHeader;
-                return body;
+                response.headers["Content-Length"] =
+                    std::to_string(resolved.fileSize);
+                response.streaming = std::make_shared<FileStreamResult>(
+                    std::move(file),
+                    resolved.mimeType,
+                    resolved.canonical.filename().string(),
+                    /*asAttachment=*/false);
             });
     }
 

@@ -28,6 +28,7 @@ TEST(StreamingResult, FormatStreamingHeadAddsTransferEncodingChunked)
         { "Content-Type", "text/event-stream" }
     };
     std::vector<std::pair<std::string, std::string>> cookies;
+    bool ok                                            = true;
     auto head = baldr::formatStreamingHead(
         baldr::StatusCode::OK, "HTTP/1.1", headers, cookies,
         [](baldr::StatusCode s) -> const char* {
@@ -38,7 +39,10 @@ TEST(StreamingResult, FormatStreamingHeadAddsTransferEncodingChunked)
                 default:
                     return "OK";
             }
-        });
+        },
+        ok);
+
+    EXPECT_TRUE(ok);
 
     EXPECT_NE(head.find("HTTP/1.1 200 OK\r\n"), std::string::npos);
     EXPECT_NE(head.find("Content-Type: text/event-stream\r\n"),
