@@ -810,3 +810,42 @@ TEST_F(HttpRequestParserSpec, ShouldRejectMissingHTTPVersion)
     ASSERT_STREQ(status.errorMessage.c_str(),
                  "HTTP version is missing or invalid");
 }
+
+TEST_F(HttpRequestParserSpec, ShouldParseWellFormedCookie)
+{
+    auto status = mHttpRequestParser->tryParse(
+        "GET / HTTP/1.1\r\nHost: x\r\nCookie: session=abc; theme=dark\r\n\r\n");
+
+    ASSERT_EQ(status.kind, baldr::HttpParseStatus::Kind::Complete);
+    ASSERT_EQ(status.request.cookies.size(), 2u);
+    ASSERT_EQ(status.request.cookies.at("session"), "abc");
+    ASSERT_EQ(status.request.cookies.at("theme"), "dark");
+}
+
+TEST_F(HttpRequestParserSpec, ShouldDropCookiesWithInvalidNameGrammar)
+{
+    std::string raw;
+    raw += "GET / HTTP/1.1\r\nHost: x\r\n";
+    raw += "Cookie: session=ok; "; // valid
+    const char badName[] = { '\x9c', '\xc3', 'v', '\x01', 'b', 'a', 'd' };
+    raw.append(badName, sizeof(badName));
+    raw += "=evil; good=ok\r\n\r\n";
+
+    auto status = mHttpRequestParser->tryParse(raw);
+
+    ASSERT_EQ(status.kind, baldr::HttpParseStatus::Kind::Complete);
+    EXPECT_EQ(status.request.cookies.count("session"), 1u);
+    EXPECT_EQ(status.request.cookies.count("good"), 1u);
+    std::string badKey(badName, sizeof(badName));
+    EXPECT_EQ(status.request.cookies.count(badKey), 0u);
+}
+
+TEST_F(HttpRequestParserSpec, ShouldDropCookieWithEmptyName)
+{
+    auto status = mHttpRequestParser->tryParse(
+        "GET / HTTP/1.1\r\nHost: x\r\nCookie: =novalue; real=ok\r\n\r\n");
+
+    ASSERT_EQ(status.kind, baldr::HttpParseStatus::Kind::Complete);
+    EXPECT_EQ(status.request.cookies.count(""), 0u);
+    EXPECT_EQ(status.request.cookies.count("real"), 1u);
+}

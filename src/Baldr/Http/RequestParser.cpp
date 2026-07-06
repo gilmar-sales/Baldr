@@ -34,6 +34,33 @@ namespace BALDR_NAMESPACE
         return c == ' ' || c == '\t';
     }
 
+    // RFC 6265 cookie-name: a subset of HTTP token grammar (a.k.a.
+    // "cookie-octet" / token, refined to exclude separators RFC 7230 would
+    // otherwise allow in a generic token). Restricting names to these bytes
+    // prevents control bytes and punctuation that could confuse downstream
+    // consumers (logging, signers, etc.) from ever reaching @c
+    // HttpRequest::cookies.
+    bool isCookieNameByte(unsigned char c)
+    {
+        return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') ||
+               (c >= 'a' && c <= 'z') || c == '!' || c == '#' || c == '$' ||
+               c == '%' || c == '&' || c == '\'' || c == '*' || c == '+' ||
+               c == '-' || c == '.' || c == '^' || c == '_' || c == '`' ||
+               c == '|' || c == '~';
+    }
+
+    bool isValidCookieName(std::string_view name)
+    {
+        if (name.empty())
+            return false;
+        for (char c : name)
+        {
+            if (!isCookieNameByte(static_cast<unsigned char>(c)))
+                return false;
+        }
+        return true;
+    }
+
     std::size_t skipLws(std::string_view s, std::size_t pos)
     {
         while (pos < s.size() && isLws(s[pos]))
@@ -93,8 +120,8 @@ namespace BALDR_NAMESPACE
             out.statusCode = StatusCode::BadRequest;
             return out;
         }
-        std::string_view methodView(
-            buffer.data() + methodStart, pos - methodStart);
+        std::string_view methodView(buffer.data() + methodStart,
+                                    pos - methodStart);
 
         std::optional<HttpMethod> parsedMethod = parseMethod(methodView);
 
@@ -294,7 +321,10 @@ namespace BALDR_NAMESPACE
 
             std::string key(line.substr(0, colon));
             std::transform(
-                key.begin(), key.end(), key.begin(), [](unsigned char c) {
+                key.begin(),
+                key.end(),
+                key.begin(),
+                [](unsigned char c) {
                     return static_cast<char>(c >= 'A' && c <= 'Z' ? c + 32 : c);
                 });
 
@@ -449,9 +479,15 @@ namespace BALDR_NAMESPACE
                     auto eq = part.find('=', begin);
                     if (eq != std::string_view::npos && eq != part.size() - 1)
                     {
-                        std::string name(part.substr(begin, eq - begin));
-                        std::string value(part.substr(eq + 1));
-                        out.request.cookies[std::move(name)] = std::move(value);
+                        std::string_view nameView =
+                            part.substr(begin, eq - begin);
+                        if (isValidCookieName(nameView))
+                        {
+                            std::string name(nameView);
+                            std::string value(part.substr(eq + 1));
+                            out.request.cookies[std::move(name)] =
+                                std::move(value);
+                        }
                     }
                 }
                 pos = end + 1;

@@ -62,3 +62,38 @@ TEST_F(SecurityHeadersMiddlewareSpec, AllowsOptingOutOfFrameOptions)
 
     EXPECT_EQ(mResponse.headers.count("X-Frame-Options"), 0u);
 }
+
+TEST_F(SecurityHeadersMiddlewareSpec, StripsCrlfFromConfiguredValues)
+{
+    baldr::SecurityHeadersOptions opts;
+    opts.frameOptions            = "DENY\r\nSet-Cookie: pwn=1";
+    opts.contentTypeOptions      = std::string("nosniff\nX-Inject: 1");
+    opts.strictTransportSecurity = std::string("max-age=1\r\nEvil: yes");
+    baldr::SecurityHeadersMiddleware mw(std::move(opts));
+    mw.Handle(mRequest, mResponse, []() {});
+
+    auto containsCrlf = [](const std::string& v) {
+        return v.find('\r') != std::string::npos ||
+               v.find('\n') != std::string::npos;
+    };
+    for (const auto& [k, v] : mResponse.headers)
+    {
+        EXPECT_FALSE(containsCrlf(v)) << "header " << k << " still has CR/LF";
+    }
+    EXPECT_EQ(mResponse.headers.at("X-Frame-Options"),
+              "DENY Set-Cookie: pwn=1");
+    EXPECT_EQ(mResponse.headers.at("X-Content-Type-Options"),
+              "nosniff X-Inject: 1");
+    EXPECT_EQ(mResponse.headers.at("Strict-Transport-Security"),
+              "max-age=1 Evil: yes");
+}
+
+TEST_F(SecurityHeadersMiddlewareSpec, DropsAllSpacesFromValueThatIsOnlyCrlf)
+{
+    baldr::SecurityHeadersOptions opts;
+    opts.frameOptions = std::string("\r\n\r\n");
+    baldr::SecurityHeadersMiddleware mw(std::move(opts));
+    mw.Handle(mRequest, mResponse, []() {});
+
+    EXPECT_EQ(mResponse.headers.count("X-Frame-Options"), 0u);
+}

@@ -7,13 +7,57 @@
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
+#include <algorithm>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include <Baldr/Middleware/IMiddleware.hpp>
 
 namespace BALDR_NAMESPACE
 {
+    namespace
+    {
+        /**
+         * @brief Strip CR/LF bytes from a header value before it is written
+         *        to the response.
+         *
+         * RFC 7230 forbids bare CR or LF in the field-value of an HTTP
+         * header. A user-supplied value that contains them is therefore
+         * unusable as a header value; rather than emit a header that
+         * response-splits the connection, collapse each offending byte
+         * to a single ASCII space and trim leading/trailing whitespace
+         * produced by collapsing.
+         *
+         * @param value  Header value as configured by the caller.
+         * @return       Sanitised value safe for serialisation.
+         */
+        std::string sanitizeHeaderValue(std::string_view value)
+        {
+            std::string out;
+            out.reserve(value.size());
+            bool prevSpace = false;
+            for (char c : value)
+            {
+                if (c == '\r' || c == '\n' || c == ' ')
+                {
+                    if (!prevSpace)
+                    {
+                        out.push_back(' ');
+                        prevSpace = true;
+                    }
+                    continue;
+                }
+                out.push_back(c);
+                prevSpace = false;
+            }
+            if (!out.empty() && out.front() == ' ')
+                out.erase(out.begin());
+            if (!out.empty() && out.back() == ' ')
+                out.pop_back();
+            return out;
+        }
+    } // namespace
 
     /**
      * @brief Configuration for @ref SecurityHeadersMiddleware.
@@ -76,27 +120,27 @@ namespace BALDR_NAMESPACE
             (void) request;
 
             const auto& o = mOptions;
-            if (o.contentTypeOptions)
-                response.headers["X-Content-Type-Options"] =
-                    *o.contentTypeOptions;
-            if (o.frameOptions)
-                response.headers["X-Frame-Options"] = *o.frameOptions;
-            if (o.referrerPolicy)
-                response.headers["Referrer-Policy"] = *o.referrerPolicy;
-            if (o.strictTransportSecurity)
-                response.headers["Strict-Transport-Security"] =
-                    *o.strictTransportSecurity;
-            if (o.permissionsPolicy)
-                response.headers["Permissions-Policy"] = *o.permissionsPolicy;
-            if (o.crossOriginOpenerPolicy)
-                response.headers["Cross-Origin-Opener-Policy"] =
-                    *o.crossOriginOpenerPolicy;
-            if (o.crossOriginResourcePolicy)
-                response.headers["Cross-Origin-Resource-Policy"] =
-                    *o.crossOriginResourcePolicy;
-            if (o.crossOriginEmbedderPolicy)
-                response.headers["Cross-Origin-Embedder-Policy"] =
-                    *o.crossOriginEmbedderPolicy;
+            auto        writeHeader =
+                [&response](const char*                       name,
+                            const std::optional<std::string>& v) {
+                    if (!v)
+                        return;
+                    auto sanitised = sanitizeHeaderValue(*v);
+                    if (sanitised.empty())
+                        return;
+                    response.headers[name] = std::move(sanitised);
+                };
+            writeHeader("X-Content-Type-Options", o.contentTypeOptions);
+            writeHeader("X-Frame-Options", o.frameOptions);
+            writeHeader("Referrer-Policy", o.referrerPolicy);
+            writeHeader("Strict-Transport-Security", o.strictTransportSecurity);
+            writeHeader("Permissions-Policy", o.permissionsPolicy);
+            writeHeader("Cross-Origin-Opener-Policy",
+                        o.crossOriginOpenerPolicy);
+            writeHeader("Cross-Origin-Resource-Policy",
+                        o.crossOriginResourcePolicy);
+            writeHeader("Cross-Origin-Embedder-Policy",
+                        o.crossOriginEmbedderPolicy);
 
             next();
         }
