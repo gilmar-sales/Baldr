@@ -511,7 +511,21 @@ namespace BALDR_NAMESPACE
                 "alternative in IResult instead or return it from a separate "
                 "route.");
 
-            if constexpr (IsTypedResultV<Alt>)
+            if constexpr (IsTypedJsonResultV<Alt>)
+            {
+                using T         = typename std::remove_cvref_t<Alt>::BodyType;
+                std::string key = std::to_string(
+                    static_cast<int>(std::remove_cvref_t<Alt>::StatusCodeV));
+                auto&       reg      = *mRouter.SchemaRegistrySlot();
+                std::string fragment = TypedJsonResultSchemaFragment<T>(reg);
+                std::string value;
+                value.reserve(fragment.size() + 12);
+                value += "{\"schema\":";
+                value += fragment;
+                value += "}";
+                entries.emplace(std::move(key), std::move(value));
+            }
+            else if constexpr (IsTypedResultV<Alt>)
             {
                 std::string key =
                     std::to_string(static_cast<int>(Alt::StatusCodeV));

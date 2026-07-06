@@ -66,9 +66,10 @@ int main()
     app->MapGet("/api/devices/:id")
         .WithSummary("Get a device by id")
         .Handle([](baldr::HttpRequest& request)
-                    -> std::variant<baldr::JsonResult,
-                                    baldr::BadRequestResult,
-                                    baldr::NotFoundResult> {
+                    -> std::variant<
+                        baldr::JsonResult<Device, baldr::StatusCode::OK>,
+                        baldr::BadRequestResult,
+                        baldr::NotFoundResult> {
             int id = 0;
             try
             {
@@ -83,7 +84,7 @@ int main()
             if (!found)
                 return baldr::Results::NotFound();
 
-            return baldr::Results::Json(*found);
+            return baldr::Results::Json<Device, baldr::StatusCode::OK>(*found);
         });
 
     app->Run();

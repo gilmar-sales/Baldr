@@ -63,38 +63,6 @@ namespace BALDR_NAMESPACE
     };
 
     /**
-     * @brief @c application/json response carrying a pre-serialised body.
-     *
-     * The constructor does not serialise; the framework's @c Json helper or
-     * the user is expected to call @c simdjson::to_json_string beforehand.
-     */
-    class JsonResult final : public IResult
-    {
-      public:
-        /**
-         * @brief Construct a JSON response from a pre-serialised string.
-         *
-         * @param body   JSON body.
-         * @param status HTTP status code, defaults to 200 OK.
-         */
-        JsonResult(std::string body, StatusCode status = StatusCode::OK) :
-            mBody(std::move(body)), mStatus(status)
-        {
-        }
-
-        void Apply(HttpResponse& response) const override
-        {
-            response.body                    = mBody;
-            response.statusCode              = mStatus;
-            response.headers["Content-Type"] = "application/json";
-        }
-
-      private:
-        std::string mBody;
-        StatusCode  mStatus;
-    };
-
-    /**
      * @brief Status-only response (no body, no headers).
      */
     class StatusResult final : public IResult
@@ -176,13 +144,24 @@ namespace BALDR_NAMESPACE
         }
 
         /**
-         * @brief 200 OK JSON response (back-compat: returns @ref JsonResult).
-         * Serialises @p value using simdjson.
+         * @brief Typed JSON response carrying a structured payload @c T under
+         *        HTTP status code @c Status (e.g. @c StatusCode::BadRequest).
+         *
+         * Returns a @ref TypedJsonResult so the OpenAPI generator emits a
+         * @c $ref to the registered schema for @c T under status @c Status
+         * instead of the generic @c {"type":"string"} placeholder. The
+         * @p reg argument is currently informational; the schema is
+         * registered lazily by @c RouteRegistration during route binding.
+         *
+         * @tparam T      Reflectable struct (or @c std::vector of one).
+         * @tparam Status HTTP status code this result writes.
          */
-        template <typename T>
-        static JsonResult Json(const T& value)
+        template <typename T, StatusCode Status>
+        static JsonResult<T, Status> Json(const T&        value,
+                                          SchemaRegistry* reg = nullptr)
         {
-            return JsonResult(simdjson::to_json_string(value), StatusCode::OK);
+            (void) reg;
+            return JsonResult<T, Status>(value);
         }
 
         /**

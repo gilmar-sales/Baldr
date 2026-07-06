@@ -51,26 +51,27 @@ int main()
         group.MapGet("/users/:id")
             .WithSummary("Get a user by id")
             .WithTag("users")
-            .Handle(
-                [](baldr::HttpRequest& request)
-                    -> std::variant<baldr::JsonResult, baldr::BadRequestResult,
-                                    baldr::NotFoundResult> {
-                    int id = 0;
-                    try
-                    {
-                        id = std::stoi(request.params.at("id"));
-                    }
-                    catch (...)
-                    {
-                        return baldr::Results::BadRequest();
-                    }
+            .Handle([](baldr::HttpRequest& request)
+                        -> std::variant<
+                            baldr::JsonResult<User, baldr::StatusCode::OK>,
+                            baldr::BadRequestResult, baldr::NotFoundResult> {
+                int id = 0;
+                try
+                {
+                    id = std::stoi(request.params.at("id"));
+                }
+                catch (...)
+                {
+                    return baldr::Results::BadRequest();
+                }
 
-                    auto found = findUser(id);
-                    if (!found)
-                        return baldr::Results::NotFound();
+                auto found = findUser(id);
+                if (!found)
+                    return baldr::Results::NotFound();
 
-                    return baldr::Results::Json(*found);
-                });
+                return baldr::Results::Json<User, baldr::StatusCode::OK>(
+                    *found);
+            });
     });
 
     baldr::MapScalarUi(*app);

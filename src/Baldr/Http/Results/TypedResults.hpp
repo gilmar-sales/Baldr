@@ -12,8 +12,11 @@
 #include <Baldr/Http/StatusCode.hpp>
 #include <Baldr/OpenApi/JsonSchemaEmitter.hpp>
 
+#include <optional>
+#include <simdjson.h>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 namespace BALDR_NAMESPACE
@@ -378,5 +381,126 @@ namespace BALDR_NAMESPACE
     template <typename T>
     inline constexpr bool IsTypedResultV =
         std::is_base_of_v<TypedResult, std::remove_cvref_t<T>>;
+
+    /**
+     * @brief Type-aware JSON result carrying a structured @c T body and
+     *        emitting an OpenAPI @c $ref to the registered schema under the
+     *        given HTTP @c Status.
+     *
+     * Unlike the legacy pre-serialised @ref JsonResult in
+     * @c Result.hpp, this template keeps the payload as a structured
+     * value @c T and serialises it through @c simdjson when @ref Apply is
+     * called. The route registration variant walker uses
+     * @ref TypedJsonResultSchemaFragment to register @c T and emit a
+     * per-status @c $ref entry under @c Status in
+     * @c responseStatusSchemasJson.
+     *
+     * @tparam T      Body payload type. Must be a reflectable struct whose
+     *                non-static data members are auto-derivable, or a
+     *                @c std::vector of one.
+     * @tparam Status HTTP status code this result writes to the response.
+     */
+    template <typename T, StatusCode Status>
+    class JsonResult final : public TypedResult
+    {
+        static_assert(IsAutoDerivable<T> || Detail::IsVectorOfAutoDerivableV<T>,
+                      "TypedJsonResult<T, Status>: T must be a reflectable "
+                      "struct whose non-static data members are "
+                      "auto-derivable, or a std::vector of one.");
+
+      public:
+        /// @brief Body payload type exposed for the route registration
+        ///        variant walker.
+        using BodyType = T;
+
+        /// @brief HTTP status code this result writes to the response.
+        static constexpr StatusCode  StatusCodeV  = Status;
+        static constexpr const char* ContentTypeV = "application/json";
+
+        /**
+         * @brief Construct a typed JSON result with the structured payload
+         *        @p value. The body is serialised lazily inside @ref Apply.
+         */
+        explicit JsonResult(T value) : mBody(std::move(value)) {}
+
+        /**
+         * @brief Build a typed JSON result carrying @p value.
+         *
+         * @param value Structured body payload (moved).
+         * @return     A new typed JSON result for status @c Status.
+         */
+        [[nodiscard]] static JsonResult Of(T value)
+        {
+            return JsonResult(std::move(value));
+        }
+
+        /**
+         * @brief Apply the result to @p response. Writes the
+         *        @c Content-Type header, serialises @c mBody with
+         *        @c simdjson and sets the HTTP status code.
+         */
+        void Apply(HttpResponse& response) const override
+        {
+            response.headers["Content-Type"] = std::string(ContentTypeV);
+            response.body                    = simdjson::to_json_string(mBody);
+            response.statusCode              = StatusCodeV;
+        }
+
+        /// @brief Status code accessor returning the template parameter.
+        [[nodiscard]] StatusCode StatusFor() const override
+        {
+            return StatusCodeV;
+        }
+        /// @brief Content-Type returned to the framework and the OpenAPI
+        ///        generator.
+        [[nodiscard]] std::string_view ContentTypeFor() const override
+        {
+            return ContentTypeV;
+        }
+
+      private:
+        T mBody;
+    };
+
+    /**
+     * @brief Trait detecting the @ref TypedJsonResult specialisation. The
+     *        primary template is unspecialised; only the @c TypedJsonResult
+     *        instantiations return @c std::true_type.
+     */
+    template <typename>
+    struct IsTypedJsonResult : std::false_type
+    {
+    };
+
+    /// @brief @c true for any @ref TypedJsonResult specialisation.
+    template <typename T, StatusCode Status>
+    struct IsTypedJsonResult<JsonResult<T, Status>> : std::true_type
+    {
+    };
+
+    /// @brief Convenience alias for @ref IsTypedJsonResult.
+    template <typename T>
+    inline constexpr bool IsTypedJsonResultV =
+        IsTypedJsonResult<std::remove_cvref_t<T>>::value;
+
+    /**
+     * @brief Register @c T's schema on @p reg and return the @c $ref
+     *        fragment consumed by the route registration variant walker.
+     *
+     * Falls back to @c "{}" when @c T is not auto-derivable (the
+     * @c static_assert on @ref TypedJsonResult makes this unreachable in
+     * well-formed code, kept for determinism at runtime).
+     *
+     * @tparam T Body payload type used to pick the matching overload.
+     * @return   @c {"$ref":"#/components/schemas/<Name>"} fragment, or
+     *           @c "{}" when nothing registered.
+     */
+    template <typename T>
+    std::string TypedJsonResultSchemaFragment(SchemaRegistry& reg)
+    {
+        if (auto ref = TryEmitRefFor<T>(reg))
+            return std::move(*ref);
+        return "{}";
+    }
 
 } // namespace BALDR_NAMESPACE
