@@ -33,7 +33,7 @@ int main()
 }
 ```
 
-On the first request to the UI — or when `app.Run()` hands the `HttpServerOptions` port to the helper at mount time — Baldr logs a line you can ctrl+click in any modern terminal:
+As soon as `MapScalarUi` is called — before any request reaches the UI — Baldr logs a line you can ctrl+click in any modern terminal:
 
 ```
 [Information] 2026-... 'baldr::ScalarUi': Scalar UI listening at http://0.0.0.0:8080/scalar (spec: /openapi.json)
@@ -47,7 +47,7 @@ The URL picks up the actual `HttpServerOptions::port`, so the line keeps working
 
 | Route | Source | Content-Type |
 | --- | --- | --- |
-| `mountPath` (default `/scalar`) | HTML wrapper with placeholders rewritten against `mountPath`, `specUrl` and `pageTitle` | `text/html; charset=utf-8` |
+| `mountPath` (default `/scalar`) | HTML wrapper with the placeholders `__TITLE__`, `__SPEC_URL__`, `__JS_URL__`, `__STYLES_URL__`, and `__CONFIGURATION__` rewritten against `mountPath`, `specUrl`, and `pageTitle` (see `MapScalarUi.cpp:71-77`) | `text/html; charset=utf-8` |
 | `mountPath/scalar-reference.js` | Scalar's UMD bundle (~3.7 MB) | `application/javascript; charset=utf-8` |
 | `mountPath/styles.css` | Scalar stylesheet (~289 KB) | `text/css; charset=utf-8` |
 
@@ -70,19 +70,19 @@ baldr::MapScalarUi(WebApplication& app,
 | `specUrl` | `/openapi.json` | Path (or URL) the Scalar client fetches. Override when your spec lives behind an authenticated gateway or a different prefix. |
 | `pageTitle` | `API Reference` | Goes into the `<title>` element and into your browser tab. |
 
-To switch to a darker brand colour, supply a custom HTML wrapper rather than the built-in one: copy `src/Baldr/OpenApi/Detail/Assets/index.html`, tweak the `<title>` and the `<script data-configuration>` attribute, and serve it from your own static-files route. The Scalar client loads the rest from `/scalar/scalar-reference.js` and `/scalar/styles.css`.
+To switch to a darker brand colour, supply a custom HTML wrapper rather than the built-in one: copy `src/Baldr/OpenApi/Assets/index.html`, tweak the `<title>` and the `<script data-configuration>` attribute, and serve it from your own static-files route. The Scalar client loads the rest from `/scalar/scalar-reference.js` and `/scalar/styles.css`.
 
 ## Architecture
 
 `MapScalarUi` lives in [`src/Baldr/OpenApi/MapScalarUi.{hpp,cpp}`](https://github.com/gilmar-sales/Baldr/tree/main/src/Baldr/OpenApi/MapScalarUi.hpp). The bytes are pulled in at compile time from the same translation unit that mounts the routes:
 
 ```cpp title="src/Baldr/OpenApi/MapScalarUi.cpp"
-inline constexpr unsigned char kScalarReferenceJs[] = {
+const unsigned char kScalarReferenceJs[] = {
 #embed "Assets/scalar-reference.js"
 };
 ```
 
-- **`#embed`** drops the file's bytes inline as a `constexpr` array. gcc-15+ (gcc-16 is the CI compiler) implements the feature, so no CMake generator, no `xxd`, no `objcopy` — just normal C++ you can read in the editor.
+- **`#embed`** drops the file's bytes inline as a namespace-scope array. gcc-15+ is the minimum compiler that implements the feature (CI pins `gcc-16`), so no CMake generator, no `xxd`, no `objcopy` — just normal C++ you can read in the editor.
 - Each asset has a matching `kScalar*Size` constant (just `sizeof(...)`), made available alongside for completeness.
 - `OpenApi::EmbeddedScalar::AsStringView` wraps each byte array in a non-owning `std::string_view` because `ContentResult` takes a `std::string body`. The view's source is the `#embed` array, which has program lifetime.
 
@@ -90,7 +90,6 @@ inline constexpr unsigned char kScalarReferenceJs[] = {
 
 - **You already serve a UI from another process.** `MapScalarUi` collides only on the prefix you pass as `mountPath`; pick something else or skip the helper.
 - **You want a different UI (Swagger UI, Redoc, Stoplight Elements).** Use the same pattern with your own asset bundle — the helper is intentionally a single function so it's easy to fork, and the build system does not require any change.
-- **Your bundler is too strict to allow `#embed`.** Compile the file as a `.cpp` translation unit under `-std=c++26` (already enforced by `CMakeLists.txt:9`). No flags or pragmas are required.
 
 ## Limitations
 

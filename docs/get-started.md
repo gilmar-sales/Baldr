@@ -8,10 +8,9 @@ This page walks you through the prerequisites, a minimal CMake integration, and 
 
 Before installing Baldr, make sure you have:
 
-- A C++ compiler with **C++26** support — GCC 14+, Clang 17+, or MSVC 19.40+. The CI build matrix pins `gcc-14` on Linux; `gcc-13` and older may fail to compile the codebase.
+- A C++ compiler with **C++26** support — GCC 16+. The CI build matrix pins `gcc-16` on Linux (Clang and MSVC are not part of the matrix because neither implements C++26 reflection); `gcc-15` and older may fail to compile the codebase.
 - **CMake 3.28** or newer.
 - **Git** — required by CMake's `FetchContent`.
-- **zlib** (development headers) — required at configure time because [`CompressionMiddleware`](middleware/compression.md) links against `ZLIB::ZLIB`. On Debian/Ubuntu install `zlib1g-dev`; on Fedora/RHEL install `zlib-devel`; on macOS it ships with the platform SDK.
 
 Baldr transitively fetches [Skirnir](https://github.com/gilmar-sales/Skirnir) and [trantor](https://github.com/an-tao/trantor), so an internet connection is required on the first configure.
 
@@ -87,7 +86,7 @@ cmake --build build --config Release
 Then open another terminal and request the endpoint:
 
 ```bash
-curl http://localhost:8000/json
+curl http://localhost:8080/json
 ```
 
 You should see:

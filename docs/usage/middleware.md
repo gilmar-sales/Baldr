@@ -61,7 +61,7 @@ int main()
 
 All built-in middleware headers are pulled in via the umbrella `<Baldr/Baldr.hpp>`. Individual headers live under `<Baldr/Middleware/...>` (for example `<Baldr/Middleware/Logging.hpp>`).
 
-`Use<T>()` registers the middleware with the framework's middleware provider. The middleware is resolved from the service provider on every request, so it can take constructor dependencies (for example `RateLimitMiddleware` requires a `skr::Arc<RateLimiter>`).
+`Use<T>()` registers the middleware with the framework's middleware provider. It returns `const WebApplication&`, so call sites that need to chain further configuration use `.Use<...>()` (not `->`). The middleware is resolved from the service provider on every request, so it can take constructor dependencies (for example `RateLimitMiddleware` requires a `skr::Arc<RateLimiter>`).
 
 ## Built-in middleware
 
@@ -83,13 +83,13 @@ See [Middleware overview](../middleware/overview.md) for per-middleware pages wi
 Example wiring:
 
 ```cpp title="src/main.cpp"
-app->Use<RequestIdMiddleware>()
-   ->Use<ExceptionHandlerMiddleware>()
-   ->Use<LoggingMiddleware>()
-   ->Use<CompressionMiddleware>()
-   ->Use<SecurityHeadersMiddleware>()
-   ->Use<CorsMiddleware>()
-   ->Use<RateLimitMiddleware>();
+app.Use<RequestIdMiddleware>()
+   .Use<ExceptionHandlerMiddleware>()
+   .Use<LoggingMiddleware>()
+   .Use<CompressionMiddleware>()
+   .Use<SecurityHeadersMiddleware>()
+   .Use<CorsMiddleware>()
+   .Use<RateLimitMiddleware>();
 ```
 
 ## Writing your own

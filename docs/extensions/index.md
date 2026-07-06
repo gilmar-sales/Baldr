@@ -14,7 +14,7 @@ This section documents the service extensions that ship with Baldr.
 
 | Extension | Purpose | Page |
 | --- | --- | --- |
-| `BaldrExtension` | Wires up `Router`, `MiddlewareProvider`, `HttpServer`, and the embedded Scalar UI logger. Always required. | Implicit — added by every example |
+| `BaldrExtension` | Wires up the core services (router, middleware provider, HTTP server, request-id service, loggers, `HttpServerOptions`). Always required. | Implicit — added by every example |
 | `BaldrOpenApiExtension` | Renders an OpenAPI 3.0.3 document from the router and serves it as JSON. | [OpenAPI](openapi.md) |
 | `baldr::MapScalarUi(...)` | Mounts the embedded Scalar API reference UI (vendored JS/CSS, no CDN) at a configurable path. | [Scalar UI](openapi-ui.md) |
 

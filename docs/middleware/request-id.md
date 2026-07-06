@@ -37,9 +37,9 @@ The middleware reads the inbound `X-Request-ID` header (case-insensitive). When 
 Register `RequestIdMiddleware` **first**, so every other middleware and log line can read the id:
 
 ```cpp title="src/main.cpp"
-app->Use<RequestIdMiddleware>()
-   ->Use<ExceptionHandlerMiddleware>()
-   ->Use<LoggingMiddleware>();
+app.Use<RequestIdMiddleware>()
+   .Use<ExceptionHandlerMiddleware>()
+   .Use<LoggingMiddleware>();
 ```
 
 ## Notes

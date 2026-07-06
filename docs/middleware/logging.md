@@ -40,10 +40,10 @@ The first line is emitted before the request is dispatched; the second line is e
 Register `LoggingMiddleware` **first**, so it wraps every other middleware and route handler:
 
 ```cpp title="src/main.cpp"
-app->Use<RequestIdMiddleware>()
-   ->Use<ExceptionHandlerMiddleware>()
-   ->Use<LoggingMiddleware>()
-   ->Use<RateLimitMiddleware>();
+app.Use<RequestIdMiddleware>()
+   .Use<ExceptionHandlerMiddleware>()
+   .Use<LoggingMiddleware>()
+   .Use<RateLimitMiddleware>();
 ```
 
 This ensures every response — including those short-circuited by the rate limiter — is logged with accurate timing, and the request id is in scope for the log line.

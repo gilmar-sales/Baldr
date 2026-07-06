@@ -60,9 +60,9 @@ CorsMiddleware::CorsMiddleware(
 Register `CorsMiddleware` early in the pipeline so preflight responses also pass through `ExceptionHandlerMiddleware` and any logging:
 
 ```cpp title="src/main.cpp"
-app->Use<RequestIdMiddleware>()
-   ->Use<ExceptionHandlerMiddleware>()
-   ->Use<LoggingMiddleware>()
-   ->Use<CorsMiddleware>()
-   ->Use<RateLimitMiddleware>();
+app.Use<RequestIdMiddleware>()
+   .Use<ExceptionHandlerMiddleware>()
+   .Use<LoggingMiddleware>()
+   .Use<CorsMiddleware>()
+   .Use<RateLimitMiddleware>();
 ```

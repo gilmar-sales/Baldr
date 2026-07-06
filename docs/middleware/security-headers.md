@@ -56,11 +56,11 @@ SecurityHeadersMiddleware::SecurityHeadersMiddleware(
 Register `SecurityHeadersMiddleware` **before** `CorsMiddleware` so the security headers ride along on preflight `OPTIONS` responses too:
 
 ```cpp title="src/main.cpp"
-app->Use<RequestIdMiddleware>()
-   ->Use<ExceptionHandlerMiddleware>()
-   ->Use<LoggingMiddleware>()
-   ->Use<CompressionMiddleware>()
-   ->Use<SecurityHeadersMiddleware>()
-   ->Use<CorsMiddleware>()
-   ->Use<RateLimitMiddleware>();
+app.Use<RequestIdMiddleware>()
+   .Use<ExceptionHandlerMiddleware>()
+   .Use<LoggingMiddleware>()
+   .Use<CompressionMiddleware>()
+   .Use<SecurityHeadersMiddleware>()
+   .Use<CorsMiddleware>()
+   .Use<RateLimitMiddleware>();
 ```

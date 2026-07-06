@@ -110,16 +110,22 @@ zensical build --clean
 ```
 
 `site/` is gitignored (`.gitignore:19`), so the rendered output stays in
-the working tree as a review artifact. Delete it with `rm -rf site` once
-the review is done, or let `git clean -fdx` sweep it. `.agents/` (and its
-`venv/`) is also gitignored; recreate it with the snippet above when the
-lock file changes.
+the working tree as a review artifact. **Agents must keep `site/` in the
+working tree after a docs build** — never run `rm -rf site`, `git clean`,
+or any other command that would delete it. The developer is responsible
+for inspecting `site/` (open `site/index.html` in a browser, or run
+`zensical serve` against it) and for removing it when they are done
+reviewing. `.agents/` (and its `venv/`) is also gitignored; recreate it
+with the snippet above when the lock file changes.
 
 When reviewing a docs-only PR, also run `git diff --stat` on `docs/` to
 spot any link drift, and spot-check the four built-in pages that almost
 always change together: `docs/extensions/index.md`,
 `docs/extensions/openapi.md`, `docs/extensions/openapi-ui.md`,
-`docs/usage/results.md`.
+`docs/usage/results.md`. **Never delete `site/` as part of the review.**
+Leave it intact in the working tree; the developer removes it themselves
+once they have inspected it (and any workflow that would erase it —
+`rm -rf site`, `git clean`, `git clean -fdx` — is forbidden).
 
 ## CI
 

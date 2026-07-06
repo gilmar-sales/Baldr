@@ -12,9 +12,9 @@ int main()
     auto builder = skr::ApplicationBuilder().WithExtension<BaldrExtension>();
     auto app = builder.Build<WebApplication>();
 
-    app->Use<ExceptionHandlerMiddleware>()
-       ->Use<LoggingMiddleware>()
-       ->Use<CompressionMiddleware>();
+    app.Use<ExceptionHandlerMiddleware>()
+       .Use<LoggingMiddleware>()
+       .Use<CompressionMiddleware>();
 
     app->MapGet("/", [] { return Payload { .message = "Hello, World!" }; });
 
@@ -66,9 +66,9 @@ CompressionMiddleware::CompressionMiddleware(
 Register `CompressionMiddleware` after `LoggingMiddleware` so the log line records the **pre-compression** body size — clients see the gzipped size over the wire, but the framework's metrics and logs report what the handler actually produced.
 
 ```cpp title="src/main.cpp"
-app->Use<RequestIdMiddleware>()
-   ->Use<ExceptionHandlerMiddleware>()
-   ->Use<LoggingMiddleware>()
-   ->Use<CompressionMiddleware>()
-   ->Use<CorsMiddleware>();
+app.Use<RequestIdMiddleware>()
+   .Use<ExceptionHandlerMiddleware>()
+   .Use<LoggingMiddleware>()
+   .Use<CompressionMiddleware>()
+   .Use<CorsMiddleware>();
 ```

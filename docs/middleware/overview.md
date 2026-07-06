@@ -22,14 +22,14 @@ The middleware headers are header-only and re-exported through `<Baldr/Baldr.hpp
 Outer-most first, inner-most (closest to the handler) last. This matches the order in [Middleware](../usage/middleware.md#order-of-execution):
 
 ```cpp title="src/main.cpp"
-app->Use<RequestIdMiddleware>()
-   ->Use<ExceptionHandlerMiddleware>()
-   ->Use<LoggingMiddleware>()
-   ->Use<CompressionMiddleware>()
-   ->Use<SecurityHeadersMiddleware>()
-   ->Use<CorsMiddleware>()
-   ->Use<CsrfMiddleware>()
-   ->Use<RateLimitMiddleware>();
+app.Use<RequestIdMiddleware>()
+   .Use<ExceptionHandlerMiddleware>()
+   .Use<LoggingMiddleware>()
+   .Use<CompressionMiddleware>()
+   .Use<SecurityHeadersMiddleware>()
+   .Use<CorsMiddleware>()
+   .Use<CsrfMiddleware>()
+   .Use<RateLimitMiddleware>();
 ```
 
 ## Writing your own
@@ -38,6 +38,6 @@ Any class that implements [`IMiddleware`](../usage/middleware.md#the-imiddleware
 
 1. Implement `IMiddleware`.
 2. Register the implementation with the service collection (typically `AddTransient<T>()`).
-3. Add the middleware with `app->Use<T>()`.
+3. Add the middleware with `app.Use<T>()` (or `app->Use<T>()` on a `skr::Arc<WebApplication>` — `Use<T>()` returns `const WebApplication&`, so use `.` chaining for fluent configuration).
 
 See the [Middleware usage page](../usage/middleware.md#writing-your-own) for a complete walkthrough.

@@ -76,12 +76,12 @@ In this configuration a `POST /api/webhooks/stripe` is allowed without a token (
 Register `CsrfMiddleware` **after** `CorsMiddleware` so cross-origin preflight requests can complete before the CSRF check, and **before** `RateLimitMiddleware` so rejected requests are still throttled rather than rejected outright.
 
 ```cpp title="src/main.cpp"
-app->Use<RequestIdMiddleware>()
-   ->Use<ExceptionHandlerMiddleware>()
-   ->Use<LoggingMiddleware>()
-   ->Use<CompressionMiddleware>()
-   ->Use<SecurityHeadersMiddleware>()
-   ->Use<CorsMiddleware>()
-   ->Use<CsrfMiddleware>()
-   ->Use<RateLimitMiddleware>();
+app.Use<RequestIdMiddleware>()
+   .Use<ExceptionHandlerMiddleware>()
+   .Use<LoggingMiddleware>()
+   .Use<CompressionMiddleware>()
+   .Use<SecurityHeadersMiddleware>()
+   .Use<CorsMiddleware>()
+   .Use<CsrfMiddleware>()
+   .Use<RateLimitMiddleware>();
 ```

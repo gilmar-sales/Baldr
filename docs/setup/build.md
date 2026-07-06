@@ -49,7 +49,7 @@ The target sets `CXX_STANDARD 26` internally. When you link against `baldr`, you
 The following compile features are required:
 
 - **C++26** — for concepts, `<format>`, designated initializers, `simdjson`, and `std::meta::info` reflection (used by the [OpenAPI extension](../extensions/openapi.md) to auto-derive JSON Schemas from return types via `src/Baldr/OpenApi/JsonSchemaEmitter.cpp`).
-- A compiler with **C++26 reflection support** is required to build Baldr from source. CI installs `gcc-14`; Clang 17+ with libstdc++ 14+ works; MSVC 19.40+ works.
+- A compiler with **C++26 reflection support** is required to build Baldr from source. CI installs `gcc-16` on Linux; Clang 17+ with libstdc++ 14+ works in principle, but Clang is not part of the matrix (it does not implement P2996 reflection); MSVC 19.40+ works in principle but is also not part of the matrix.
 
 ## Transitive dependencies
 
@@ -66,7 +66,7 @@ In addition, `CompressionMiddleware` requires **zlib**. Baldr calls `find_packag
 
 ### Linux
 
-- GCC 14+ or Clang 17+ recommended (CI uses `gcc-14`).
+- GCC 16+ recommended (CI uses `gcc-16`; Clang and MSVC are not part of the matrix because they don't yet implement C++26 reflection).
 - Install `zlib1g-dev` (Debian/Ubuntu) or `zlib-devel` (Fedora/RHEL) for the compression middleware.
 
 ### macOS

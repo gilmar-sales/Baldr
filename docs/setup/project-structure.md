@@ -32,7 +32,7 @@ Always include Baldr through the umbrella header:
 #include <Baldr/Baldr.hpp>
 ```
 
-This header pulls in `BaldrExtension.hpp`, which transitively includes `WebApplication.hpp`. All built-in middleware headers (such as `<Baldr/Middleware/Logging.hpp>` and `<Baldr/Middleware/RateLimit/Middleware.hpp>`) are re-exported through the umbrella header — explicit includes are only needed when you want to skip the re-exports.
+This header pulls in `BaldrExtension.hpp`, which transitively includes `WebApplication.hpp`. All built-in middleware headers (such as `<Baldr/Middleware/Logging.hpp>` and `<Baldr/Middleware/RateLimit/Middleware.hpp>`) are re-exported through the umbrella header — explicit includes are only needed when you want to skip the re-exports. The one built-in middleware that is **not** re-exported is `CompressionMiddleware`: include `<Baldr/Middleware/Compression/Middleware.hpp>` directly if you use it (and link against `zlib`, which Baldr always pulls in).
 
 ## Source organization
 

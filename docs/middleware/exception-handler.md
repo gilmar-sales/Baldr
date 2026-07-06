@@ -12,8 +12,8 @@ int main()
     auto builder = skr::ApplicationBuilder().WithExtension<BaldrExtension>();
     auto app = builder.Build<WebApplication>();
 
-    app->Use<RequestIdMiddleware>()
-       ->Use<ExceptionHandlerMiddleware>();
+    app.Use<RequestIdMiddleware>()
+       .Use<ExceptionHandlerMiddleware>();
 
     app->MapGet("/boom", [](HttpRequest&) -> IResult {
         throw std::runtime_error("kaboom");
@@ -69,8 +69,8 @@ ExceptionHandlerMiddleware::ExceptionHandlerMiddleware(
 Register `ExceptionHandlerMiddleware` **immediately after** `RequestIdMiddleware` so the request id is available to whatever logging the mapper triggers:
 
 ```cpp title="src/main.cpp"
-app->Use<RequestIdMiddleware>()
-   ->Use<ExceptionHandlerMiddleware>()
-   ->Use<LoggingMiddleware>()
-   ->Use<RateLimitMiddleware>();
+app.Use<RequestIdMiddleware>()
+   .Use<ExceptionHandlerMiddleware>()
+   .Use<LoggingMiddleware>()
+   .Use<RateLimitMiddleware>();
 ```
