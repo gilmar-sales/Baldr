@@ -1,5 +1,4 @@
 #include "BaldrExtension.hpp"
-#include <Baldr/Detail/Namespace.hpp>
 
 #include <Baldr/Application/InFlightTracker.hpp>
 #include <Baldr/Application/WebApplication.hpp>

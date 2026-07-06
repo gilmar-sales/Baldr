@@ -1,5 +1,5 @@
 #include <Baldr/Baldr.hpp>
-#include <Baldr/Middleware/RateLimit/Middleware.hpp>
+
 #include <random>
 
 struct WeatherForecast
@@ -26,37 +26,28 @@ int main()
 
     auto app = builder.Build<baldr::WebApplication>();
 
-    app->MapGet("/")
-        .WithResponseSchemaJson(
-            "{\"type\":\"array\",\"items\":{\"type\":\"object\","
-            "\"properties\":{\"date\":{\"type\":\"string\"},"
-            "\"summary\":{\"type\":\"string\"},"
-            "\"temperatureC\":{\"type\":\"integer\"},"
-            "\"temperatureF\":{\"type\":\"integer\"}},"
-            "\"required\":[\"date\",\"summary\",\"temperatureC\","
-            "\"temperatureF\"]}}")
-        .Handle([] {
-            auto forecast = std::vector<WeatherForecast>(5);
+    app->MapGet("/").Handle([] {
+        auto forecast = std::vector<WeatherForecast>(5);
 
-            static auto summaries =
-                std::vector { "Freezing",   "Bracing",  "Chilly", "Cool",
-                              "Mild",       "Warm",     "Balmy",  "Hot",
-                              "Sweltering", "Scorching" };
+        static auto summaries =
+            std::vector { "Freezing",   "Bracing",  "Chilly", "Cool",
+                          "Mild",       "Warm",     "Balmy",  "Hot",
+                          "Sweltering", "Scorching" };
 
-            for (auto& item : forecast)
-            {
-                const auto celsius = random(-22, 55);
+        for (auto& item : forecast)
+        {
+            const auto celsius = random(-22, 55);
 
-                item = WeatherForecast {
-                    .date         = "01/01/2025",
-                    .summary      = summaries[random(0, summaries.size() - 1)],
-                    .temperatureC = celsius,
-                    .temperatureF = 32 + static_cast<int>(celsius / 0.5556)
-                };
-            }
+            item = WeatherForecast {
+                .date         = "01/01/2025",
+                .summary      = summaries[random(0, summaries.size() - 1)],
+                .temperatureC = celsius,
+                .temperatureF = 32 + static_cast<int>(celsius / 0.5556)
+            };
+        }
 
-            return forecast;
-        });
+        return forecast;
+    });
 
     app->Run();
 

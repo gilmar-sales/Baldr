@@ -152,6 +152,17 @@ namespace BALDR_NAMESPACE
                                 return serviceProvider->GetService<
                                     typename BareTArg::element_type>();
                             }
+                            else
+                            {
+                                static_assert(
+                                    sizeof(BareTArg*) == 0,
+                                    "Unsupported handler argument type. "
+                                    "Handler parameters must be one of: "
+                                    "Baldr::HttpRequest, Baldr::HttpResponse, "
+                                    "a FromBody/FromQuery/FromParams-bound "
+                                    "type, or an skr::Arc<...> of a "
+                                    "registered service.");
+                            }
                         });
 
                     using ResultType = LambdaResult<decltype(handler)>;

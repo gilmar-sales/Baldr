@@ -24,7 +24,3 @@
 #include <Baldr/OpenApi/BaldrOpenApiExtension.hpp>
 #include <Baldr/OpenApi/MapOpenApi.hpp>
 #include <Baldr/OpenApi/MapScalarUi.hpp>
-namespace BALDR_NAMESPACE
-{
-
-} // namespace BALDR_NAMESPACE
