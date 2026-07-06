@@ -48,6 +48,12 @@ The [`examples/`](https://github.com/gilmar-sales/Baldr/tree/main/examples) dire
 
     [:octicons-arrow-right-24: OpenAPI example](examples/open-api.md)
 
+-   :material-checkbox-marked-outline: **Todo**
+
+    A small CRUD service: DI-registered repository, controller with grouped routes, `FromParams` / `FromBody` binding, and OpenAPI.
+
+    [:octicons-arrow-right-24: Todo](examples/todo.md)
+
 </div>
 
 ## Building the examples
@@ -59,6 +65,6 @@ cmake -S . -B build
 cmake --build build
 ```
 
-Each example produces an executable named after its directory: `./build/HelloWorld`, `./build/HelloService`, `./build/Devices`, `./build/WeatherForecast`, `./build/StaticFiles`, `./build/FileStream`, `./build/OpenApiExample`.
+Each example produces an executable named after its directory: `./build/HelloWorld`, `./build/HelloService`, `./build/Devices`, `./build/WeatherForecast`, `./build/StaticFiles`, `./build/FileStream`, `./build/OpenApiExample`, `./build/Todo`.
 
 To disable examples (for example in a production build), set `-DBALDR_BUILD_EXAMPLES=OFF` at configure time.

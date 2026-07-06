@@ -36,40 +36,48 @@ std::filesystem::path resolveWebRoot()
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().WithExtension<BaldrExtension>();
-    auto app = builder.Build<WebApplication>();
+    auto builder =
+        skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
+
+    auto app = builder.Build<baldr::WebApplication>();
 
     const std::filesystem::path webRoot = resolveWebRoot();
 
-    app->MapGet("/", [](HttpRequest&, HttpResponse&) {
-        return ContentResult(
+    app->MapGet("/", [](baldr::HttpRequest&, baldr::HttpResponse&) {
+        return baldr::ContentResult(
             "<!doctype html><meta charset=\"utf-8\">"
             "<title>Static files</title>"
             "<h1>Baldr static-files example</h1>"
             "<ul>"
             "<li><a href=\"/static/index.html\">/static/index.html</a></li>"
             "<li><a href=\"/static/css/site.css\">/static/css/site.css</a></li>"
-            "<li><a href=\"/static/assets/app.js\">/static/assets/app.js</a></li>"
-            "<li><a href=\"/static/assets/img/logo.svg\">/static/assets/img/logo.svg</a></li>"
-            "<li><a href=\"/static/assets/hello.txt\">/static/assets/hello.txt</a></li>"
+            "<li><a "
+            "href=\"/static/assets/app.js\">/static/assets/app.js</a></li>"
+            "<li><a "
+            "href=\"/static/assets/img/logo.svg\">/static/assets/img/logo.svg</"
+            "a></"
+            "li>"
+            "<li><a "
+            "href=\"/static/assets/hello.txt\">/static/assets/hello.txt</a></"
+            "li>"
             "</ul>",
             "text/html",
-            StatusCode::OK);
+            baldr::StatusCode::OK);
     });
 
     app->MapStaticFiles("/static", webRoot.string());
 
     app->Run();
+
+    return 0;
 }
 ```
 
 ## What it shows
 
-- Locating the web root next to the executable at runtime, falling back to the working directory.
+- Locating the web root next to the executable at runtime (Windows uses `_pgmptr`, POSIX reads the `_` environment variable), falling back to the working directory.
 - Mounting `MapStaticFiles("/static", webRoot.string())`.
-- Serving a hand-written `ContentResult` at `/` so users can browse the asset list.
-
-See [Static files](../../usage/static-files.md) for the full `MapStaticFiles` reference.
+- Serving a hand-written `baldr::ContentResult` at `/` so users can browse the asset list.
 
 ## Try it
 

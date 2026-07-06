@@ -1,6 +1,6 @@
 # OpenAPI example
 
-[`examples/OpenApiExample`](https://github.com/gilmar-sales/Baldr/tree/main/examples/OpenApiExample) shows the [`BaldrOpenApiExtension`](../../extensions/openapi.md) end-to-end: route metadata (`WithSummary`, `WithOperationId`, `WithTag`) feeds an auto-generated OpenAPI 3.0.3 document served at `/openapi.json`.
+[`examples/OpenApiExample`](https://github.com/gilmar-sales/Baldr/tree/main/examples/OpenApiExample) shows the [`BaldrOpenApiExtension`](../../extensions/openapi.md) end-to-end: route metadata (`WithSummary`, `WithOperationId`, `WithTag`) feeds an auto-generated OpenAPI 3.0.3 document, and the Scalar UI is mounted alongside it.
 
 ## Source
 
@@ -9,17 +9,39 @@
 ```cpp title="examples/OpenApiExample/src/main.cpp" linenums="1"
 #include <Baldr/Baldr.hpp>
 
+#include <optional>
+#include <variant>
+
 #include "Device.hpp"
 #include "User.hpp"
+
+namespace
+{
+    std::vector<User> makeUsers()
+    {
+        return std::vector<User> { User { .id = 1, .name = "First" },
+                                   User { .id = 2, .name = "Second" } };
+    }
+
+    std::optional<User> findUser(int id)
+    {
+        for (const auto& u : makeUsers())
+        {
+            if (u.id == id)
+                return u;
+        }
+        return std::nullopt;
+    }
+} // namespace
 
 int main()
 {
     auto builder =
         skr::ApplicationBuilder()
-            .WithExtension<BaldrExtension>()
-            .WithExtension<BaldrOpenApiExtension>(
-                [](BaldrOpenApiExtension& openApi) {
-                    OpenApiOptions opts;
+            .WithExtension<baldr::BaldrExtension>()
+            .WithExtension<baldr::BaldrOpenApiExtension>(
+                [](baldr::BaldrOpenApiExtension& openApi) {
+                    baldr::OpenApiOptions opts;
                     opts.info.title       = "Devices API";
                     opts.info.version     = "1.0.0";
                     opts.info.description = "Reference example demonstrating "
@@ -27,34 +49,41 @@ int main()
                     openApi.WithOptions(opts);
                 });
 
-    auto app = builder.Build<WebApplication>();
-
-    app->MapGet("/api/devices")
-        .WithSummary("List devices")
-        .WithOperationId("listDevices")
-        .WithTag("devices")
-        .Handle([]() {
-            return std::vector<Device> {
-                Device { 1, "9add349c-c35c-4d32-ab0f-53da1ba40a2a",
-                         "EF-2B-C4-F5-D6-34", "2.1.5",
-                         "2024-05-28T15:21:51.137Z",
-                         "2024-05-28T15:21:51.137Z" },
-                Device { 2, "d2293412-36eb-46e7-9231-af7e9249fffe",
-                         "E7-34-96-33-0C-4C", "1.0.3",
-                         "2024-01-28T15:20:51.137Z",
-                         "2024-01-28T15:20:51.137Z" },
-            };
-        });
+    auto app = builder.Build<baldr::WebApplication>();
 
     app->MapGroup("/api/v1", [](auto& group) {
         group.MapGet("/users")
             .WithSummary("Fetch users")
             .WithTag("users")
-            .Handle([](HttpRequest& req) {
-                return std::vector<User> { User { .id = 1, .name = "First" },
-                                           User { .id = 2, .name = "Second" } };
+            .Handle([](baldr::HttpRequest&) { return makeUsers(); });
+
+        group.MapGet("/users/:id")
+            .WithSummary("Get a user by id")
+            .WithTag("users")
+            .Handle([](baldr::HttpRequest& request)
+                        -> std::variant<
+                            baldr::JsonResult<User, baldr::StatusCode::OK>,
+                            baldr::BadRequestResult, baldr::NotFoundResult> {
+                int id = 0;
+                try
+                {
+                    id = std::stoi(request.params.at("id"));
+                }
+                catch (...)
+                {
+                    return baldr::Results::BadRequest();
+                }
+
+                auto found = findUser(id);
+                if (!found)
+                    return baldr::Results::NotFound();
+
+                return baldr::Results::Json<User, baldr::StatusCode::OK>(
+                    *found);
             });
     });
+
+    baldr::MapScalarUi(*app);
 
     app->Run();
 
@@ -71,12 +100,12 @@ int main()
 
 struct Device
 {
-    int          id;
-    std::string  uuid;
-    std::string  mac;
-    std::string  firmware;
-    std::string  created_at;
-    std::string  updated_at;
+    int         id;
+    std::string uuid;
+    std::string mac;
+    std::string firmware;
+    std::string created_at;
+    std::string updated_at;
 };
 ```
 
@@ -89,17 +118,18 @@ struct Device
 
 struct User
 {
-    int          id;
-    std::string  name;
+    int         id;
+    std::string name;
 };
 ```
 
 ## What it shows
 
-- Wiring `BaldrOpenApiExtension` on the builder via `.WithExtension<...>([](auto& ext){ ... })` and configuring `OpenApiOptions`.
-- Using the fluent `RouteRegistration` API: `.WithSummary`, `.WithOperationId`, `.WithTag`, `.Handle(...)`.
-- Returning a `std::vector<Device>` and a `std::vector<User>` from handlers. The OpenAPI extension introspects the return type with C++26 reflection and emits a draft-07 JSON Schema per DTO into `components.schemas`.
+- Wiring `BaldrOpenApiExtension` on the builder via `.WithExtension<...>([](auto& ext){ ... })` and configuring `OpenApiOptions` (title / version / description).
+- Using the fluent `RouteRegistration` API: `.WithSummary`, `.WithTag`, `.Handle(...)`.
 - Grouping routes under a common prefix with `app->MapGroup("/api/v1", [](auto& group){ ... })`.
+- Returning a `std::variant` of typed results from the `users/:id` handler (`JsonResult` / `BadRequestResult` / `NotFoundResult`) — the OpenAPI extension reflects on the success branch and emits the response schema.
+- Mounting `baldr::MapScalarUi(*app)` to expose the Scalar UI alongside the auto-generated spec.
 
 ## Try it
 
@@ -113,13 +143,14 @@ In another terminal:
 
 ```bash
 curl http://localhost:8080/openapi.json | jq '.paths, .components.schemas'
+# Scalar UI is served at /scalar (open in a browser)
 ```
 
 The document contains:
 
-- `GET /api/devices` — operation id `listDevices`, tagged `devices`, response schema `$ref` to `Device`.
-- `GET /api/v1/users` — tagged `users`, response schema `$ref` to `User`.
-- `components.schemas.Device` and `components.schemas.User` — derived from the C++ structs.
+- `GET /api/v1/users` — summary `Fetch users`, tagged `users`, response schema `$ref` to `User`.
+- `GET /api/v1/users/:id` — summary `Get a user by id`, tagged `users`, response schema `$ref` to `User`.
+- `components.schemas.User` — derived from the C++ struct.
 
 ## Next steps
 

@@ -62,7 +62,6 @@ Pin the version used in CI (currently 22.x) to avoid drift: matching local `clan
 - `test/src/` — GoogleTest specs (`*Spec.cpp`).
 - `benchmarks/wrk/` — wrk scripts; **not** wired into CMake (run manually).
 - `docs/` — Zensical site source.
-- `wiki/` — generated mirror of `docs/`, **synced by CI**, not edited by hand.
 - `CHANGELOG.md` — keep releases in sync; bump `project(Baldr VERSION ...)` in `CMakeLists.txt:3`.
 
 ## Documentation
@@ -86,7 +85,6 @@ Authoring rules (enforced style):
 
 - `.github/workflows/cmake-multi-platform.yml` — build + ctest on Ubuntu (gcc-16). Triggered on push/PR to `main`, ignoring `*.md` and `docs/**`.
 - `.github/workflows/docs.yml` — builds the Zensical site and deploys to GitHub Pages via `actions/deploy-pages` on pushes that touch `docs/**`, `zensical.toml`, or this workflow. Requires repo setting **Settings → Pages → Source = "GitHub Actions"**.
-- `.github/workflows/sync-wiki.yml` — mirrors `docs/` into the GitHub Wiki on pushes to `main` that touch `docs/**`. Treat `wiki/` as CI output; do not hand-edit.
 
 ## Conventions
 

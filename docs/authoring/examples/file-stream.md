@@ -1,6 +1,6 @@
 # File stream example
 
-[`examples/FileStream`](https://github.com/gilmar-sales/Baldr/tree/main/examples/FileStream) combines a streaming file download (`FileStreamResult`) with a JSON upload handler.
+[`examples/FileStream`](https://github.com/gilmar-sales/Baldr/tree/main/examples/FileStream) combines a streaming file download (`baldr::FileStreamResult`) with a JSON upload handler that persists the body to disk and returns metadata.
 
 ## Source
 
@@ -19,6 +19,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <variant>
 
 namespace fs = std::filesystem;
 
@@ -63,8 +64,10 @@ std::int64_t nowMillis()
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().WithExtension<BaldrExtension>();
-    auto app     = builder.Build<WebApplication>();
+    auto builder =
+        skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
+
+    auto app = builder.Build<baldr::WebApplication>();
 
     const auto      assets  = assetsDir();
     const auto      pdfPath = assets / "baldr.pdf";
@@ -74,12 +77,17 @@ int main()
 
     app->MapGet("/files/baldr.pdf", [pdfPath] {
         std::ifstream in(pdfPath, std::ios::binary);
-        return FileStreamResult(std::move(in), "application/pdf", "baldr.pdf");
+        return baldr::FileStreamResult(std::move(in),
+                                       "application/pdf",
+                                       "baldr.pdf");
     });
 
     app->MapPost(
         "/upload",
-        [uploads](const HttpRequest& request) -> JsonResult {
+        [uploads](const baldr::HttpRequest& request)
+            -> std::variant<
+                baldr::JsonResult<UploadResponse, baldr::StatusCode::OK>,
+                baldr::InternalServerErrorResult> {
             const auto storedAs =
                 "upload-" + std::to_string(nowMillis()) + ".bin";
             const auto outPath = uploads / storedAs;
@@ -87,9 +95,8 @@ int main()
             std::ofstream out(outPath, std::ios::binary | std::ios::trunc);
             if (!out)
             {
-                return JsonResult(
-                    std::string("{\"error\":\"could not open output file\"}"),
-                    StatusCode::InternalServerError);
+                return baldr::Results::InternalServerError(
+                    "could not open output file");
             }
 
             if (!request.body.empty())
@@ -108,20 +115,24 @@ int main()
                 contentType = it->second;
             }
 
-            return Results::Json(UploadResponse {
-                storedAs, request.body.size(), digest, contentType });
+            return baldr::Results::Json<UploadResponse, baldr::StatusCode::OK>(
+                UploadResponse { storedAs, request.body.size(), digest,
+                                 contentType });
         });
 
     app->Run();
+
+    return 0;
 }
 ```
 
 ## What it shows
 
-- Streaming a file from disk with [`FileStreamResult`](../../usage/streaming-results.md#filestreamresult). The response sets `Content-Disposition: attachment; filename="baldr.pdf"`.
-- Reading the raw request body in a handler (no JSON parsing — `request.body` is a `std::string`).
-- Returning `Results::Json(...)` from a `MapPost` handler to serialise a response struct.
-- Returning a hand-built `JsonResult` with an error status when the upload cannot be persisted.
+- Streaming a file from disk with [`baldr::FileStreamResult`](../../usage/streaming-results.md#filestreamresult). The response sets `Content-Disposition: attachment; filename="baldr.pdf"`.
+- Reading the raw request body in a handler — no JSON parsing, `request.body` is a `std::string` and `request.headers` is a header map.
+- Returning `baldr::Results::Json<T, StatusCode>(value)` from a `MapPost` handler to serialise a typed response struct with a specific status code.
+- Returning a typed error result (`baldr::InternalServerErrorResult`) from the same `std::variant` when the upload cannot be persisted.
+- Resolving example assets relative to `__FILE__` so the program works regardless of the current working directory.
 
 ## Try it
 

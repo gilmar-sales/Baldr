@@ -9,6 +9,8 @@
 ```cpp title="examples/HelloWorld/src/main.cpp" linenums="1"
 #include <Baldr/Baldr.hpp>
 
+#include <variant>
+
 struct Payload
 {
     std::string message;
@@ -16,12 +18,13 @@ struct Payload
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().WithExtension<BaldrExtension>();
+    auto builder =
+        skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
 
-    auto app = builder.Build<WebApplication>();
+    auto app = builder.Build<baldr::WebApplication>();
 
     app->MapGet("/json",
-                [&] { return Payload { .message = "Hello, World!" }; });
+                [&]() { return Payload { .message = "Hello, World!" }; });
 
     app->Run();
 
@@ -31,8 +34,9 @@ int main()
 
 ## What it shows
 
-- Application composition with `skr::ApplicationBuilder` and `BaldrExtension`.
-- Route registration with the legacy `MapGet(path, handler)` overload.
+- Application composition with `skr::ApplicationBuilder` and `baldr::BaldrExtension`.
+- Building the host with `builder.Build<baldr::WebApplication>()`.
+- Route registration with `MapGet(path, handler)`.
 - Automatic JSON serialization of a returned aggregate — `Payload` is serialised to `{"message":"Hello, World!"}` with `Content-Type: application/json`.
 
 ## Try it
