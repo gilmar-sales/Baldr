@@ -1,5 +1,7 @@
 #include <Baldr/Baldr.hpp>
 
+#include <variant>
+
 struct Payload
 {
     std::string message;
@@ -13,7 +15,7 @@ int main()
     auto app = builder.Build<baldr::WebApplication>();
 
     app->MapGet("/json",
-                [&] { return Payload { .message = "Hello, World!" }; });
+                [&]() { return Payload { .message = "Hello, World!" }; });
 
     app->Run();
 

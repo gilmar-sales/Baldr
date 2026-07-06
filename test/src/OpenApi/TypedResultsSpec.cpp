@@ -11,6 +11,7 @@
 #include <simdjson.h>
 
 #include <string>
+#include <variant>
 
 #include "../Http/UserDto.hpp"
 
@@ -154,4 +155,22 @@ TEST(TypedResults, TypedResultDoesNotOverwriteExplicitSchema)
     auto it = entries[0].options.metadata.find("responseSchemaJson");
     ASSERT_NE(it, entries[0].options.metadata.end());
     EXPECT_EQ(it->second, "{\"$ref\":\"#/components/schemas/User\"}");
+}
+
+TEST(TypedResults, VariantReturnProducesPerStatusMetadata)
+{
+    skr::Arc<baldr::Router> router = skr::MakeArc<baldr::Router>();
+    baldr::RouteRegistration(*router, baldr::HttpMethod::Delete, "/users/:id")
+        .Handle(
+            [](baldr::HttpRequest&, baldr::FromParams<IdArg>)
+                -> std::variant<baldr::NotFoundResult, baldr::NoContentResult> {
+                return baldr::NoContentResult();
+            });
+
+    auto entries = router->Snapshot();
+    ASSERT_EQ(entries.size(), 1u);
+    auto it = entries[0].options.metadata.find("responseStatusSchemasJson");
+    ASSERT_NE(it, entries[0].options.metadata.end());
+    EXPECT_NE(it->second.find("\"404\""), std::string::npos);
+    EXPECT_NE(it->second.find("\"204\""), std::string::npos);
 }

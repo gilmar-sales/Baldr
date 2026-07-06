@@ -1,7 +1,29 @@
 #include <Baldr/Baldr.hpp>
 
+#include <optional>
+#include <variant>
+
 #include "Device.hpp"
 #include "User.hpp"
+
+namespace
+{
+    std::vector<User> makeUsers()
+    {
+        return std::vector<User> { User { .id = 1, .name = "First" },
+                                   User { .id = 2, .name = "Second" } };
+    }
+
+    std::optional<User> findUser(int id)
+    {
+        for (const auto& u : makeUsers())
+        {
+            if (u.id == id)
+                return u;
+        }
+        return std::nullopt;
+    }
+} // namespace
 
 int main()
 {
@@ -20,31 +42,35 @@ int main()
 
     auto app = builder.Build<baldr::WebApplication>();
 
-    app->MapGet("/api/devices")
-        .WithSummary("List devices")
-        .WithOperationId("listDevices")
-        .WithTag("devices")
-        .Handle([]() {
-            return std::vector<Device> {
-                Device { 1, "9add349c-c35c-4d32-ab0f-53da1ba40a2a",
-                         "EF-2B-C4-F5-D6-34", "2.1.5",
-                         "2024-05-28T15:21:51.137Z",
-                         "2024-05-28T15:21:51.137Z" },
-                Device { 2, "d2293412-36eb-46e7-9231-af7e9249fffe",
-                         "E7-34-96-33-0C-4C", "1.0.3",
-                         "2024-01-28T15:20:51.137Z",
-                         "2024-01-28T15:20:51.137Z" },
-            };
-        });
-
     app->MapGroup("/api/v1", [](auto& group) {
         group.MapGet("/users")
             .WithSummary("Fetch users")
             .WithTag("users")
-            .Handle([](baldr::HttpRequest& req) {
-                return std::vector<User> { User { .id = 1, .name = "First" },
-                                           User { .id = 2, .name = "Second" } };
-            });
+            .Handle([](baldr::HttpRequest&) { return makeUsers(); });
+
+        group.MapGet("/users/:id")
+            .WithSummary("Get a user by id")
+            .WithTag("users")
+            .Handle(
+                [](baldr::HttpRequest& request)
+                    -> std::variant<baldr::JsonResult, baldr::BadRequestResult,
+                                    baldr::NotFoundResult> {
+                    int id = 0;
+                    try
+                    {
+                        id = std::stoi(request.params.at("id"));
+                    }
+                    catch (...)
+                    {
+                        return baldr::Results::BadRequest();
+                    }
+
+                    auto found = findUser(id);
+                    if (!found)
+                        return baldr::Results::NotFound();
+
+                    return baldr::Results::Json(*found);
+                });
     });
 
     baldr::MapScalarUi(*app);

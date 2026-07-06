@@ -9,6 +9,7 @@
 #include <Baldr/Detail/Namespace.hpp>
 
 #include <cstddef>
+#include <map>
 #include <meta>
 #include <string>
 #include <tuple>
@@ -27,6 +28,7 @@
 #include <Baldr/OpenApi/JsonSchemaEmitter.hpp>
 
 #include <Baldr/Http/Results/Result.hpp>
+#include <Baldr/Http/Results/StreamingResult.hpp>
 #include <Baldr/Http/Results/TypedResults.hpp>
 
 namespace BALDR_NAMESPACE
@@ -268,6 +270,12 @@ namespace BALDR_NAMESPACE
         {
             return mResponseSchemasJson;
         }
+        /// @return The per-status response schemas map derived from a
+        /// @c std::variant return type, if any.
+        const std::string& responseStatusSchemasJson() const
+        {
+            return mResponseStatusSchemasJson;
+        }
         /// @return The raw JSON parameter array for query string, if set.
         const std::string& queryParametersJson() const
         {
@@ -297,11 +305,27 @@ namespace BALDR_NAMESPACE
          * @note A handler returning @c std::variant<...> is supported at
          *       runtime — the active alternative is dispatched through the
          *       same rules as a non-variant return (IResult, JSON, string,
-         *       etc.). OpenAPI response schema auto-derivation is skipped
-         *       for variant returns because alternatives can describe
-         *       different shapes/statuses; supply a response schema with
-         *       @ref WithResponseSchemaJson or @ref WithResponseType if
-         *       you need one in the spec.
+         *       etc.). The framework also auto-derives an entry per status
+         *       code from the variant alternatives and stores it in the
+         *       @c responseStatusSchemasJson metadata key. For each
+         *       alternative:
+         *         - a @ref TypedResult subclass contributes
+         *           @c {"schema": <DefaultSchemaV>} under its
+         *           @c StatusCodeV.
+         *         - a reflectable struct (or @c std::vector of one)
+         *           contributes a @c $ref under status code @c 200.
+         *         - an @c IResult that is not a @ref TypedResult, a
+         *           string-like type, or an alternative whose type the
+         *           framework cannot classify is skipped; combine it with
+         *           @ref WithResponseType or @ref WithResponseSchemaJson
+         *           for those.
+         *         - an @c IStreamingResult alternative is rejected with a
+         *           compile-time error (see
+         *           @ref ApplyHandlerResult in ResultDispatch.hpp).
+         *       User-supplied @ref WithResponseType /
+         *       @ref WithResponseSchemaJson entries win for status code
+         *       @c 200; the variant-derived entry under the same status is
+         *       not emitted.
          *
          * The route is inserted into the router and becomes dispatchable
          * immediately.
@@ -358,6 +382,21 @@ namespace BALDR_NAMESPACE
                 }
             }
 
+            if constexpr (IsStdVariantV<ResultType>)
+            {
+                using VariantT          = std::remove_cvref_t<ResultType>;
+                constexpr std::size_t N = std::variant_size_v<VariantT>;
+                std::map<std::string, std::string> entries;
+                [&]<std::size_t... I>(std::index_sequence<I...>) {
+                    (DeriveVariantAlternativeSchema<I, VariantT>(entries), ...);
+                }(std::make_index_sequence<N> {});
+                if (!entries.empty())
+                {
+                    mResponseStatusSchemasJson =
+                        SerializeStatusSchemaMap(entries);
+                }
+            }
+
             if (!mRequestSchemaJson.empty())
             {
                 mOptions.metadata["requestSchemaJson"] = mRequestSchemaJson;
@@ -371,6 +410,12 @@ namespace BALDR_NAMESPACE
             if (!mResponseSchemasJson.empty())
             {
                 mOptions.metadata["responseSchemasJson"] = mResponseSchemasJson;
+            }
+
+            if (!mResponseStatusSchemasJson.empty())
+            {
+                mOptions.metadata["responseStatusSchemasJson"] =
+                    mResponseStatusSchemasJson;
             }
 
             if (!mQueryParametersJson.empty())
@@ -439,6 +484,87 @@ namespace BALDR_NAMESPACE
         }
 
       private:
+        /// @brief Derive a per-status OpenAPI schema entry for the
+        /// alternative at index @c I of a @c std::variant handler return
+        /// type.
+        ///
+        /// - @c TypedResult subclasses contribute
+        ///   @c {"schema": DefaultSchemaV} keyed by their @c StatusCodeV.
+        /// - Reflectable structs (or @c std::vector of one) contribute a
+        ///   @c $ref entry under status code @c 200, when the user has
+        ///   not supplied an explicit response schema.
+        /// - Alternatives that derive from @c IStreamingResult trigger a
+        ///   @c static_assert — streaming semantics assume a single owner
+        ///   of the response stream, which a variant cannot guarantee.
+        /// - All other alternatives are skipped.
+        template <std::size_t I, typename VariantT>
+        void DeriveVariantAlternativeSchema(
+            std::map<std::string, std::string>& entries)
+        {
+            using Alt = std::variant_alternative_t<I, VariantT>;
+            static_assert(
+                !std::is_base_of_v<IStreamingResult, Alt> ||
+                    std::is_base_of_v<IResult, Alt>,
+                "RouteRegistration::Handle: std::variant return types cannot "
+                "contain IStreamingResult alternatives — streaming semantics "
+                "assume a single owner of the response stream. Wrap the "
+                "alternative in IResult instead or return it from a separate "
+                "route.");
+
+            if constexpr (IsTypedResultV<Alt>)
+            {
+                std::string key =
+                    std::to_string(static_cast<int>(Alt::StatusCodeV));
+                std::string value = "{\"schema\":";
+                if constexpr (requires { Alt::DefaultSchemaV; })
+                {
+                    value += Alt::DefaultSchemaV;
+                }
+                else
+                {
+                    value += "{}";
+                }
+                value += "}";
+                entries.emplace(std::move(key), std::move(value));
+            }
+            else if constexpr (!std::is_base_of_v<IResult, Alt> &&
+                               (IsAutoDerivable<Alt> ||
+                                Detail::IsVectorOfAutoDerivableV<Alt>) )
+            {
+                if (mResponseSchemaJson.empty())
+                {
+                    auto& reg = *mRouter.SchemaRegistrySlot();
+                    if (auto ref = TryEmitRefFor<Alt>(reg))
+                    {
+                        entries.emplace("200", std::move(*ref));
+                    }
+                }
+            }
+        }
+
+        /// @brief Serialise a status -> JSON Schema fragment map as a
+        /// compact JSON object literal suitable for the
+        /// @c responseStatusSchemasJson metadata key.
+        static std::string SerializeStatusSchemaMap(
+            const std::map<std::string, std::string>& entries)
+        {
+            std::string out;
+            out += "{";
+            bool first = true;
+            for (const auto& [status, schema] : entries)
+            {
+                if (!first)
+                    out += ",";
+                first = false;
+                out += "\"";
+                out += status;
+                out += "\":";
+                out += schema;
+            }
+            out += "}";
+            return out;
+        }
+
         /// @brief Emit a JSON @c parameters array walking reflectable
         /// members of @c T. Each member is rendered as a required
         /// parameter located at @p location ("query" or "path").
@@ -485,6 +611,7 @@ namespace BALDR_NAMESPACE
         std::string  mRequestSchemaJson;
         std::string  mResponseSchemaJson;
         std::string  mResponseSchemasJson;
+        std::string  mResponseStatusSchemasJson;
         std::string  mQueryParametersJson;
         std::string  mPathParametersJson;
         bool         mFinalised { false };

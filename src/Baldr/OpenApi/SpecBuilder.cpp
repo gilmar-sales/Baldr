@@ -156,57 +156,68 @@ namespace BALDR_NAMESPACE
                 }
 
                 bool        hasBody = false;
-                std::string bodyContent;
+                std::string bodySchema;
                 if (auto it =
                         entry->options.metadata.find("responseSchemaJson");
                     it != entry->options.metadata.end() && !it->second.empty())
                 {
-                    hasBody     = true;
-                    bodyContent = "{\"application/json\":{\"schema\":";
-                    bodyContent += rawOrRef(it->second);
-                    bodyContent += "}}";
+                    hasBody    = true;
+                    bodySchema = rawOrRef(it->second);
                 }
 
-                std::vector<std::pair<std::string, std::string>> perStatus;
+                std::map<std::string, std::string> perStatus;
+
+                auto consumeStatusMap = [&perStatus](const std::string& blob) {
+                    simdjson::dom::parser  parser;
+                    simdjson::dom::element mapEl;
+                    if (parser.parse(blob).get(mapEl))
+                        return;
+                    simdjson::dom::object mapObj;
+                    if (mapEl.get_object().get(mapObj))
+                        return;
+                    for (auto kv : mapObj)
+                    {
+                        std::string_view      statusSv = kv.key;
+                        simdjson::dom::object entryObj;
+                        if (kv.value.get_object().get(entryObj))
+                            continue;
+                        auto schemaEl = entryObj["schema"];
+                        if (!schemaEl.is_object())
+                            continue;
+                        simdjson::dom::object schemaObj;
+                        if (schemaEl.get_object().get(schemaObj))
+                            continue;
+                        std::string raw = simdjson::minify(schemaObj);
+                        if (raw == "{}")
+                        {
+                            perStatus[std::string(statusSv)] = std::string();
+                        }
+                        else
+                        {
+                            perStatus[std::string(statusSv)] = std::move(raw);
+                        }
+                    }
+                };
+
+                if (auto sit = entry->options.metadata.find(
+                        "responseStatusSchemasJson");
+                    sit != entry->options.metadata.end() &&
+                    !sit->second.empty())
+                {
+                    consumeStatusMap(sit->second);
+                }
+
                 if (auto sit =
                         entry->options.metadata.find("responseSchemasJson");
                     sit != entry->options.metadata.end() &&
                     !sit->second.empty())
                 {
-                    simdjson::dom::parser  parser;
-                    simdjson::dom::element mapEl;
-                    if (!parser.parse(sit->second).get(mapEl))
-                    {
-                        simdjson::dom::object mapObj;
-                        if (!mapEl.get_object().get(mapObj))
-                        {
-                            for (auto kv : mapObj)
-                            {
-                                std::string_view      statusSv = kv.key;
-                                simdjson::dom::object entryObj;
-                                if (kv.value.get_object().get(entryObj))
-                                    continue;
-                                auto schemaEl = entryObj["schema"];
-                                if (!schemaEl.is_object())
-                                    continue;
-                                simdjson::dom::object schemaObj;
-                                if (schemaEl.get_object().get(schemaObj))
-                                    continue;
-                                std::string raw = simdjson::minify(schemaObj);
-                                if (raw.empty())
-                                {
-                                    perStatus.emplace_back(
-                                        std::string(statusSv), std::string());
-                                }
-                                else
-                                {
-                                    perStatus.emplace_back(
-                                        std::string(statusSv),
-                                        std::move(raw));
-                                }
-                            }
-                        }
-                    }
+                    consumeStatusMap(sit->second);
+                }
+
+                if (hasBody)
+                {
+                    perStatus.try_emplace("200", bodySchema);
                 }
 
                 std::string parametersBlock;
@@ -265,9 +276,9 @@ namespace BALDR_NAMESPACE
                 else if (hasBody)
                 {
                     out += "\"responses\":{\"200\":{\"description\":\"OK\","
-                           "\"content\":";
-                    out += bodyContent;
-                    out += "}}";
+                           "\"content\":{\"application/json\":{\"schema\":";
+                    out += bodySchema;
+                    out += "}}}}";
                 }
                 else
                 {

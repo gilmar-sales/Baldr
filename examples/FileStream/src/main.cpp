@@ -10,6 +10,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <variant>
 
 namespace fs = std::filesystem;
 
@@ -74,7 +75,9 @@ int main()
 
     app->MapPost(
         "/upload",
-        [uploads](const baldr::HttpRequest& request) -> baldr::JsonResult {
+        [uploads](const baldr::HttpRequest& request)
+            -> std::variant<baldr::JsonResult,
+                            baldr::InternalServerErrorResult> {
             const auto storedAs =
                 "upload-" + std::to_string(nowMillis()) + ".bin";
             const auto outPath = uploads / storedAs;
@@ -82,9 +85,8 @@ int main()
             std::ofstream out(outPath, std::ios::binary | std::ios::trunc);
             if (!out)
             {
-                return baldr::JsonResult(
-                    std::string("{\"error\":\"could not open output file\"}"),
-                    baldr::StatusCode::InternalServerError);
+                return baldr::Results::InternalServerError(
+                    "could not open output file");
             }
 
             if (!request.body.empty())
