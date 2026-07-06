@@ -17,15 +17,6 @@ TEST_F(ResultSpec, TextResultAppliesBodyAndContentType)
               static_cast<int>(baldr::StatusCode::OK));
 }
 
-TEST_F(ResultSpec, JsonResultAppliesBodyAndContentType)
-{
-    baldr::JsonResult   r(R"({"x":1})");
-    baldr::HttpResponse response;
-    r.Apply(response);
-    EXPECT_EQ(response.body, R"({"x":1})");
-    EXPECT_EQ(response.headers.at("Content-Type"), "application/json");
-}
-
 TEST_F(ResultSpec, StatusResultAppliesStatus)
 {
     baldr::StatusResult r(baldr::StatusCode::NoContent);
@@ -39,7 +30,6 @@ TEST_F(ResultSpec, StatusResultAppliesStatus)
 TEST_F(ResultSpec, ResultsFactoryFunctions)
 {
     auto ok   = baldr::Results::Ok("body");
-    auto json = baldr::Results::Json(std::string(R"({})"));
     auto notF = baldr::Results::NotFound();
     auto stat = baldr::Results::Status(baldr::StatusCode::Accepted);
 
@@ -47,11 +37,6 @@ TEST_F(ResultSpec, ResultsFactoryFunctions)
     ok.Apply(response);
     EXPECT_EQ(response.body, "body");
     EXPECT_EQ(response.headers.at("Content-Type"), "text/plain");
-
-    response = baldr::HttpResponse();
-    json.Apply(response);
-    EXPECT_EQ(response.body, "\"{}\"");
-    EXPECT_EQ(response.headers.at("Content-Type"), "application/json");
 
     response = baldr::HttpResponse();
     notF.Apply(response);

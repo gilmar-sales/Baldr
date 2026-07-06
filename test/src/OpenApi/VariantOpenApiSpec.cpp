@@ -38,7 +38,9 @@ TEST(VariantOpenApi, VariantReturnsEmitOneResponsePerStatus)
     skr::Arc<baldr::Router> router = skr::MakeArc<baldr::Router>();
     baldr::RouteRegistration(*router, baldr::HttpMethod::Get, "/users/:id")
         .Handle([](baldr::HttpRequest&, baldr::FromParams<IdArg>)
-                    -> std::variant<baldr::JsonResult, baldr::NotFoundResult> {
+                    -> std::variant<
+                        baldr::JsonResult<UserDto, baldr::StatusCode::OK>,
+                        baldr::NotFoundResult> {
             return baldr::Results::NotFound();
         });
 
@@ -152,10 +154,10 @@ TEST(VariantOpenApi, VariantRendersMultipleStatusCodesInOpenApi)
             ASSERT_FALSE(kv.value.get_object().get(entry));
             simdjson::dom::object content;
             ASSERT_FALSE(entry["content"].get_object().get(content));
-            simdjson::dom::object appJson;
-            ASSERT_FALSE(content["application/json"].get_object().get(appJson));
+            simdjson::dom::object textPlain;
+            ASSERT_FALSE(content["text/plain"].get_object().get(textPlain));
             simdjson::dom::object schema;
-            ASSERT_FALSE(appJson["schema"].get_object().get(schema));
+            ASSERT_FALSE(textPlain["schema"].get_object().get(schema));
             std::string_view typeName;
             EXPECT_FALSE(schema["type"].get_string().get(typeName));
             EXPECT_EQ(typeName, "string");
@@ -165,19 +167,32 @@ TEST(VariantOpenApi, VariantRendersMultipleStatusCodesInOpenApi)
     EXPECT_TRUE(saw404);
 }
 
-TEST(VariantOpenApi, VariantSkipsLegacyIResultAlternatives)
+TEST(VariantOpenApi, LegacyIResultAlternativesEmitSchemaAndContentType)
 {
     skr::Arc<baldr::Router> router = skr::MakeArc<baldr::Router>();
     baldr::RouteRegistration(*router, baldr::HttpMethod::Get, "/legacy/:id")
         .Handle([](baldr::HttpRequest&, baldr::FromParams<IdArg>)
-                    -> std::variant<baldr::TextResult, baldr::StatusResult> {
+                    -> std::variant<baldr::TextResult, baldr::NotFoundResult> {
             return baldr::TextResult("hi");
         });
 
     auto entries = router->Snapshot();
     ASSERT_EQ(entries.size(), 1u);
     auto sit = entries[0].options.metadata.find("responseStatusSchemasJson");
-    EXPECT_EQ(sit, entries[0].options.metadata.end());
+    ASSERT_NE(sit, entries[0].options.metadata.end());
+    EXPECT_NE(sit->second.find("\"200\":{\"schema\":{\"type\":\"string\"}}"),
+              std::string::npos)
+        << "metadata: " << sit->second;
+    EXPECT_NE(sit->second.find("\"404\":{\"schema\":{\"type\":\"string\"}}"),
+              std::string::npos)
+        << "metadata: " << sit->second;
+
+    auto cit = entries[0].options.metadata.find("responseContentTypesJson");
+    ASSERT_NE(cit, entries[0].options.metadata.end());
+    EXPECT_NE(cit->second.find("\"200\":\"text/plain\""), std::string::npos)
+        << "metadata: " << cit->second;
+    EXPECT_NE(cit->second.find("\"404\":\"text/plain\""), std::string::npos)
+        << "metadata: " << cit->second;
 }
 
 TEST(VariantOpenApi, ThreeWayVariantProducesThreeStatusEntries)
@@ -185,9 +200,10 @@ TEST(VariantOpenApi, ThreeWayVariantProducesThreeStatusEntries)
     skr::Arc<baldr::Router> router = skr::MakeArc<baldr::Router>();
     baldr::RouteRegistration(*router, baldr::HttpMethod::Put, "/users/:id")
         .Handle([](baldr::HttpRequest&, baldr::FromParams<IdArg>)
-                    -> std::variant<baldr::JsonResult,
-                                    baldr::BadRequestResult,
-                                    baldr::NotFoundResult> {
+                    -> std::variant<
+                        baldr::JsonResult<UserDto, baldr::StatusCode::OK>,
+                        baldr::BadRequestResult,
+                        baldr::NotFoundResult> {
             return baldr::Results::NotFound();
         });
 

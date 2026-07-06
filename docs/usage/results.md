@@ -91,10 +91,34 @@ app->MapGet("/products/:id",
 ```
 
 !!! note "OpenAPI and variant returns"
-    OpenAPI response schema auto-derivation is **skipped** for variant returns because alternatives can describe different shapes and statuses. If you need a schema in the spec, supply it explicitly with `WithResponseType<T>()` or `WithResponseSchemaJson(...)` on the registration.
+    OpenAPI auto-derives one `responses` entry per status code from the variant alternatives:
+
+    - A `TypedResult` subclass (e.g. `NotFoundResult`, `JsonResult<T, Status>`) contributes its declared status with the right media type.
+    - A non-`TypedResult` `IResult` subclass (e.g. `TextResult`, `ContentResult`) contributes a default-constructed sample's status and content type. For `ContentResult` (whose content type is set at runtime) use `WithResponseContentType(...)` to pin the media type.
+    - A reflectable struct (or `std::vector` of one) contributes a `$ref` under `200` with `application/json` when no explicit response type is supplied.
+
+    User-supplied `WithResponseType<T>()` / `WithResponseSchemaJson(...)` win for status `200`; the variant-derived entry under the same status is not emitted.
 
 !!! warning "Streaming results are not allowed inside variants"
     `IStreamingResult` alternatives inside a variant are rejected at compile time — streaming semantics assume a single owner of the response stream. Return an `IStreamingResult` directly (not wrapped in a variant) instead.
+
+## OpenAPI content-type honesty
+
+The OpenAPI generator records the real media type of each response instead of defaulting to `application/json`:
+
+- `TextResult` handlers emit `text/plain`.
+- `TypedResult` subclasses with `ContentTypeV` (e.g. `JsonResult<T, Status>`) emit that media type under their status.
+- `ContentResult` handlers emit no media type by default (the content type is set at runtime). Pin it with `WithResponseContentType("image/png")` and pair it with `WithResponseSchemaJson(...)` or `WithResponseType<T>()`:
+
+```cpp title="src/main.cpp"
+app->MapGet("/logo.png", [](const HttpRequest&) -> IResult {
+    return ContentResult(loadPngBytes(), "image/png");
+})
+    .WithResponseSchemaJson(R"({"type":"string","format":"binary"})")
+    .WithResponseContentType("image/png");
+```
+
+`WithResponseContentType` overrides the default `application/json` for the status-`200` entry written by `WithResponseSchemaJson` / `WithResponseType`. It is ignored when no response schema is registered for status `200`.
 
 ## Parsing JSON bodies
 

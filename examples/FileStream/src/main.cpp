@@ -76,8 +76,9 @@ int main()
     app->MapPost(
         "/upload",
         [uploads](const baldr::HttpRequest& request)
-            -> std::variant<baldr::JsonResult,
-                            baldr::InternalServerErrorResult> {
+            -> std::variant<
+                baldr::JsonResult<UploadResponse, baldr::StatusCode::OK>,
+                baldr::InternalServerErrorResult> {
             const auto storedAs =
                 "upload-" + std::to_string(nowMillis()) + ".bin";
             const auto outPath = uploads / storedAs;
@@ -105,8 +106,9 @@ int main()
                 contentType = it->second;
             }
 
-            return baldr::Results::Json(UploadResponse {
-                storedAs, request.body.size(), digest, contentType });
+            return baldr::Results::Json<UploadResponse, baldr::StatusCode::OK>(
+                UploadResponse { storedAs, request.body.size(), digest,
+                                 contentType });
         });
 
     app->Run();

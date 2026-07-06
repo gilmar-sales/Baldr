@@ -1,3 +1,5 @@
+#include <Baldr/Http/Response.hpp>
+#include <Baldr/Http/Results/Result.hpp>
 #include <Baldr/Http/Results/TypedResults.hpp>
 #include <Baldr/Http/RouteRegistration.hpp>
 #include <Baldr/Http/Router.hpp>
@@ -14,11 +16,6 @@
 #include <variant>
 
 #include "../Http/UserDto.hpp"
-
-struct IdArg
-{
-    std::string id;
-};
 
 TEST(TypedResults, OkResultHasExpectedStatus)
 {
@@ -111,10 +108,10 @@ TEST(TypedResults, OpenApiRendersMultipleStatusCodes)
             EXPECT_EQ(desc, "404");
             simdjson::dom::object content;
             EXPECT_FALSE(entry["content"].get_object().get(content));
-            simdjson::dom::object appJson;
-            ASSERT_FALSE(content["application/json"].get_object().get(appJson));
+            simdjson::dom::object textPlain;
+            ASSERT_FALSE(content["text/plain"].get_object().get(textPlain));
             simdjson::dom::object schema;
-            ASSERT_FALSE(appJson["schema"].get_object().get(schema));
+            ASSERT_FALSE(textPlain["schema"].get_object().get(schema));
             std::string_view typeName;
             EXPECT_FALSE(schema["type"].get_string().get(typeName));
             EXPECT_EQ(typeName, "string");
@@ -173,4 +170,60 @@ TEST(TypedResults, VariantReturnProducesPerStatusMetadata)
     ASSERT_NE(it, entries[0].options.metadata.end());
     EXPECT_NE(it->second.find("\"404\""), std::string::npos);
     EXPECT_NE(it->second.find("\"204\""), std::string::npos);
+}
+
+TEST(LegacyIResult, TextResultAppliesBodyAndContentType)
+{
+    baldr::TextResult   r("hello");
+    baldr::HttpResponse response;
+    r.Apply(response);
+    EXPECT_EQ(response.body, "hello");
+    EXPECT_EQ(response.headers.at("Content-Type"), "text/plain");
+    EXPECT_EQ(static_cast<int>(response.statusCode),
+              static_cast<int>(baldr::StatusCode::OK));
+}
+
+TEST(LegacyIResult, StatusResultAppliesStatus)
+{
+    baldr::StatusResult r(baldr::StatusCode::NoContent);
+    baldr::HttpResponse response;
+    r.Apply(response);
+    EXPECT_EQ(static_cast<int>(response.statusCode),
+              static_cast<int>(baldr::StatusCode::NoContent));
+    EXPECT_TRUE(response.body.empty());
+    EXPECT_EQ(r.StatusFor(), baldr::StatusCode::NoContent);
+    EXPECT_EQ(r.ContentTypeFor(), "");
+    EXPECT_EQ(r.SchemaJsonFor(), "{}");
+}
+
+TEST(LegacyIResult, ContentResultAppliesCustomContentType)
+{
+    baldr::ContentResult r("body", "image/png");
+    baldr::HttpResponse  response;
+    r.Apply(response);
+    EXPECT_EQ(response.body, "body");
+    EXPECT_EQ(response.headers.at("Content-Type"), "image/png");
+    EXPECT_EQ(r.ContentTypeFor(), "image/png");
+    EXPECT_EQ(r.SchemaJsonFor(), "{\"type\":\"string\"}");
+}
+
+TEST(LegacyIResult, ResultsFactoryFunctions)
+{
+    baldr::HttpResponse response;
+
+    baldr::Results::Ok("body").Apply(response);
+    EXPECT_EQ(response.body, "body");
+    EXPECT_EQ(response.headers.at("Content-Type"), "text/plain");
+
+    response = baldr::HttpResponse();
+    baldr::Results::NotFound().Apply(response);
+    EXPECT_EQ(response.body, "Not Found");
+    EXPECT_EQ(static_cast<int>(response.statusCode),
+              static_cast<int>(baldr::StatusCode::NotFound));
+
+    response = baldr::HttpResponse();
+    baldr::Results::Status(baldr::StatusCode::Accepted).Apply(response);
+    EXPECT_TRUE(response.body.empty());
+    EXPECT_EQ(static_cast<int>(response.statusCode),
+              static_cast<int>(baldr::StatusCode::Accepted));
 }

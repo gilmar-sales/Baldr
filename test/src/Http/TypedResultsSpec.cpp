@@ -17,7 +17,7 @@ struct ValidationError
     std::string message;
 };
 
-TEST(TypedJsonResultSpec, ApplyWritesStatusAndJsonBody)
+TEST(JsonResultSpec, ApplyWritesStatusAndJsonBody)
 {
     baldr::JsonResult<UserDto, baldr::StatusCode::OK> r { UserDto {
         "Ada", 36 } };
@@ -30,7 +30,7 @@ TEST(TypedJsonResultSpec, ApplyWritesStatusAndJsonBody)
     EXPECT_EQ(response.body, R"({"name":"Ada","age":36})");
 }
 
-TEST(TypedJsonResultSpec, StatusForMatchesTemplateParameter)
+TEST(JsonResultSpec, StatusForMatchesTemplateParameter)
 {
     baldr::JsonResult<UserDto, baldr::StatusCode::Conflict> r { UserDto {
         "bob", 1 } };
@@ -38,21 +38,21 @@ TEST(TypedJsonResultSpec, StatusForMatchesTemplateParameter)
     EXPECT_EQ(r.ContentTypeFor(), "application/json");
 }
 
-TEST(TypedJsonResultSpec, SchemaFragmentRegistersTypeAndReturnsRef)
+TEST(JsonResultSpec, SchemaFragmentRegistersTypeAndReturnsRef)
 {
     baldr::SchemaRegistry reg;
-    std::string fragment = baldr::TypedJsonResultSchemaFragment<UserDto>(reg);
+    std::string fragment = baldr::JsonResultSchemaFragment<UserDto>(reg);
     EXPECT_EQ(fragment, R"({"$ref":"#/components/schemas/UserDto"})");
     EXPECT_TRUE(reg.Contains("UserDto"));
 }
 
-TEST(TypedJsonResultSpec, ResultsFactoryReturnsTypedJson)
+TEST(JsonResultSpec, ResultsFactoryReturnsTypedJson)
 {
     auto r = baldr::Results::Json<UserDto, baldr::StatusCode::BadRequest>(
         UserDto { "x", 0 });
     static_assert(
-        baldr::IsTypedJsonResultV<decltype(r)>,
-        "Results::Json<T, Status> must return a TypedJsonResult<T, Status>");
+        baldr::IsJsonResultV<decltype(r)>,
+        "Results::Json<T, Status> must return a JsonResult<T, Status>");
 
     baldr::HttpResponse response;
     r.Apply(response);
@@ -60,16 +60,15 @@ TEST(TypedJsonResultSpec, ResultsFactoryReturnsTypedJson)
     EXPECT_EQ(response.headers.at("Content-Type"), "application/json");
 }
 
-TEST(TypedJsonResultSpec, IsTypedJsonResultVFalseForUnrelated)
+TEST(JsonResultSpec, IsJsonResultVFalseForUnrelated)
 {
-    static_assert(!baldr::IsTypedJsonResultV<int>, "");
-    static_assert(!baldr::IsTypedJsonResultV<baldr::JsonResult>, "");
-    static_assert(!baldr::IsTypedJsonResultV<baldr::OkResult>, "");
+    static_assert(!baldr::IsJsonResultV<int>, "");
+    static_assert(!baldr::IsJsonResultV<baldr::OkResult>, "");
 }
 
-TEST(TypedJsonResultSpec, IsTypedJsonResultVTrueForSpecialisation)
+TEST(JsonResultSpec, IsJsonResultVTrueForSpecialisation)
 {
-    static_assert(baldr::IsTypedJsonResultV<
-                      baldr::JsonResult<UserDto, baldr::StatusCode::OK>>,
-                  "");
+    static_assert(
+        baldr::IsJsonResultV<baldr::JsonResult<UserDto, baldr::StatusCode::OK>>,
+        "");
 }

@@ -166,6 +166,7 @@ namespace BALDR_NAMESPACE
                 }
 
                 std::map<std::string, std::string> perStatus;
+                std::map<std::string, std::string> contentTypeByStatus;
 
                 auto consumeStatusMap = [&perStatus](const std::string& blob) {
                     simdjson::dom::parser  parser;
@@ -215,9 +216,48 @@ namespace BALDR_NAMESPACE
                     consumeStatusMap(sit->second);
                 }
 
+                if (auto cit = entry->options.metadata.find(
+                        "responseContentTypesJson");
+                    cit != entry->options.metadata.end() &&
+                    !cit->second.empty())
+                {
+                    simdjson::dom::parser  parser;
+                    simdjson::dom::element mapEl;
+                    if (!parser.parse(cit->second).get(mapEl))
+                    {
+                        simdjson::dom::object mapObj;
+                        if (!mapEl.get_object().get(mapObj))
+                        {
+                            for (auto kv : mapObj)
+                            {
+                                std::string_view statusSv = kv.key;
+                                std::string_view mimeSv;
+                                if (kv.value.get_string().get(mimeSv))
+                                    continue;
+                                contentTypeByStatus[std::string(statusSv)] =
+                                    std::string(mimeSv);
+                            }
+                        }
+                    }
+                }
+
+                std::string singleContentType = "application/json";
+                if (auto mit =
+                        entry->options.metadata.find("responseContentType");
+                    mit != entry->options.metadata.end() &&
+                    !mit->second.empty())
+                {
+                    singleContentType = mit->second;
+                }
+
                 if (hasBody)
                 {
                     perStatus.try_emplace("200", bodySchema);
+                    if (contentTypeByStatus.find("200") ==
+                        contentTypeByStatus.end())
+                    {
+                        contentTypeByStatus["200"] = singleContentType;
+                    }
                 }
 
                 std::string parametersBlock;
@@ -245,40 +285,64 @@ namespace BALDR_NAMESPACE
                     out += "],";
                 }
 
+                auto renderResponses =
+                    [&](const std::map<std::string, std::string>& statuses,
+                        const std::map<std::string, std::string>& ctypes) {
+                        out += "\"responses\":{";
+                        bool firstStatus = true;
+                        for (const auto& [statusStr, schemaStr] : statuses)
+                        {
+                            if (!firstStatus)
+                                out += ",";
+                            firstStatus = false;
+                            out += "\"";
+                            out += escapeString(statusStr);
+                            out += "\":{\"description\":\"";
+                            out += escapeString(statusStr);
+                            out += "\",";
+
+                            std::string mime;
+                            if (auto cit2 = ctypes.find(statusStr);
+                                cit2 != ctypes.end())
+                            {
+                                mime = cit2->second;
+                            }
+                            else
+                            {
+                                mime = singleContentType;
+                            }
+
+                            if (schemaStr.empty())
+                            {
+                                out += "\"content\":{}}";
+                            }
+                            else if (mime.empty())
+                            {
+                                out += "\"content\":{}}";
+                            }
+                            else
+                            {
+                                out += "\"content\":{\"";
+                                out += escapeString(mime);
+                                out += "\":{\"schema\":";
+                                out += schemaStr;
+                                out += "}}}";
+                            }
+                        }
+                        out += "}";
+                    };
+
                 if (!perStatus.empty())
                 {
-                    out += "\"responses\":{";
-                    bool firstStatus = true;
-                    for (const auto& [statusStr, schemaStr] : perStatus)
-                    {
-                        if (!firstStatus)
-                            out += ",";
-                        firstStatus = false;
-                        out += "\"";
-                        out += escapeString(statusStr);
-                        out += "\":{\"description\":\"";
-                        out += escapeString(statusStr);
-                        out += "\",";
-                        if (schemaStr.empty())
-                        {
-                            out += "\"content\":{}}";
-                        }
-                        else
-                        {
-                            out += "\"content\":{\"application/"
-                                   "json\":{\"schema\":";
-                            out += schemaStr;
-                            out += "}}}";
-                        }
-                    }
-                    out += "}";
+                    renderResponses(perStatus, contentTypeByStatus);
                 }
                 else if (hasBody)
                 {
-                    out += "\"responses\":{\"200\":{\"description\":\"OK\","
-                           "\"content\":{\"application/json\":{\"schema\":";
-                    out += bodySchema;
-                    out += "}}}}";
+                    std::map<std::string, std::string> singleton;
+                    singleton["200"] = bodySchema;
+                    std::map<std::string, std::string> singletonMime;
+                    singletonMime["200"] = singleContentType;
+                    renderResponses(singleton, singletonMime);
                 }
                 else
                 {

@@ -13,6 +13,12 @@ namespace
         std::string name;
         int         price;
     };
+
+    struct ProductDto
+    {
+        std::string sku;
+        int         stock;
+    };
 } // namespace
 
 class VariantResultSpec : public ::testing::Test
@@ -21,7 +27,9 @@ class VariantResultSpec : public ::testing::Test
 
 TEST_F(VariantResultSpec, VariantOfIResultsDispatchesActiveAlternative)
 {
-    using V = std::variant<baldr::TextResult, baldr::JsonResult>;
+    using V =
+        std::variant<baldr::TextResult,
+                     baldr::JsonResult<ProductDto, baldr::StatusCode::OK>>;
 
     baldr::HttpResponse response;
 
@@ -31,22 +39,24 @@ TEST_F(VariantResultSpec, VariantOfIResultsDispatchesActiveAlternative)
     EXPECT_EQ(response.headers.at("Content-Type"), "text/plain");
 
     response = baldr::HttpResponse();
-    baldr::detail::ApplyHandlerResult(V(std::in_place_index<1>, R"({"x":1})"),
-                                      response);
-    EXPECT_EQ(response.body, R"({"x":1})");
+    baldr::detail::ApplyHandlerResult(
+        V(std::in_place_index<1>, ProductDto { "a", 1 }),
+        response);
     EXPECT_EQ(response.headers.at("Content-Type"), "application/json");
+    EXPECT_EQ(static_cast<int>(response.statusCode),
+              static_cast<int>(baldr::StatusCode::OK));
 }
 
 TEST_F(VariantResultSpec, VariantMixingJsonAndNotFound)
 {
-    using V = std::variant<baldr::JsonResult, baldr::StatusResult>;
+    using V = std::variant<baldr::JsonResult<ProductDto, baldr::StatusCode::OK>,
+                           baldr::StatusResult>;
 
     baldr::HttpResponse response;
 
     baldr::detail::ApplyHandlerResult(
-        V(std::in_place_index<0>, R"({"id":1,"name":"a"})"),
+        V(std::in_place_index<0>, ProductDto { "x", 0 }),
         response);
-    EXPECT_EQ(response.body, R"({"id":1,"name":"a"})");
     EXPECT_EQ(response.headers.at("Content-Type"), "application/json");
     EXPECT_EQ(static_cast<int>(response.statusCode),
               static_cast<int>(baldr::StatusCode::OK));

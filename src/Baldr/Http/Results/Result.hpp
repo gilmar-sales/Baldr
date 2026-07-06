@@ -20,7 +20,11 @@ namespace BALDR_NAMESPACE
      *
      * Implementations populate an @ref HttpResponse in @ref Apply; the
      * @c WebApplication::MapRoute plumbing stores the result, calls
-     * @ref Apply and writes the response.
+     * @ref Apply and writes the response. The three accessors
+     * (@ref StatusFor, @ref ContentTypeFor, @ref SchemaJsonFor) let the
+     * OpenAPI generator render a faithful schema and media type for any
+     * result, including the legacy subclasses below that do not derive
+     * from @ref TypedResult.
      */
     class IResult
     {
@@ -31,6 +35,30 @@ namespace BALDR_NAMESPACE
          * @brief Mutate @p response to reflect this result.
          */
         virtual void Apply(HttpResponse& response) const = 0;
+
+        /**
+         * @brief HTTP status code that this result writes to the response.
+         */
+        [[nodiscard]] virtual StatusCode StatusFor() const = 0;
+
+        /**
+         * @brief Content-Type header value the result applies to the
+         *        response, or empty when no body is written.
+         */
+        [[nodiscard]] virtual std::string_view ContentTypeFor() const = 0;
+
+        /**
+         * @brief Raw JSON Schema fragment describing the response body.
+         *
+         * Defaults to @c {"type":"string"} for results that carry a body
+         * under a media type, and to @c {} for body-less results.
+         */
+        [[nodiscard]] virtual std::string_view SchemaJsonFor() const
+        {
+            return ContentTypeFor().empty()
+                       ? std::string_view("{}")
+                       : std::string_view("{\"type\":\"string\"}");
+        }
     };
 
     /**
@@ -39,6 +67,13 @@ namespace BALDR_NAMESPACE
     class TextResult final : public IResult
     {
       public:
+        /**
+         * @brief Default-construct a text/plain 200 OK response with an
+         *        empty body. Used by the OpenAPI generator to introspect
+         *        status and content type without an instance.
+         */
+        TextResult() : mStatus(StatusCode::OK) {}
+
         /**
          * @brief Construct a text/plain response.
          *
@@ -57,6 +92,12 @@ namespace BALDR_NAMESPACE
             response.headers["Content-Type"] = "text/plain";
         }
 
+        [[nodiscard]] StatusCode StatusFor() const override { return mStatus; }
+        [[nodiscard]] std::string_view ContentTypeFor() const override
+        {
+            return "text/plain";
+        }
+
       private:
         std::string mBody;
         StatusCode  mStatus;
@@ -68,12 +109,28 @@ namespace BALDR_NAMESPACE
     class StatusResult final : public IResult
     {
       public:
+        /**
+         * @brief Default-construct a 200 OK status-only response. Used by
+         * the OpenAPI generator to introspect status without an instance.
+         */
+        StatusResult() : mStatus(StatusCode::OK) {}
+
         /// @brief Construct a status-only response.
         explicit StatusResult(StatusCode status) : mStatus(status) {}
 
         void Apply(HttpResponse& response) const override
         {
             response.statusCode = mStatus;
+        }
+
+        [[nodiscard]] StatusCode StatusFor() const override { return mStatus; }
+        [[nodiscard]] std::string_view ContentTypeFor() const override
+        {
+            return {};
+        }
+        [[nodiscard]] std::string_view SchemaJsonFor() const override
+        {
+            return "{}";
         }
 
       private:
@@ -86,6 +143,13 @@ namespace BALDR_NAMESPACE
     class ContentResult final : public IResult
     {
       public:
+        /**
+         * @brief Default-construct a 200 OK response with empty body and
+         * empty content type. Used by the OpenAPI generator to introspect
+         * status and content type without an instance.
+         */
+        ContentResult() : mStatus(StatusCode::OK) {}
+
         /**
          * @brief Construct a response with an arbitrary Content-Type.
          *
@@ -105,6 +169,12 @@ namespace BALDR_NAMESPACE
             response.body                    = mBody;
             response.statusCode              = mStatus;
             response.headers["Content-Type"] = mContentType;
+        }
+
+        [[nodiscard]] StatusCode StatusFor() const override { return mStatus; }
+        [[nodiscard]] std::string_view ContentTypeFor() const override
+        {
+            return mContentType;
         }
 
       private:
@@ -147,7 +217,7 @@ namespace BALDR_NAMESPACE
          * @brief Typed JSON response carrying a structured payload @c T under
          *        HTTP status code @c Status (e.g. @c StatusCode::BadRequest).
          *
-         * Returns a @ref TypedJsonResult so the OpenAPI generator emits a
+         * Returns a @ref JsonResult so the OpenAPI generator emits a
          * @c $ref to the registered schema for @c T under status @c Status
          * instead of the generic @c {"type":"string"} placeholder. The
          * @p reg argument is currently informational; the schema is

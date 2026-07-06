@@ -157,6 +157,21 @@ namespace BALDR_NAMESPACE
         }
 
         /**
+         * @brief Override the OpenAPI response media type for status
+         *        @c 200 when a schema is set via @ref WithResponseSchemaJson
+         *        or @ref WithResponseType.
+         *
+         * Defaults to @c application/json. Use this when the handler
+         * returns a non-JSON body (e.g. an @c image/png stream wrapped in
+         * a hand-rolled schema).
+         */
+        RouteRegistration& WithResponseContentType(std::string mime)
+        {
+            mResponseContentType = std::move(mime);
+            return *this;
+        }
+
+        /**
          * @brief Derive the request schema from a reflectable C++ type @c T.
          *
          * The schema is emitted via @ref JsonSchemaEmitter and stored
@@ -276,6 +291,18 @@ namespace BALDR_NAMESPACE
         {
             return mResponseStatusSchemasJson;
         }
+        /// @return The per-status response content types JSON map, if set.
+        const std::string& responseContentTypesJson() const
+        {
+            return mResponseContentTypesJson;
+        }
+        /// @return The response media type paired with
+        /// @ref WithResponseSchemaJson, defaults to
+        /// @c application/json.
+        const std::string& responseContentType() const
+        {
+            return mResponseContentType;
+        }
         /// @return The raw JSON parameter array for query string, if set.
         const std::string& queryParametersJson() const
         {
@@ -307,16 +334,20 @@ namespace BALDR_NAMESPACE
          *       same rules as a non-variant return (IResult, JSON, string,
          *       etc.). The framework also auto-derives an entry per status
          *       code from the variant alternatives and stores it in the
-         *       @c responseStatusSchemasJson metadata key. For each
-         *       alternative:
+         *       @c responseStatusSchemasJson metadata key, and a parallel
+         *       @c responseContentTypesJson map with the media type for
+         *       each status. For each alternative:
          *         - a @ref TypedResult subclass contributes
          *           @c {"schema": <DefaultSchemaV>} under its
          *           @c StatusCodeV.
+         *         - a non-@c TypedResult @c IResult subclass contributes
+         *           a schema and content type derived from a default-
+         *           constructed sample.
          *         - a reflectable struct (or @c std::vector of one)
-         *           contributes a @c $ref under status code @c 200.
-         *         - an @c IResult that is not a @ref TypedResult, a
-         *           string-like type, or an alternative whose type the
-         *           framework cannot classify is skipped; combine it with
+         *           contributes a @c $ref under status code @c 200 with
+         *           media type @c application/json.
+         *         - an alternative whose type the framework cannot classify
+         *           is skipped; combine it with
          *           @ref WithResponseType or @ref WithResponseSchemaJson
          *           for those.
          *         - an @c IStreamingResult alternative is rejected with a
@@ -379,6 +410,37 @@ namespace BALDR_NAMESPACE
                     }
                     schemasJson += "}}";
                     mResponseSchemasJson = std::move(schemasJson);
+
+                    const std::string status = std::to_string(
+                        static_cast<int>(ResultType::StatusCodeV));
+                    std::string contentType;
+                    if constexpr (requires { ResultType::ContentTypeV; })
+                    {
+                        contentType = std::string(ResultType::ContentTypeV);
+                    }
+                    else
+                    {
+                        contentType = "text/plain";
+                    }
+                    std::map<std::string, std::string> ct;
+                    ct.emplace(status, contentType);
+                    mResponseContentTypesJson = SerializeContentTypeMap(ct);
+                }
+                else if constexpr (std::is_base_of_v<IResult, ResultType>)
+                {
+                    ResultType sample;
+                    const auto status =
+                        std::to_string(static_cast<int>(sample.StatusFor()));
+                    const std::string contentType(sample.ContentTypeFor());
+                    mResponseSchemasJson =
+                        "{\"" + status + "\":{\"schema\":" +
+                        std::string(sample.SchemaJsonFor()) + "}}";
+                    if (!contentType.empty())
+                    {
+                        std::map<std::string, std::string> ct;
+                        ct.emplace(status, contentType);
+                        mResponseContentTypesJson = SerializeContentTypeMap(ct);
+                    }
                 }
             }
 
@@ -387,13 +449,21 @@ namespace BALDR_NAMESPACE
                 using VariantT          = std::remove_cvref_t<ResultType>;
                 constexpr std::size_t N = std::variant_size_v<VariantT>;
                 std::map<std::string, std::string> entries;
+                std::map<std::string, std::string> contentTypes;
                 [&]<std::size_t... I>(std::index_sequence<I...>) {
-                    (DeriveVariantAlternativeSchema<I, VariantT>(entries), ...);
+                    (DeriveVariantAlternativeSchema<I, VariantT>(entries,
+                                                                 contentTypes),
+                     ...);
                 }(std::make_index_sequence<N> {});
                 if (!entries.empty())
                 {
                     mResponseStatusSchemasJson =
                         SerializeStatusSchemaMap(entries);
+                }
+                if (!contentTypes.empty())
+                {
+                    mResponseContentTypesJson =
+                        SerializeContentTypeMap(contentTypes);
                 }
             }
 
@@ -416,6 +486,21 @@ namespace BALDR_NAMESPACE
             {
                 mOptions.metadata["responseStatusSchemasJson"] =
                     mResponseStatusSchemasJson;
+            }
+
+            if (!mResponseContentTypesJson.empty())
+            {
+                mOptions.metadata["responseContentTypesJson"] =
+                    mResponseContentTypesJson;
+            }
+
+            const bool hasAnyResponseSchema =
+                !mResponseSchemaJson.empty() || !mResponseSchemasJson.empty() ||
+                !mResponseStatusSchemasJson.empty();
+            if (hasAnyResponseSchema &&
+                mResponseContentType != "application/json")
+            {
+                mOptions.metadata["responseContentType"] = mResponseContentType;
             }
 
             if (!mQueryParametersJson.empty())
@@ -484,22 +569,29 @@ namespace BALDR_NAMESPACE
         }
 
       private:
-        /// @brief Derive a per-status OpenAPI schema entry for the
-        /// alternative at index @c I of a @c std::variant handler return
-        /// type.
+        /// @brief Derive a per-status OpenAPI schema entry and a
+        /// per-status content type for the alternative at index @c I of a
+        /// @c std::variant handler return type.
         ///
         /// - @c TypedResult subclasses contribute
-        ///   @c {"schema": DefaultSchemaV} keyed by their @c StatusCodeV.
+        ///   @c {"schema": DefaultSchemaV} keyed by their @c StatusCodeV
+        ///   and their @c ContentTypeV (or
+        ///   @c sample.ContentTypeFor() when @c ContentTypeV is absent).
+        /// - Non-@c TypedResult @c IResult subclasses contribute the same
+        ///   shape, but their defaults come from a default-constructed
+        ///   sample.
         /// - Reflectable structs (or @c std::vector of one) contribute a
-        ///   @c $ref entry under status code @c 200, when the user has
-        ///   not supplied an explicit response schema.
+        ///   @c $ref entry under status code @c 200 with media type
+        ///   @c application/json, when the user has not supplied an
+        ///   explicit response schema.
         /// - Alternatives that derive from @c IStreamingResult trigger a
         ///   @c static_assert — streaming semantics assume a single owner
         ///   of the response stream, which a variant cannot guarantee.
         /// - All other alternatives are skipped.
         template <std::size_t I, typename VariantT>
         void DeriveVariantAlternativeSchema(
-            std::map<std::string, std::string>& entries)
+            std::map<std::string, std::string>& entries,
+            std::map<std::string, std::string>& contentTypes)
         {
             using Alt = std::variant_alternative_t<I, VariantT>;
             static_assert(
@@ -511,23 +603,27 @@ namespace BALDR_NAMESPACE
                 "alternative in IResult instead or return it from a separate "
                 "route.");
 
-            if constexpr (IsTypedJsonResultV<Alt>)
+            if constexpr (IsJsonResultV<Alt>)
             {
-                using T         = typename std::remove_cvref_t<Alt>::BodyType;
-                std::string key = std::to_string(
+                using T = typename std::remove_cvref_t<Alt>::BodyType;
+                const std::string key = std::to_string(
                     static_cast<int>(std::remove_cvref_t<Alt>::StatusCodeV));
                 auto&       reg      = *mRouter.SchemaRegistrySlot();
-                std::string fragment = TypedJsonResultSchemaFragment<T>(reg);
+                std::string fragment = JsonResultSchemaFragment<T>(reg);
                 std::string value;
                 value.reserve(fragment.size() + 12);
                 value += "{\"schema\":";
                 value += fragment;
                 value += "}";
-                entries.emplace(std::move(key), std::move(value));
+                entries.emplace(key, std::move(value));
+                if (contentTypes.find(key) == contentTypes.end())
+                {
+                    contentTypes.emplace(key, "application/json");
+                }
             }
             else if constexpr (IsTypedResultV<Alt>)
             {
-                std::string key =
+                const std::string key =
                     std::to_string(static_cast<int>(Alt::StatusCodeV));
                 std::string value = "{\"schema\":";
                 if constexpr (requires { Alt::DefaultSchemaV; })
@@ -539,7 +635,48 @@ namespace BALDR_NAMESPACE
                     value += "{}";
                 }
                 value += "}";
-                entries.emplace(std::move(key), std::move(value));
+                entries.emplace(key, std::move(value));
+                if (contentTypes.find(key) == contentTypes.end())
+                {
+                    std::string mime;
+                    if constexpr (requires { Alt::ContentTypeV; })
+                    {
+                        mime = std::string(Alt::ContentTypeV);
+                    }
+                    else
+                    {
+                        Alt sample;
+                        mime = std::string(sample.ContentTypeFor());
+                    }
+                    contentTypes.emplace(key, std::move(mime));
+                }
+            }
+            else if constexpr (std::is_base_of_v<IResult, Alt>)
+            {
+                static_assert(
+                    std::is_default_constructible_v<Alt>,
+                    "RouteRegistration::Handle: std::variant return types "
+                    "containing a non-TypedResult IResult alternative must "
+                    "use a default-constructible subclass (TextResult, "
+                    "ContentResult, ...). Results that require constructor "
+                    "arguments (e.g. StatusResult(StatusCode)) are not "
+                    "supported in variants — wrap them in a TypedResult "
+                    "subclass instead.");
+                Alt         sample;
+                std::string key =
+                    std::to_string(static_cast<int>(sample.StatusFor()));
+                entries.emplace(key,
+                                std::string("{\"schema\":") +
+                                    std::string(sample.SchemaJsonFor()) + "}");
+                const std::string mime(sample.ContentTypeFor());
+                if (!mime.empty())
+                {
+                    if (auto cit = contentTypes.find(key);
+                        cit == contentTypes.end())
+                    {
+                        contentTypes.emplace(key, mime);
+                    }
+                }
             }
             else if constexpr (!std::is_base_of_v<IResult, Alt> &&
                                (IsAutoDerivable<Alt> ||
@@ -552,6 +689,11 @@ namespace BALDR_NAMESPACE
                     {
                         entries.emplace("200", std::move(*ref));
                     }
+                }
+                if (auto cit = contentTypes.find("200");
+                    cit == contentTypes.end())
+                {
+                    contentTypes.emplace("200", "application/json");
                 }
             }
         }
@@ -574,6 +716,36 @@ namespace BALDR_NAMESPACE
                 out += status;
                 out += "\":";
                 out += schema;
+            }
+            out += "}";
+            return out;
+        }
+
+        /// @brief Serialise a status -> media-type string map as a
+        /// compact JSON object literal suitable for the
+        /// @c responseContentTypesJson metadata key. Values are quoted
+        /// and JSON-escaped so the result is valid JSON.
+        static std::string SerializeContentTypeMap(
+            const std::map<std::string, std::string>& entries)
+        {
+            std::string out;
+            out += "{";
+            bool first = true;
+            for (const auto& [status, mime] : entries)
+            {
+                if (!first)
+                    out += ",";
+                first = false;
+                out += "\"";
+                out += status;
+                out += "\":\"";
+                for (char c : mime)
+                {
+                    if (c == '"' || c == '\\')
+                        out += '\\';
+                    out += c;
+                }
+                out += "\"";
             }
             out += "}";
             return out;
@@ -626,6 +798,8 @@ namespace BALDR_NAMESPACE
         std::string  mResponseSchemaJson;
         std::string  mResponseSchemasJson;
         std::string  mResponseStatusSchemasJson;
+        std::string  mResponseContentTypesJson;
+        std::string  mResponseContentType { "application/json" };
         std::string  mQueryParametersJson;
         std::string  mPathParametersJson;
         bool         mFinalised { false };

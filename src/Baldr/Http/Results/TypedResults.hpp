@@ -391,7 +391,7 @@ namespace BALDR_NAMESPACE
      * @c Result.hpp, this template keeps the payload as a structured
      * value @c T and serialises it through @c simdjson when @ref Apply is
      * called. The route registration variant walker uses
-     * @ref TypedJsonResultSchemaFragment to register @c T and emit a
+     * @ref JsonResultSchemaFragment to register @c T and emit a
      * per-status @c $ref entry under @c Status in
      * @c responseStatusSchemasJson.
      *
@@ -404,7 +404,7 @@ namespace BALDR_NAMESPACE
     class JsonResult final : public TypedResult
     {
         static_assert(IsAutoDerivable<T> || Detail::IsVectorOfAutoDerivableV<T>,
-                      "TypedJsonResult<T, Status>: T must be a reflectable "
+                      "JsonResult<T, Status>: T must be a reflectable "
                       "struct whose non-static data members are "
                       "auto-derivable, or a std::vector of one.");
 
@@ -463,32 +463,32 @@ namespace BALDR_NAMESPACE
     };
 
     /**
-     * @brief Trait detecting the @ref TypedJsonResult specialisation. The
-     *        primary template is unspecialised; only the @c TypedJsonResult
+     * @brief Trait detecting the @ref JsonResult specialisation. The
+     *        primary template is unspecialised; only the @c JsonResult
      *        instantiations return @c std::true_type.
      */
     template <typename>
-    struct IsTypedJsonResult : std::false_type
+    struct IsJsonResult : std::false_type
     {
     };
 
-    /// @brief @c true for any @ref TypedJsonResult specialisation.
+    /// @brief @c true for any @ref JsonResult specialisation.
     template <typename T, StatusCode Status>
-    struct IsTypedJsonResult<JsonResult<T, Status>> : std::true_type
+    struct IsJsonResult<JsonResult<T, Status>> : std::true_type
     {
     };
 
-    /// @brief Convenience alias for @ref IsTypedJsonResult.
+    /// @brief Convenience alias for @ref IsJsonResult.
     template <typename T>
-    inline constexpr bool IsTypedJsonResultV =
-        IsTypedJsonResult<std::remove_cvref_t<T>>::value;
+    inline constexpr bool IsJsonResultV =
+        IsJsonResult<std::remove_cvref_t<T>>::value;
 
     /**
      * @brief Register @c T's schema on @p reg and return the @c $ref
      *        fragment consumed by the route registration variant walker.
      *
      * Falls back to @c "{}" when @c T is not auto-derivable (the
-     * @c static_assert on @ref TypedJsonResult makes this unreachable in
+     * @c static_assert on @ref JsonResult makes this unreachable in
      * well-formed code, kept for determinism at runtime).
      *
      * @tparam T Body payload type used to pick the matching overload.
@@ -496,7 +496,7 @@ namespace BALDR_NAMESPACE
      *           @c "{}" when nothing registered.
      */
     template <typename T>
-    std::string TypedJsonResultSchemaFragment(SchemaRegistry& reg)
+    std::string JsonResultSchemaFragment(SchemaRegistry& reg)
     {
         if (auto ref = TryEmitRefFor<T>(reg))
             return std::move(*ref);
