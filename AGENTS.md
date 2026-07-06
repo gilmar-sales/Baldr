@@ -81,6 +81,46 @@ Authoring rules (enforced style):
 - Long code fences must have a `title=` attribute and `linenums="1"`.
 - Material admonitions (`!!! note`, `!!! tip`, `!!! warning`) and grid cards (`<div class="grid cards" markdown>`) for "next steps".
 
+## Docs build & review
+
+Render the Zensical site into `site/` (gitignored) for local review before
+opening a PR. C++ sources are unaffected by docs-only edits, so no
+`cmake` / `ctest` step is required for documentation changes.
+
+Always install Zensical into the shared `.agents/venv/` directory — never
+into the system Python. `.agents/` is gitignored (`.gitignore:21`) and
+checked once at `venv` creation; every agent session reuses it, so the
+`pip install` step only runs the first time (or after a deliberate
+`rm -rf .agents/venv`). This keeps the dependency tree reproducible and
+avoids `externally-managed-environment` errors on distros like Arch that
+ship `python3` without system `pip`.
+
+```bash
+python3 -m venv .agents/venv                  # one-time; reuse on later runs
+.agents/venv/bin/pip install zensical mkdocs-material   # one-time
+.agents/venv/bin/zensical build --clean                 # output in site/
+.agents/venv/bin/zensical serve                         # preview at http://localhost:8000
+```
+
+Convenience one-liner that adds the venv to `PATH` for the current shell:
+
+```bash
+source .agents/venv/bin/activate
+zensical build --clean
+```
+
+`site/` is gitignored (`.gitignore:19`), so the rendered output stays in
+the working tree as a review artifact. Delete it with `rm -rf site` once
+the review is done, or let `git clean -fdx` sweep it. `.agents/` (and its
+`venv/`) is also gitignored; recreate it with the snippet above when the
+lock file changes.
+
+When reviewing a docs-only PR, also run `git diff --stat` on `docs/` to
+spot any link drift, and spot-check the four built-in pages that almost
+always change together: `docs/extensions/index.md`,
+`docs/extensions/openapi.md`, `docs/extensions/openapi-ui.md`,
+`docs/usage/results.md`.
+
 ## CI
 
 - `.github/workflows/cmake-multi-platform.yml` — build + ctest on Ubuntu (gcc-16). Triggered on push/PR to `main`, ignoring `*.md` and `docs/**`.
