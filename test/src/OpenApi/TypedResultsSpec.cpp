@@ -8,20 +8,16 @@
 
 #include <gtest/gtest.h>
 
-#include <cstdio>
 #include <simdjson.h>
 
 #include <string>
 
 #include "../Http/UserDto.hpp"
 
-namespace
+struct IdArg
 {
-    struct IdArg
-    {
-        std::string id;
-    };
-}
+    std::string id;
+};
 
 TEST(TypedResults, OkResultHasExpectedStatus)
 {
@@ -47,7 +43,7 @@ TEST(TypedResults, NoContentResultHasEmptySchema)
 
 TEST(TypedResults, ApplyWritesStatusCode)
 {
-    baldr::HttpResponse response;
+    baldr::HttpResponse   response;
     baldr::NotFoundResult r("missing");
     r.Apply(response);
     EXPECT_EQ(response.statusCode, baldr::StatusCode::NotFound);
@@ -59,8 +55,8 @@ TEST(TypedResults, HandleDerivesPerStatusMetadata)
 {
     skr::Arc<baldr::Router> router = skr::MakeArc<baldr::Router>();
     baldr::RouteRegistration(*router, baldr::HttpMethod::Get, "/users/:id")
-        .Handle([](baldr::HttpRequest&, baldr::FromParams<IdArg>)
-                    -> baldr::NotFoundResult {
+        .Handle([](baldr::HttpRequest&,
+                   baldr::FromParams<IdArg>) -> baldr::NotFoundResult {
             return baldr::Results::NotFound();
         });
 
@@ -76,8 +72,8 @@ TEST(TypedResults, OpenApiRendersMultipleStatusCodes)
 {
     skr::Arc<baldr::Router> router = skr::MakeArc<baldr::Router>();
     baldr::RouteRegistration(*router, baldr::HttpMethod::Get, "/users/:id")
-        .Handle([](baldr::HttpRequest&, baldr::FromParams<IdArg>)
-                    -> baldr::NotFoundResult {
+        .Handle([](baldr::HttpRequest&,
+                   baldr::FromParams<IdArg>) -> baldr::NotFoundResult {
             return baldr::Results::NotFound();
         });
 
@@ -130,8 +126,8 @@ TEST(TypedResults, EmptyBodyResultOmitsContent)
 {
     skr::Arc<baldr::Router> router = skr::MakeArc<baldr::Router>();
     baldr::RouteRegistration(*router, baldr::HttpMethod::Delete, "/users/:id")
-        .Handle([](baldr::HttpRequest&, baldr::FromParams<IdArg>)
-                    -> baldr::NoContentResult {
+        .Handle([](baldr::HttpRequest&,
+                   baldr::FromParams<IdArg>) -> baldr::NoContentResult {
             return baldr::NoContentResult();
         });
 
@@ -157,6 +153,5 @@ TEST(TypedResults, TypedResultDoesNotOverwriteExplicitSchema)
     EXPECT_EQ(sit, entries[0].options.metadata.end());
     auto it = entries[0].options.metadata.find("responseSchemaJson");
     ASSERT_NE(it, entries[0].options.metadata.end());
-    EXPECT_EQ(it->second,
-              "{\"$ref\":\"#/components/schemas/User\"}");
+    EXPECT_EQ(it->second, "{\"$ref\":\"#/components/schemas/User\"}");
 }

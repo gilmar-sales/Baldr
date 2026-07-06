@@ -228,7 +228,8 @@ namespace BALDR_NAMESPACE
         /**
          * @brief 401 Unauthorized text response.
          */
-        static UnauthorizedResult Unauthorized(std::string body = "Unauthorized")
+        static UnauthorizedResult Unauthorized(
+            std::string body = "Unauthorized")
         {
             return UnauthorizedResult(std::move(body));
         }

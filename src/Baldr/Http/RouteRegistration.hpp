@@ -370,8 +370,7 @@ namespace BALDR_NAMESPACE
 
             if (!mResponseSchemasJson.empty())
             {
-                mOptions.metadata["responseSchemasJson"] =
-                    mResponseSchemasJson;
+                mOptions.metadata["responseSchemasJson"] = mResponseSchemasJson;
             }
 
             if (!mQueryParametersJson.empty())

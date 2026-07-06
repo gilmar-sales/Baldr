@@ -173,7 +173,7 @@ namespace BALDR_NAMESPACE
                     sit != entry->options.metadata.end() &&
                     !sit->second.empty())
                 {
-                    simdjson::dom::parser parser;
+                    simdjson::dom::parser  parser;
                     simdjson::dom::element mapEl;
                     if (!parser.parse(sit->second).get(mapEl))
                     {
@@ -182,7 +182,7 @@ namespace BALDR_NAMESPACE
                         {
                             for (auto kv : mapObj)
                             {
-                                std::string_view statusSv = kv.key;
+                                std::string_view      statusSv = kv.key;
                                 simdjson::dom::object entryObj;
                                 if (kv.value.get_object().get(entryObj))
                                     continue;
@@ -192,7 +192,7 @@ namespace BALDR_NAMESPACE
                                 simdjson::dom::object schemaObj;
                                 if (schemaEl.get_object().get(schemaObj))
                                     continue;
-                                std::string_view raw = simdjson::minify(schemaObj);
+                                std::string raw = simdjson::minify(schemaObj);
                                 if (raw.empty())
                                 {
                                     perStatus.emplace_back(
@@ -202,7 +202,7 @@ namespace BALDR_NAMESPACE
                                 {
                                     perStatus.emplace_back(
                                         std::string(statusSv),
-                                        std::string(raw));
+                                        std::move(raw));
                                 }
                             }
                         }

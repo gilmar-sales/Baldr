@@ -91,7 +91,7 @@ namespace BALDR_NAMESPACE
     class StringBodyTypedResult : public TypedResult
     {
       public:
-        static constexpr StatusCode StatusCodeV = Status;
+        static constexpr StatusCode  StatusCodeV    = Status;
         static constexpr const char* DefaultSchemaV = "{\"type\":\"string\"}";
     };
 
@@ -103,7 +103,7 @@ namespace BALDR_NAMESPACE
     class EmptyBodyTypedResult : public TypedResult
     {
       public:
-        static constexpr StatusCode StatusCodeV = Status;
+        static constexpr StatusCode  StatusCodeV    = Status;
         static constexpr const char* DefaultSchemaV = "{}";
 
         [[nodiscard]] std::string_view ContentTypeFor() const override
@@ -138,8 +138,8 @@ namespace BALDR_NAMESPACE
          *        reflectable C++ type @c T.
          */
         template <typename T>
-        [[nodiscard]] static OkResult Json(
-            const T& value, SchemaRegistry* reg = nullptr)
+        [[nodiscard]] static OkResult Json(const T&        value,
+                                           SchemaRegistry* reg = nullptr)
         {
             (void) reg;
             return OkResult(simdjson::to_json_string(value), std::string());
@@ -227,7 +227,7 @@ namespace BALDR_NAMESPACE
     /// @brief 401 Unauthorized with an optional text body.
     class UnauthorizedResult final
         : public StringBodyTypedResult<UnauthorizedResult,
-                                      StatusCode::Unauthorized>
+                                       StatusCode::Unauthorized>
     {
       public:
         explicit UnauthorizedResult(std::string body = "Unauthorized") :
@@ -324,12 +324,11 @@ namespace BALDR_NAMESPACE
     /// @brief 422 Unprocessable Entity with an optional text body.
     class UnprocessableEntityResult final
         : public StringBodyTypedResult<UnprocessableEntityResult,
-                                      StatusCode::UnprocessableEntity>
+                                       StatusCode::UnprocessableEntity>
     {
       public:
-        explicit UnprocessableEntityResult(std::string body =
-                                               "Unprocessable Entity") :
-            mBody(std::move(body))
+        explicit UnprocessableEntityResult(
+            std::string body = "Unprocessable Entity") : mBody(std::move(body))
         {
         }
 
@@ -350,12 +349,11 @@ namespace BALDR_NAMESPACE
     /// @brief 500 Internal Server Error with an optional text body.
     class InternalServerErrorResult final
         : public StringBodyTypedResult<InternalServerErrorResult,
-                                      StatusCode::InternalServerError>
+                                       StatusCode::InternalServerError>
     {
       public:
-        explicit InternalServerErrorResult(std::string body =
-                                               "Internal Server Error") :
-            mBody(std::move(body))
+        explicit InternalServerErrorResult(
+            std::string body = "Internal Server Error") : mBody(std::move(body))
         {
         }
 
