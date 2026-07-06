@@ -96,25 +96,7 @@ namespace BALDR_NAMESPACE
         std::string_view methodView(
             buffer.data() + methodStart, pos - methodStart);
 
-        std::optional<HttpMethod> parsedMethod;
-        if (methodView == "GET")
-            parsedMethod = HttpMethod::Get;
-        else if (methodView == "POST")
-            parsedMethod = HttpMethod::Post;
-        else if (methodView == "PUT")
-            parsedMethod = HttpMethod::Put;
-        else if (methodView == "DELETE")
-            parsedMethod = HttpMethod::Delete;
-        else if (methodView == "PATCH")
-            parsedMethod = HttpMethod::Patch;
-        else if (methodView == "OPTIONS")
-            parsedMethod = HttpMethod::Options;
-        else if (methodView == "HEAD")
-            parsedMethod = HttpMethod::Head;
-        else if (methodView == "TRACE")
-            parsedMethod = HttpMethod::Trace;
-        else if (methodView == "CONNECT")
-            parsedMethod = HttpMethod::Connect;
+        std::optional<HttpMethod> parsedMethod = parseMethod(methodView);
 
         if (!parsedMethod.has_value())
         {

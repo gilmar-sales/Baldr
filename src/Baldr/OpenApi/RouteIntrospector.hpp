@@ -14,13 +14,6 @@
 
 namespace BALDR_NAMESPACE
 {
-
-    /**
-     * @brief Map an @ref HttpMethod enum to its lowercase OpenAPI verb
-     *        (e.g. @c Get -> @c "get").
-     */
-    const char* MethodToString(HttpMethod m);
-
     /**
      * @brief Translate a router path template like @c "/users/:id" (or
      *        @c "/a/**") to OpenAPI path templating (@c "/users/{id}",

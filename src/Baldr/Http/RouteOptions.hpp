@@ -35,6 +35,8 @@ namespace BALDR_NAMESPACE
         std::vector<std::string> produces; ///< Emitted response MIME types.
         std::unordered_map<std::string, std::string>
             metadata; ///< Free-form key/value bag for extensions.
+        std::optional<std::size_t>
+            maxBodyBytes; ///< Per-route override for the request body size cap.
     };
 
     /**

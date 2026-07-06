@@ -7,6 +7,7 @@
 #include <trantor/net/TcpConnection.h>
 
 #include <Baldr/Http/Results/StreamingResult.hpp>
+#include <Baldr/Http/RouteGuard.hpp>
 
 namespace BALDR_NAMESPACE
 {
@@ -159,6 +160,19 @@ namespace BALDR_NAMESPACE
             request.route.group   = entry.groupPrefix;
             request.route.method  = matchResult.resolvedMethod;
             request.route.options = entry.options;
+
+            if (entry.options.maxBodyBytes.has_value())
+            {
+                if (auto guard = EnforceMaxBodySize(request, entry.options))
+                {
+                    mLogger->LogWarning(
+                        "payload too large for {} {} (cap={} bytes)",
+                        refl::enum_to_string(request.method), request.path,
+                        *entry.options.maxBodyBytes);
+                    sendResponse(*guard, /*closeConnection=*/true);
+                    return;
+                }
+            }
 
             auto scope          = mServiceProvider->CreateServiceScope();
             auto scopedProvider = scope->GetServiceProvider();

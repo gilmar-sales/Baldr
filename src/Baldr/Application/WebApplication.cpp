@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -15,6 +16,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <Baldr/Application/RouteListing.hpp>
 #include <Baldr/Http/Router.hpp>
 #include <Baldr/Http/Server.hpp>
 #include <Baldr/Http/StaticFilesInternal.hpp>
@@ -260,6 +262,144 @@ namespace BALDR_NAMESPACE
     RouteRegistration WebApplication::MapPatch(const std::string& route)
     {
         return RouteRegistration(*mImpl->mRouter, HttpMethod::Patch, route);
+    }
+
+    void WebApplication::EnableRouteListing(std::string path)
+    {
+#ifndef NDEBUG
+        auto router = mImpl->mRouter;
+        MapGet(path, [router](HttpRequest&) -> ContentResult {
+            auto body = RouteListingToJson(router->Snapshot());
+            return ContentResult(std::move(body), "application/json",
+                                 StatusCode::OK);
+        });
+#else
+        (void) path;
+#endif
+    }
+
+    namespace
+    {
+        std::string jsonEscape(std::string_view s)
+        {
+            std::string out;
+            out.reserve(s.size() + 2);
+            for (char c : s)
+            {
+                switch (c)
+                {
+                    case '"':
+                        out += "\\\"";
+                        break;
+                    case '\\':
+                        out += "\\\\";
+                        break;
+                    case '\b':
+                        out += "\\b";
+                        break;
+                    case '\f':
+                        out += "\\f";
+                        break;
+                    case '\n':
+                        out += "\\n";
+                        break;
+                    case '\r':
+                        out += "\\r";
+                        break;
+                    case '\t':
+                        out += "\\t";
+                        break;
+                    default:
+                        if (static_cast<unsigned char>(c) < 0x20)
+                        {
+                            char buf[8];
+                            std::snprintf(buf, sizeof(buf), "\\u%04x",
+                                          static_cast<unsigned char>(c));
+                            out += buf;
+                        }
+                        else
+                        {
+                            out.push_back(c);
+                        }
+                }
+            }
+            return out;
+        }
+
+        ContentResult buildHealthResponse(
+            const std::vector<HealthCheckRegistration>& checks,
+            const HttpRequest&                          request)
+        {
+            std::unordered_map<std::string, bool> results;
+            bool                                  healthy = true;
+
+            for (const auto& c : checks)
+            {
+                bool ok = false;
+                try
+                {
+                    ok = c.check ? c.check(request) : true;
+                }
+                catch (...)
+                {
+                    ok = false;
+                }
+                results.emplace(c.name, ok);
+                if (!ok)
+                    healthy = false;
+            }
+
+            std::string body;
+            body.reserve(64 + results.size() * 16);
+            body += "{\"status\":\"";
+            body += healthy ? "healthy" : "unhealthy";
+            body += "\"";
+
+            if (!results.empty())
+            {
+                body += ",\"checks\":{";
+                bool first = true;
+                for (const auto& [name, ok] : results)
+                {
+                    if (!first)
+                        body += ',';
+                    first = false;
+                    body += '"';
+                    body += jsonEscape(name);
+                    body += "\":";
+                    body += ok ? "true" : "false";
+                }
+                body += '}';
+            }
+            body += '}';
+
+            const auto status = (checks.empty() || healthy)
+                                    ? StatusCode::OK
+                                    : StatusCode::ServiceUnavailable;
+
+            return ContentResult(std::move(body), "application/json", status);
+        }
+    } // namespace
+
+    void WebApplication::MapHealthChecks(std::vector<std::string> paths,
+                                         std::vector<HealthCheckRegistration>
+                                                     checks,
+                                         std::string livePath)
+    {
+        for (const auto& p : paths)
+        {
+            MapGet(p, [checks](HttpRequest& request) -> ContentResult {
+                return buildHealthResponse(checks, request);
+            });
+        }
+
+        if (!livePath.empty())
+        {
+            MapGet(livePath, [](HttpRequest&) -> ContentResult {
+                return ContentResult(R"({"status":"healthy"})",
+                                     "application/json", StatusCode::OK);
+            });
+        }
     }
 
     void WebApplication::MapStaticFiles(const std::string& urlPrefix,

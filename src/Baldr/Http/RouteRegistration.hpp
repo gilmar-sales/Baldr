@@ -137,6 +137,25 @@ namespace BALDR_NAMESPACE
         }
 
         /**
+         * @brief Override the maximum accepted request body size for this
+         * route.
+         *
+         * When set, the framework rejects requests whose declared
+         * @c Content-Length exceeds @p n with @c 413 Payload Too Large before
+         * any middleware or handler runs. Requests without a declared
+         * @c Content-Length are also rejected once the accumulated body
+         * crosses @p n. The global @c HttpRequestParser::maxBodySize still
+         * applies as a hard ceiling for every connection.
+         *
+         * @param n Maximum body size in bytes.
+         */
+        RouteRegistration& WithMaxBodyBytes(std::size_t n)
+        {
+            mOptions.maxBodyBytes = n;
+            return *this;
+        }
+
+        /**
          * @brief Stash a raw JSON Schema fragment describing the request
          *        body. Consumed verbatim by the OpenAPI extension.
          */

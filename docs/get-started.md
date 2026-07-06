@@ -106,6 +106,7 @@ The four lines that make Baldr a server are:
 
 ## Next steps
 
+- Work through the [Tutorial](tutorial/index.md) — six pages that build on each other.
 - Learn the full application lifecycle in [Usage overview](usage/overview.md).
 - See a list of runnable examples in [Examples](authoring/examples.md).
 - Browse the complete CMake integration in [Build integration](setup/build.md).

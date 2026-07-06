@@ -31,6 +31,7 @@ The legacy two-argument form `app->MapGet(path, handler)` still compiles and pro
 | `WithMetadata(std::string, std::string)` | Free-form key/value entry. |
 | `WithRequestSchemaJson(std::string)` | Raw JSON Schema for the request body. |
 | `WithResponseSchemaJson(std::string)` | Raw JSON Schema for the response body. |
+| `WithMaxBodyBytes(std::size_t)` | Per-route cap on the request body. Requests above this size receive `413 Payload Too Large` before middleware runs. |
 
 ## Reading options in middleware
 
@@ -73,6 +74,22 @@ app->MapGroup("/api/v1", [](auto& group) {
 ```
 
 The prefix is concatenated with each route's template when matching. Route options (summary, tags, operation id, schemas) are still applied per-route inside the group.
+
+## Per-route body size limit
+
+Routes that accept a body can override the global `HttpRequestParser::maxBodySize` (default 100 MB) with `WithMaxBodyBytes`. The framework rejects requests whose `Content-Length` exceeds the cap (or whose accumulated body crosses the cap when no `Content-Length` is declared) with `413 Payload Too Large` *before* any middleware or handler runs:
+
+```cpp title="src/main.cpp"
+app->MapPost("/api/uploads")
+    .WithMaxBodyBytes(1 * 1024 * 1024) // 1 MB
+    .WithSummary("Upload a file")
+    .Handle([](const HttpRequest& req) -> IResult {
+        // req.body is guaranteed <= 1 MB
+        return Results::Status(StatusCode::Accepted);
+    });
+```
+
+The global parser cap still applies as a hard ceiling for every connection — `WithMaxBodyBytes` can only lower it for the matching route.
 
 ## Static files
 

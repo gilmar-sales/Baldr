@@ -9,6 +9,7 @@
 
 #include <Skirnir/Skirnir.hpp>
 
+#include <Baldr/Application/HealthChecks.hpp>
 #include <Baldr/Http/FromBody.hpp>
 #include <Baldr/Http/Method.hpp>
 #include <Baldr/Http/Results/Result.hpp>
@@ -141,6 +142,43 @@ namespace BALDR_NAMESPACE
             RouteBuilder builder(*mImpl->mRouter, prefix);
             setup(builder);
         }
+
+        /**
+         * @brief Register a debug-only endpoint that dumps every registered
+         *        route as JSON.
+         *
+         * Compiled out of release builds (@c NDEBUG defined): in that case
+         * the call is a no-op and no endpoint is registered. The endpoint
+         * is therefore safe to leave in production code paths but should
+         * never be relied upon in production builds.
+         *
+         * @param path URL the listing is served on. Defaults to @c /__routes.
+         */
+        void EnableRouteListing(std::string path = "/__routes");
+
+        /**
+         * @brief Register health/readiness endpoints at the given paths.
+         *
+         * Each path in @p paths receives a @c GET handler that runs every
+         * @p checks predicate (synchronously on the request thread), returns
+         * @c 200 with body @c {"status":"healthy","checks":{...}} when all
+         * pass, and @c 503 with body @c {"status":"unhealthy",...} when any
+         * check fails. When @p checks is empty the endpoint always returns
+         * @c 200, suitable for liveness probes.
+         *
+         * Optionally register @p livePath as an unconditional liveness
+         * endpoint that returns @c 200 regardless of check outcomes.
+         *
+         * @param paths    Paths to register (e.g. @c {"/healthz","/readyz"}).
+         * @param checks   Named predicates evaluated for every request.
+         * @param livePath Optional liveness path that skips checks.
+         *
+         * @note Predicates run on the request thread and must therefore be
+         *       cheap and non-blocking. Cache results of slow probes.
+         */
+        void MapHealthChecks(std::vector<std::string>             paths,
+                             std::vector<HealthCheckRegistration> checks = {},
+                             std::string livePath                        = {});
 
         /**
          * @brief Serve static files from @p rootPath under @p urlPrefix.

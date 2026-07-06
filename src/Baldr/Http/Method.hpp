@@ -29,4 +29,8 @@ namespace BALDR_NAMESPACE
         Connect  ///< @c CONNECT (not routed by default)
     };
 
+    std::optional<HttpMethod> parseMethod(std::string_view method);
+
+    const char* MethodToString(HttpMethod m);
+
 } // namespace BALDR_NAMESPACE

@@ -9,32 +9,6 @@
 namespace BALDR_NAMESPACE
 {
 
-    const char* MethodToString(HttpMethod m)
-    {
-        switch (m)
-        {
-            case HttpMethod::Get:
-                return "get";
-            case HttpMethod::Post:
-                return "post";
-            case HttpMethod::Put:
-                return "put";
-            case HttpMethod::Delete:
-                return "delete";
-            case HttpMethod::Patch:
-                return "patch";
-            case HttpMethod::Head:
-                return "head";
-            case HttpMethod::Options:
-                return "options";
-            case HttpMethod::Trace:
-                return "trace";
-            case HttpMethod::Connect:
-                return "connect";
-        }
-        return "get";
-    }
-
     std::string TranslatePath(const std::string& routerPath)
     {
         std::string out;

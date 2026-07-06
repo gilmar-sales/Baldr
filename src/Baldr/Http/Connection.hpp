@@ -108,29 +108,6 @@ namespace BALDR_NAMESPACE
             const std::string&                                    version,
             const std::unordered_map<std::string, CookieOptions>& cookies);
 
-        static HttpMethod parseMethod(std::string_view method)
-        {
-            if (method == "GET")
-                return HttpMethod::Get;
-            if (method == "POST")
-                return HttpMethod::Post;
-            if (method == "PUT")
-                return HttpMethod::Put;
-            if (method == "DELETE")
-                return HttpMethod::Delete;
-            if (method == "PATCH")
-                return HttpMethod::Patch;
-            if (method == "OPTIONS")
-                return HttpMethod::Options;
-            if (method == "HEAD")
-                return HttpMethod::Head;
-            if (method == "TRACE")
-                return HttpMethod::Trace;
-            if (method == "CONNECT")
-                return HttpMethod::Connect;
-            return HttpMethod::Get;
-        }
-
         static std::string toLowerAscii(std::string_view s)
         {
             std::string out;
@@ -207,6 +184,8 @@ namespace BALDR_NAMESPACE
                     return "Method Not Allowed";
                 case StatusCode::Conflict:
                     return "Conflict";
+                case StatusCode::PayloadTooLarge:
+                    return "Payload Too Large";
                 case StatusCode::TooManyRequests:
                     return "Too Many Requests";
                 case StatusCode::InternalServerError:

@@ -52,6 +52,16 @@ Home = "index.md"
 "Get started" = "get-started.md"
 
 [[project.nav]]
+Tutorial = [
+    "tutorial/01-hello-world.md",
+    "tutorial/02-routing-and-results.md",
+    "tutorial/03-dependency-injection.md",
+    "tutorial/04-middleware.md",
+    "tutorial/05-static-files.md",
+    "tutorial/06-testing.md",
+]
+
+[[project.nav]]
 Usage = [
     "usage/overview.md",
     "usage/routing.md",
