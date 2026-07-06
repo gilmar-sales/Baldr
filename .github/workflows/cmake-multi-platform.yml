@@ -41,13 +41,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set reusable strings
-      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
-      id: strings
-      shell: bash
-      run: |
-        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
-
     - name: switch to gcc-16 on linux
       if: matrix.os == 'ubuntu-latest'
       run: |
@@ -77,27 +70,27 @@ jobs:
     - name: Cache CMake build directory
       uses: actions/cache@v4
       with:
-        path: ${{ steps.strings.outputs.build-output-dir }}
+        path: build
         key: ${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-${{ hashFiles('CMakeLists.txt', '**/CMakeLists.txt', 'src/Baldr/**', 'test/**.cpp') }}
         restore-keys: |
-          ${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-
+          ${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}-Ninja
 
     - name: Configure CMake
       shell: bash
       run: >
-        cmake -B ${{ steps.strings.outputs.build-output-dir }}
+        cmake -B "build"
         -G "Ninja"
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -DBALDR_BUILD_TESTS=ON
-        -S ${{ github.workspace }}
+        -S "${{ github.workspace }}"
 
     - name: Build
       shell: bash
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+      run: cmake --build "build" --config ${{ matrix.build_type }}
 
     - name: Test
       shell: bash
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
+      working-directory: build
       run: ctest --test-dir ./test --build-config ${{ matrix.build_type }}
