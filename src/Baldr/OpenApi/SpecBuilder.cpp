@@ -1,6 +1,7 @@
 #include "SpecBuilder.hpp"
 #include <Baldr/Detail/Namespace.hpp>
 
+#include <cctype>
 #include <cstdio>
 #include <map>
 #include <set>
@@ -100,8 +101,12 @@ namespace BALDR_NAMESPACE
             byPath;
         for (const auto& e : entries)
         {
-            std::string tp = TranslatePath(e.pathTemplate);
-            byPath[tp].emplace_back(MethodToString(e.method), &e);
+            std::string tp   = TranslatePath(e.pathTemplate);
+            std::string verb = MethodToString(e.method);
+            std::ranges::transform(verb, verb.begin(), [](unsigned char c) {
+                return std::tolower(c);
+            });
+            byPath[tp].emplace_back(std::move(verb), &e);
         }
 
         out += "\"paths\":{";
