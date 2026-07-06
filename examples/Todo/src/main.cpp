@@ -19,6 +19,7 @@ int main()
     TodoController controller(
         app->GetRootServiceProvider()->GetService<ITodoRepository>());
     controller.Register(*app);
+
     app->Run();
 
     return 0;

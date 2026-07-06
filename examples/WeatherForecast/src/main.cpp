@@ -21,8 +21,9 @@ int random(const int min, const int max)
 
 int main()
 {
-    auto builder =
-        skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
+    auto builder = skr::ApplicationBuilder()
+                       .WithExtension<baldr::BaldrExtension>()
+                       .WithExtension<baldr::BaldrOpenApiExtension>();
 
     auto app = builder.Build<baldr::WebApplication>();
 
@@ -48,6 +49,9 @@ int main()
 
         return forecast;
     });
+
+    baldr::MapOpenApi(*app);
+    baldr::MapScalarUi(*app);
 
     app->Run();
 
