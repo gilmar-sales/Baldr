@@ -47,6 +47,8 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(skirnir)
 
 set(ZLIB_BUILD_TESTING OFF)
+set(ZLIB_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(ZLIB_BUILD_STATIC_LIBS ON CACHE BOOL "" FORCE)
 FetchContent_Declare(
   zlib
   GIT_REPOSITORY "https://github.com/madler/zlib.git"
@@ -55,7 +57,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(zlib)
 if (NOT TARGET ZLIB::ZLIB)
-  add_library(ZLIB::ZLIB ALIAS zlib)
+  add_library(ZLIB::ZLIB ALIAS zlibstatic)
 endif ()
 
 file(GLOB_RECURSE BALDR_SOURCES
