@@ -20,7 +20,7 @@ namespace BALDR_NAMESPACE
         /// API title rendered into the spec's @c info.title.
         std::string title = "Baldr API";
         /// API version rendered into the spec's @c info.version.
-        std::string version = "0.15.1";
+        std::string version = "0.1.0";
         /// Optional description rendered into @c info.description.
         std::optional<std::string> description;
     };

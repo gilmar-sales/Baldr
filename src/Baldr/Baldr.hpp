@@ -9,6 +9,8 @@
 #include <Baldr/Http/Request.hpp>
 #include <Baldr/Http/Response.hpp>
 #include <Baldr/Http/Results/JsonBody.hpp>
+#include <Baldr/Http/Results/Result.hpp>
+#include <Baldr/Http/Results/TypedResults.hpp>
 #include <Baldr/Http/Router.hpp>
 #include <Baldr/Http/Server.hpp>
 #include <Baldr/Http/TraceContext.hpp>

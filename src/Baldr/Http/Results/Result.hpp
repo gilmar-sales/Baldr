@@ -145,15 +145,30 @@ namespace BALDR_NAMESPACE
         StatusCode  mStatus;
     };
 
+} // namespace BALDR_NAMESPACE
+
+#include <Baldr/Http/Results/TypedResults.hpp>
+
+namespace BALDR_NAMESPACE
+{
+
     /**
      * @brief Convenience factory functions for the most common @ref IResult
      *        shapes.
+     *
+     * Existing factories (@ref Ok, @ref Json, @ref NotFound, @ref Status)
+     * preserve their previous return types for back-compat. The new typed
+     * factories (@ref NotFound, @ref Created, @ref NoContent, @ref
+     * BadRequest, @ref Unauthorized, @ref Forbidden, @ref Conflict,
+     * @ref UnprocessableEntity, @ref InternalServerError) return the matching
+     * @ref TypedResult subclass so the OpenAPI generator can emit a separate
+     * entry per status code in the operation's @c responses map.
      */
     class Results
     {
       public:
         /**
-         * @brief 200 OK text response.
+         * @brief 200 OK text response (back-compat: returns @ref TextResult).
          */
         static TextResult Ok(std::string body)
         {
@@ -161,7 +176,8 @@ namespace BALDR_NAMESPACE
         }
 
         /**
-         * @brief 200 OK JSON response. Serialises @p value using simdjson.
+         * @brief 200 OK JSON response (back-compat: returns @ref JsonResult).
+         * Serialises @p value using simdjson.
          */
         template <typename T>
         static JsonResult Json(const T& value)
@@ -170,7 +186,7 @@ namespace BALDR_NAMESPACE
         }
 
         /**
-         * @brief Status-only response.
+         * @brief Status-only response (back-compat: returns @ref StatusResult).
          */
         static StatusResult Status(StatusCode status)
         {
@@ -179,10 +195,76 @@ namespace BALDR_NAMESPACE
 
         /**
          * @brief 404 Not Found text response.
+         *
+         * Returns a @ref NotFoundResult so the OpenAPI generator emits a
+         * @c 404 entry in the operation's @c responses map.
          */
-        static TextResult NotFound(std::string body = "Not Found")
+        static NotFoundResult NotFound(std::string body = "Not Found")
         {
-            return TextResult(std::move(body), StatusCode::NotFound);
+            return NotFoundResult(std::move(body));
+        }
+
+        /**
+         * @brief 201 Created response with a text body.
+         */
+        static CreatedResult Created(std::string body = "Created")
+        {
+            return CreatedResult(std::move(body));
+        }
+
+        /**
+         * @brief 204 No Content response.
+         */
+        static NoContentResult NoContent() { return NoContentResult(); }
+
+        /**
+         * @brief 400 Bad Request text response.
+         */
+        static BadRequestResult BadRequest(std::string body = "Bad Request")
+        {
+            return BadRequestResult(std::move(body));
+        }
+
+        /**
+         * @brief 401 Unauthorized text response.
+         */
+        static UnauthorizedResult Unauthorized(std::string body = "Unauthorized")
+        {
+            return UnauthorizedResult(std::move(body));
+        }
+
+        /**
+         * @brief 403 Forbidden text response.
+         */
+        static ForbiddenResult Forbidden(std::string body = "Forbidden")
+        {
+            return ForbiddenResult(std::move(body));
+        }
+
+        /**
+         * @brief 409 Conflict text response.
+         */
+        static ConflictResult Conflict(std::string body = "Conflict")
+        {
+            return ConflictResult(std::move(body));
+        }
+
+        /**
+         * @brief 422 Unprocessable Entity text response.
+         */
+        static UnprocessableEntityResult UnprocessableEntity(
+            std::string body = "Unprocessable Entity")
+        {
+            return UnprocessableEntityResult(std::move(body));
+        }
+
+        /**
+         * @brief 500 Internal Server Error text response.
+         */
+        static InternalServerErrorResult InternalServerError(
+            std::string body = "Internal Server Error")
+        {
+            return InternalServerErrorResult(std::move(body));
         }
     };
 

@@ -19,19 +19,23 @@ void TodoController::Register(baldr::WebApplication& app)
     app.MapGroup("/api/todos", [this](auto& group) {
         group.MapGet("/").Handle([this]() { return mRepository->List(); });
 
-        group.MapGet("/:id").Handle(
-            [this](baldr::FromParams<IdParam> params)
-                -> std::variant<baldr::JsonResult, baldr::StatusResult> {
-                auto found = mRepository->GetById(params.value.id);
+        group.MapGet("/:id")
+            .WithSummary("Get a todo by id")
+            .Handle(
+                [this](baldr::FromParams<IdParam> params)
+                    -> std::variant<baldr::JsonResult, baldr::NotFoundResult> {
+                    auto found = mRepository->GetById(params.value.id);
 
-                if (!found)
-                    return baldr::Results::Status(baldr::StatusCode::NotFound);
+                    if (!found)
+                        return baldr::Results::NotFound();
 
-                return baldr::Results::Json(*found);
-            });
+                    return baldr::Results::Json(*found);
+                });
 
-        group.MapPost("/").Handle(
-            [this](baldr::FromBody<CreateTodoDto> body) -> baldr::JsonResult {
+        group.MapPost("/")
+            .WithSummary("Create a todo")
+            .Handle([this](baldr::FromBody<CreateTodoDto> body)
+                        -> baldr::JsonResult {
                 if (body.value.title.empty())
                     return baldr::JsonResult(R"({"error":"title is required"})",
                                              baldr::StatusCode::BadRequest);
@@ -43,31 +47,37 @@ void TodoController::Register(baldr::WebApplication& app)
                                          baldr::StatusCode::Created);
             });
 
-        group.MapPut("/:id").Handle(
-            [this](baldr::FromParams<IdParam> params,
-                   baldr::FromBody<UpdateTodoDto>
-                       body)
-                -> std::variant<baldr::JsonResult, baldr::StatusResult> {
-                if (body.value.title.empty())
-                    return baldr::Results::Status(
-                        baldr::StatusCode::BadRequest);
+        group.MapPut("/:id")
+            .WithSummary("Update a todo")
+            .Handle(
+                [this](baldr::FromParams<IdParam> params,
+                       baldr::FromBody<UpdateTodoDto>
+                           body)
+                    -> std::variant<baldr::JsonResult, baldr::BadRequestResult,
+                                    baldr::NotFoundResult> {
+                    if (body.value.title.empty())
+                        return baldr::Results::BadRequest();
 
-                auto updated = mRepository->Update(params.value.id,
-                                                   std::move(body.value.title),
-                                                   body.value.done);
+                    auto updated = mRepository->Update(
+                        params.value.id,
+                        std::move(body.value.title),
+                        body.value.done);
 
-                if (!updated)
-                    return baldr::Results::Status(baldr::StatusCode::NotFound);
+                    if (!updated)
+                        return baldr::Results::NotFound();
 
-                return baldr::Results::Json(*updated);
-            });
+                    return baldr::Results::Json(*updated);
+                });
 
-        group.MapDelete("/:id").Handle(
-            [this](baldr::FromParams<IdParam> params) -> baldr::StatusResult {
+        group.MapDelete("/:id")
+            .WithSummary("Delete a todo")
+            .Handle([this](baldr::FromParams<IdParam> params)
+                        -> std::variant<baldr::NotFoundResult,
+                                        baldr::NoContentResult> {
                 if (!mRepository->Delete(params.value.id))
-                    return baldr::StatusResult(baldr::StatusCode::NotFound);
+                    return baldr::Results::NotFound();
 
-                return baldr::StatusResult(baldr::StatusCode::NoContent);
+                return baldr::Results::NoContent();
             });
     });
 }

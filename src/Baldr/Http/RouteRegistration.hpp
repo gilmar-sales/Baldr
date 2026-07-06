@@ -27,6 +27,7 @@
 #include <Baldr/OpenApi/JsonSchemaEmitter.hpp>
 
 #include <Baldr/Http/Results/Result.hpp>
+#include <Baldr/Http/Results/TypedResults.hpp>
 
 namespace BALDR_NAMESPACE
 {
@@ -262,6 +263,11 @@ namespace BALDR_NAMESPACE
         {
             return mResponseSchemaJson;
         }
+        /// @return The per-status response schemas JSON map, if set.
+        const std::string& responseSchemasJson() const
+        {
+            return mResponseSchemasJson;
+        }
         /// @return The raw JSON parameter array for query string, if set.
         const std::string& queryParametersJson() const
         {
@@ -332,6 +338,24 @@ namespace BALDR_NAMESPACE
                         mResponseSchemaJson = std::move(*ref);
                     }
                 }
+                else if constexpr (IsTypedResultV<ResultType>)
+                {
+                    std::string schemasJson;
+                    schemasJson += "{\"";
+                    schemasJson += std::to_string(
+                        static_cast<int>(ResultType::StatusCodeV));
+                    schemasJson += "\":{\"schema\":";
+                    if constexpr (requires { ResultType::DefaultSchemaV; })
+                    {
+                        schemasJson += ResultType::DefaultSchemaV;
+                    }
+                    else
+                    {
+                        schemasJson += "{}";
+                    }
+                    schemasJson += "}}";
+                    mResponseSchemasJson = std::move(schemasJson);
+                }
             }
 
             if (!mRequestSchemaJson.empty())
@@ -342,6 +366,12 @@ namespace BALDR_NAMESPACE
             if (!mResponseSchemaJson.empty())
             {
                 mOptions.metadata["responseSchemaJson"] = mResponseSchemaJson;
+            }
+
+            if (!mResponseSchemasJson.empty())
+            {
+                mOptions.metadata["responseSchemasJson"] =
+                    mResponseSchemasJson;
             }
 
             if (!mQueryParametersJson.empty())
@@ -455,6 +485,7 @@ namespace BALDR_NAMESPACE
         RouteOptions mOptions;
         std::string  mRequestSchemaJson;
         std::string  mResponseSchemaJson;
+        std::string  mResponseSchemasJson;
         std::string  mQueryParametersJson;
         std::string  mPathParametersJson;
         bool         mFinalised { false };

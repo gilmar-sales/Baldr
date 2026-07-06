@@ -6,6 +6,9 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <vector>
+
+#include <simdjson.h>
 
 #include "RouteIntrospector.hpp"
 
@@ -164,6 +167,48 @@ namespace BALDR_NAMESPACE
                     bodyContent += "}}";
                 }
 
+                std::vector<std::pair<std::string, std::string>> perStatus;
+                if (auto sit =
+                        entry->options.metadata.find("responseSchemasJson");
+                    sit != entry->options.metadata.end() &&
+                    !sit->second.empty())
+                {
+                    simdjson::dom::parser parser;
+                    simdjson::dom::element mapEl;
+                    if (!parser.parse(sit->second).get(mapEl))
+                    {
+                        simdjson::dom::object mapObj;
+                        if (!mapEl.get_object().get(mapObj))
+                        {
+                            for (auto kv : mapObj)
+                            {
+                                std::string_view statusSv = kv.key;
+                                simdjson::dom::object entryObj;
+                                if (kv.value.get_object().get(entryObj))
+                                    continue;
+                                auto schemaEl = entryObj["schema"];
+                                if (!schemaEl.is_object())
+                                    continue;
+                                simdjson::dom::object schemaObj;
+                                if (schemaEl.get_object().get(schemaObj))
+                                    continue;
+                                std::string_view raw = simdjson::minify(schemaObj);
+                                if (raw.empty())
+                                {
+                                    perStatus.emplace_back(
+                                        std::string(statusSv), std::string());
+                                }
+                                else
+                                {
+                                    perStatus.emplace_back(
+                                        std::string(statusSv),
+                                        std::string(raw));
+                                }
+                            }
+                        }
+                    }
+                }
+
                 std::string parametersBlock;
                 if (auto qit =
                         entry->options.metadata.find("queryParametersJson");
@@ -189,7 +234,35 @@ namespace BALDR_NAMESPACE
                     out += "],";
                 }
 
-                if (hasBody)
+                if (!perStatus.empty())
+                {
+                    out += "\"responses\":{";
+                    bool firstStatus = true;
+                    for (const auto& [statusStr, schemaStr] : perStatus)
+                    {
+                        if (!firstStatus)
+                            out += ",";
+                        firstStatus = false;
+                        out += "\"";
+                        out += escapeString(statusStr);
+                        out += "\":{\"description\":\"";
+                        out += escapeString(statusStr);
+                        out += "\",";
+                        if (schemaStr.empty())
+                        {
+                            out += "\"content\":{}}";
+                        }
+                        else
+                        {
+                            out += "\"content\":{\"application/"
+                                   "json\":{\"schema\":";
+                            out += schemaStr;
+                            out += "}}}";
+                        }
+                    }
+                    out += "}";
+                }
+                else if (hasBody)
                 {
                     out += "\"responses\":{\"200\":{\"description\":\"OK\","
                            "\"content\":";
