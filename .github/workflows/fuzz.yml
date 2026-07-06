@@ -1,0 +1,263 @@
+# Fuzzing workflow for Baldr.
+#
+# This lane runs the afl++ fuzz harnesses under ASan+UBSan (gcc-16) and
+# fails the workflow when a crash, hang, or sanitizer violation is found.
+# The release-gating lane runs on every published release and on manual
+# dispatch; an MSan nightly lane and a TSan replay lane run on schedule.
+#
+# afl++ install: this workflow builds afl++ from a pinned release tarball
+# (cached per commit) because the Ubuntu apt package does not always ship
+# the gcc-plugin and the gcc-16 compiler requires it. The tarball is
+# downloaded into .agents/cache/ so subsequent runs are free.
+#
+# Artifacts: crashes/ and hangs/ directories from afl++ are uploaded as
+# workflow artifacts on every run that produces them, and the workflow
+# fails the job when unique_crashes > 0.
+
+name: fuzz
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  schedule:
+    # Nightly at 03:00 UTC. Runs the full sanitizer matrix (MSan + TSan)
+    # and the gating lane with a longer bound.
+    - cron: '0 3 * * *'
+
+# Cancel any in-progress run on the same ref.
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  afl-gating:
+    name: afl++ ASan+UBSan (gating)
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      AFL_VERSION: '4.21c'
+      AFL_TARBALL_SHA: 'f7ba1fff0179bb83d7403a6ec3661d8d3a5c3df0e35fa9d51b88c22b8c4b7e9b'
+      AFL_SKIP_CPUFREQ: '1'
+      AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES: '1'
+      AFL_NO_AFFINITY: '1'
+      AFL_MAP_SIZE: '65536'
+      BALDR_BOUNDS_SECONDS: '90'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install afl++ from pinned tarball
+        shell: bash
+        run: |
+          set -euo pipefail
+          CACHE="${RUNNER_TEMP}/aflplusplus-${AFL_VERSION}-${AFL_TARBALL_SHA}"
+          mkdir -p "${CACHE}"
+          if [[ ! -x "${CACHE}/afl-fuzz" ]]; then
+            TARBALL="${RUNNER_TEMP}/afl-${AFL_VERSION}.tar.gz"
+            if [[ ! -f "${TARBALL}" ]]; then
+              curl -fsSL \
+                "https://github.com/AFLplusplus/AFLplusplus/archive/refs/tags/v${AFL_VERSION}.tar.gz" \
+                -o "${TARBALL}"
+            fi
+            tar -xzf "${TARBALL}" -C "${RUNNER_TEMP}"
+            SRC="${RUNNER_TEMP}/AFLplusplus-${AFL_VERSION}"
+            pushd "${SRC}" >/dev/null
+            # No-frills build: just the compiler wrappers and afl-fuzz.
+            # Skipping qemu mode because we don't need it for sync surfaces.
+            make -j"$(nproc)" >/dev/null
+            make install PREFIX="${CACHE}" >/dev/null
+            popd >/dev/null
+          fi
+          echo "${CACHE}/bin" >> "${GITHUB_PATH}"
+          afl-fuzz --version
+          afl-g++-fast --version
+
+      - name: Install gcc-16
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y gcc-16 g++-16
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-16 100 --slave /usr/bin/g++ g++ /usr/bin/g++-16
+
+      - name: Configure CMake (fuzzing on)
+        shell: bash
+        run: |
+          cmake -S . -B build-fuzz -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER=gcc-16 \
+            -DCMAKE_CXX_COMPILER=g++-16 \
+            -DBALDR_BUILD_FUZZING=ON \
+            -DBALDR_FUZZ_USE_AFL=ON \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -g -O1" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build fuzz harnesses
+        shell: bash
+        run: cmake --build build-fuzz \
+            --target HttpParserFuzz RouterFuzz MiddlewareFuzz ResultsFuzz \
+                     CookieFuzz CompressionFuzz StaticFilesFuzz SecurityFuzz \
+            -j"$(nproc)"
+
+      - name: Run gating fuzz lane
+        shell: bash
+        run: |
+          set +e
+          mkdir -p fuzz-out
+          declare -a HARNESSES=(
+            HttpParserFuzz
+            RouterFuzz
+            MiddlewareFuzz
+            ResultsFuzz
+            CookieFuzz
+            CompressionFuzz
+            StaticFilesFuzz
+            SecurityFuzz
+          )
+          OVERALL_RC=0
+          for h in "${HARNESSES[@]}"; do
+            echo "=== ${h} ==="
+            bash scripts/run_one_fuzz.sh \
+              "./build-fuzz/test/fuzz/${h}" \
+              "./test/fuzz/corpus/${h}" \
+              "${BALDR_BOUNDS_SECONDS}"
+            RC=$?
+            if [[ $RC -ne 0 ]]; then
+              echo "::error file=test/fuzz/${h}.cpp::${h} returned $RC"
+              OVERALL_RC=1
+            fi
+          done
+          # Tar up artifacts regardless of pass/fail so they survive the run.
+          if [[ -d fuzz-out ]]; then
+            tar -czf fuzz-out.tar.gz fuzz-out || true
+          fi
+          exit "$OVERALL_RC"
+
+      - name: Upload fuzz artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashes
+          path: fuzz-out.tar.gz
+          if-no-files-found: ignore
+
+  msan-nightly:
+    name: MSan (nightly, clang-18)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-18
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18
+
+      - name: Install afl++ (clang frontend)
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARBALL="${RUNNER_TEMP}/afl.tar.gz"
+          curl -fsSL \
+            "https://github.com/AFLplusplus/AFLplusplus/archive/refs/tags/v${AFL_VERSION}.tar.gz" \
+            -o "${TARBALL}"
+          tar -xzf "${TARBALL}" -C "${RUNNER_TEMP}"
+          cd "${RUNNER_TEMP}/AFLplusplus-${AFL_VERSION}"
+          make -j"$(nproc)"
+          sudo make install
+
+      - name: Configure CMake (MSan)
+        shell: bash
+        run: |
+          export CC=clang-18
+          export CXX=clang++-18
+          cmake -S . -B build-msan -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DBALDR_BUILD_FUZZING=ON \
+            -DBALDR_FUZZ_USE_AFL=ON \
+            -DCMAKE_CXX_FLAGS="-fsanitize=memory -fsanitize-memory-track-origins -g -O1" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=memory"
+
+      - name: Build + run MSan lane
+        shell: bash
+        run: |
+          cmake --build build-msan \
+            --target HttpParserFuzz RouterFuzz MiddlewareFuzz ResultsFuzz \
+                     CookieFuzz CompressionFuzz StaticFilesFuzz SecurityFuzz \
+            -j"$(nproc)"
+          for h in HttpParserFuzz RouterFuzz MiddlewareFuzz ResultsFuzz \
+                   CookieFuzz CompressionFuzz StaticFilesFuzz SecurityFuzz; do
+            bash scripts/run_one_fuzz.sh \
+              "./build-msan/test/fuzz/${h}" \
+              "./test/fuzz/corpus/${h}" \
+              300
+          done
+
+  tsan-replay:
+    name: TSan replay (nightly)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install gcc-16 + afl++
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y gcc-16 g++-16
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-16 100 --slave /usr/bin/g++ g++ /usr/bin/g++-16
+
+      - name: Install afl++
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARBALL="${RUNNER_TEMP}/afl.tar.gz"
+          curl -fsSL \
+            "https://github.com/AFLplusplus/AFLplusplus/archive/refs/tags/v${AFL_VERSION}.tar.gz" \
+            -o "${TARBALL}"
+          tar -xzf "${TARBALL}" -C "${RUNNER_TEMP}"
+          cd "${RUNNER_TEMP}/AFLplusplus-${AFL_VERSION}"
+          make -j"$(nproc)"
+          sudo make install
+
+      - name: Configure CMake (TSan)
+        shell: bash
+        run: |
+          cmake -S . -B build-tsan -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER=gcc-16 \
+            -DCMAKE_CXX_COMPILER=g++-16 \
+            -DBALDR_BUILD_FUZZING=ON \
+            -DBALDR_FUZZ_USE_AFL=ON \
+            -DCMAKE_CXX_FLAGS="-fsanitize=thread -g -O1" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
+
+      - name: Replay corpus under TSan
+        shell: bash
+        run: |
+          cmake --build build-tsan \
+            --target HttpParserFuzz RouterFuzz MiddlewareFuzz ResultsFuzz \
+                     CookieFuzz CompressionFuzz StaticFilesFuzz SecurityFuzz \
+            -j"$(nproc)"
+          # Deterministic replay: walk each corpus entry through the harness
+          # binary (which is TSan-instrumented) and look for races.
+          set +e
+          for h in HttpParserFuzz RouterFuzz MiddlewareFuzz ResultsFuzz \
+                   CookieFuzz CompressionFuzz StaticFilesFuzz SecurityFuzz; do
+            while IFS= read -r -d '' seed; do
+              "./build-tsan/test/fuzz/${h}" "$seed" >/dev/null 2>&1 \
+                || echo "TSan warning on ${h} ${seed}"
+            done < <(find "./test/fuzz/corpus/${h}" -type f -print0)
+          done

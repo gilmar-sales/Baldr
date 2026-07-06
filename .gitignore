@@ -19,3 +19,9 @@ out
 site
 .venv
 .agents/
+
+# Fuzz harness output directories (afl++).
+test/fuzz/out/
+test/fuzz/sync_dir/
+test/fuzz/crashes/
+test/fuzz/hangs/
