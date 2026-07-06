@@ -1,4 +1,4 @@
-#include <Baldr/Application/HealthChecks.hpp>
+#include <Baldr/Application/IHealthCheck.hpp>
 #include <Baldr/Application/WebApplication.hpp>
 #include <Baldr/BaldrExtension.hpp>
 #include <Baldr/Http/Router.hpp>
@@ -9,6 +9,8 @@
 #include <Skirnir/Logging/Logger.hpp>
 
 #include <gtest/gtest.h>
+
+#include <stdexcept>
 
 namespace
 {
@@ -33,6 +35,40 @@ namespace
         (void) entry.extractRouteParams(request.path);
         entry.handler(copy, out, sp);
     }
+
+    class DbOkCheck : public baldr::IHealthCheck
+    {
+      public:
+        std::string_view CheckName() const noexcept override { return "db"; }
+        bool Check(const baldr::HttpRequest&) override { return true; }
+    };
+
+    class CacheOkCheck : public baldr::IHealthCheck
+    {
+      public:
+        std::string_view CheckName() const noexcept override { return "cache"; }
+        bool Check(const baldr::HttpRequest&) override { return true; }
+    };
+
+    class CacheFailCheck : public baldr::IHealthCheck
+    {
+      public:
+        std::string_view CheckName() const noexcept override { return "cache"; }
+        bool Check(const baldr::HttpRequest&) override { return false; }
+    };
+
+    class ThrowingCheck : public baldr::IHealthCheck
+    {
+      public:
+        std::string_view CheckName() const noexcept override
+        {
+            return "explode";
+        }
+        bool Check(const baldr::HttpRequest&) override
+        {
+            throw std::runtime_error("boom");
+        }
+    };
 } // namespace
 
 TEST(HealthChecksSpec, RegistersAllPathsAndReturns200WithEmptyChecks)
@@ -70,11 +106,15 @@ TEST(HealthChecksSpec, EmptyChecksReturnHealthy200)
 
 TEST(HealthChecksSpec, AllChecksPassReturn200)
 {
-    auto app = buildApp();
-    app->MapHealthChecks(
-        { "/healthz" },
-        { { "db", [](const baldr::HttpRequest&) { return true; } },
-          { "cache", [](const baldr::HttpRequest&) { return true; } } });
+    auto builder =
+        skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
+    builder.GetServiceCollection()
+        ->AddTransient<baldr::IHealthCheck, DbOkCheck>();
+    builder.GetServiceCollection()
+        ->AddTransient<baldr::IHealthCheck, CacheOkCheck>();
+    auto app = builder.Build<baldr::WebApplication>();
+
+    app->MapHealthChecks({ "/healthz" });
 
     auto entry = app->GetRouter()->match(baldr::HttpMethod::Get, "/healthz");
     ASSERT_TRUE(entry.has_value());
@@ -96,11 +136,15 @@ TEST(HealthChecksSpec, AllChecksPassReturn200)
 
 TEST(HealthChecksSpec, AnyFailedCheckReturns503)
 {
-    auto app = buildApp();
-    app->MapHealthChecks(
-        { "/healthz" },
-        { { "db", [](const baldr::HttpRequest&) { return true; } },
-          { "cache", [](const baldr::HttpRequest&) { return false; } } });
+    auto builder =
+        skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
+    builder.GetServiceCollection()
+        ->AddTransient<baldr::IHealthCheck, DbOkCheck>();
+    builder.GetServiceCollection()
+        ->AddTransient<baldr::IHealthCheck, CacheFailCheck>();
+    auto app = builder.Build<baldr::WebApplication>();
+
+    app->MapHealthChecks({ "/healthz" });
 
     auto entry = app->GetRouter()->match(baldr::HttpMethod::Get, "/healthz");
     ASSERT_TRUE(entry.has_value());
@@ -121,11 +165,13 @@ TEST(HealthChecksSpec, AnyFailedCheckReturns503)
 
 TEST(HealthChecksSpec, LivenessPathIsAlwaysHealthy)
 {
-    auto app = buildApp();
-    app->MapHealthChecks(
-        { "/readyz" },
-        { { "db", [](const baldr::HttpRequest&) { return false; } } },
-        "/livez");
+    auto builder =
+        skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
+    builder.GetServiceCollection()
+        ->AddTransient<baldr::IHealthCheck, CacheFailCheck>();
+    auto app = builder.Build<baldr::WebApplication>();
+
+    app->MapHealthChecks({ "/readyz" }, "/livez");
 
     auto router = app->GetRouter();
     auto entry  = router->match(baldr::HttpMethod::Get, "/livez");
@@ -146,11 +192,13 @@ TEST(HealthChecksSpec, LivenessPathIsAlwaysHealthy)
 
 TEST(HealthChecksSpec, PredicateThrowingTreatedAsUnhealthy)
 {
-    auto app = buildApp();
-    app->MapHealthChecks({ "/healthz" },
-                         { { "explode", [](const baldr::HttpRequest&) -> bool {
-                                throw std::runtime_error("boom");
-                            } } });
+    auto builder =
+        skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
+    builder.GetServiceCollection()
+        ->AddTransient<baldr::IHealthCheck, ThrowingCheck>();
+    auto app = builder.Build<baldr::WebApplication>();
+
+    app->MapHealthChecks({ "/healthz" });
 
     auto entry = app->GetRouter()->match(baldr::HttpMethod::Get, "/healthz");
     ASSERT_TRUE(entry.has_value());

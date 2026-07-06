@@ -1,37 +1,33 @@
 #include <Baldr/Baldr.hpp>
 
-#include <atomic>
-#include <chrono>
-#include <thread>
-
-namespace
+class DatabaseHealthCheck : public baldr::IHealthCheck
 {
-    std::atomic<int> gRequestCount { 0 };
+  public:
+    std::string_view CheckName() const noexcept override { return "db"; }
+    bool             Check(const baldr::HttpRequest&) override { return true; }
+};
 
-    bool cacheUp(const baldr::HttpRequest&)
-    {
-        return true;
-    }
-
-    bool dbUp(const baldr::HttpRequest&)
-    {
-        ++gRequestCount;
-        return true;
-    }
-} // namespace
+class CacheHealthCheck : public baldr::IHealthCheck
+{
+  public:
+    std::string_view CheckName() const noexcept override { return "cache"; }
+    bool             Check(const baldr::HttpRequest&) override { return true; }
+};
 
 int main()
 {
     auto builder =
         skr::ApplicationBuilder().WithExtension<baldr::BaldrExtension>();
+    builder.GetServiceCollection()
+        ->AddTransient<baldr::IHealthCheck, DatabaseHealthCheck>();
+    builder.GetServiceCollection()
+        ->AddTransient<baldr::IHealthCheck, CacheHealthCheck>();
 
     auto app = builder.Build<baldr::WebApplication>();
 
     app->MapGet("/", [](baldr::HttpRequest&) { return std::string("ok"); });
 
-    app->MapHealthChecks({ "/healthz", "/readyz" },
-                         { { "db", &dbUp }, { "cache", &cacheUp } },
-                         "/livez");
+    app->MapHealthChecks({ "/healthz", "/readyz" }, "/livez");
 
     app->Run();
 

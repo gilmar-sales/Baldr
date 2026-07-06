@@ -1,7 +1,7 @@
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
-#include <Baldr/Application/HealthChecks.hpp>
+#include <Baldr/Application/IHealthCheck.hpp>
 #include <Baldr/Application/WebApplication.hpp>
 #include <Baldr/BaldrExtension.hpp>
 #include <Baldr/Http/FromBody.hpp>

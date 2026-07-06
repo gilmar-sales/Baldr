@@ -16,6 +16,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <Baldr/Application/HealthChecks.hpp>
+#include <Baldr/Application/IHealthCheck.hpp>
 #include <Baldr/Application/RouteListing.hpp>
 #include <Baldr/Http/Router.hpp>
 #include <Baldr/Http/Server.hpp>
@@ -382,10 +384,23 @@ namespace BALDR_NAMESPACE
     } // namespace
 
     void WebApplication::MapHealthChecks(std::vector<std::string> paths,
-                                         std::vector<HealthCheckRegistration>
-                                                     checks,
-                                         std::string livePath)
+                                         std::string              livePath)
     {
+        std::vector<HealthCheckRegistration> checks;
+
+        const auto sp = GetRootServiceProvider();
+        if (sp)
+        {
+            for (const auto& check : sp->GetServices<IHealthCheck>())
+            {
+                const std::string name { check->CheckName() };
+                checks.push_back(HealthCheckRegistration {
+                    std::move(name), [check](const HttpRequest& req) {
+                        return check->Check(req);
+                    } });
+            }
+        }
+
         for (const auto& p : paths)
         {
             MapGet(p, [checks](HttpRequest& request) -> ContentResult {
