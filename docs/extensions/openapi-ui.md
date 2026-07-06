@@ -3,7 +3,7 @@
 Baldr ships an interactive [Scalar](https://github.com/scalar/scalar) UI inside the library — no CDN, no runtime files. The bundle is pulled into the translation unit via `std::embed` (C++26, [P1967R14](https://eel.is/c++draft/cpp.embed)) and served from process memory by a one-liner helper.
 
 !!! info "Baldr's Scalar bundle"
-    Version **1.62.4** is vendored under `src/Baldr/OpenApi/Detail/Assets/` (JS bundle, stylesheet, HTML wrapper, MIT notice). The library is compiled directly with `#embed`, so the bytes live in the same `.text` section as your code and use the same linker treatment.
+    Version **1.62.4** is vendored under `src/Baldr/OpenApi/Assets/` (JS bundle, stylesheet, HTML wrapper, MIT notice). The library is compiled directly with `#embed`, so the bytes live in the same `.text` section as your code and use the same linker treatment.
 
 ## Quick start
 
@@ -74,17 +74,17 @@ To switch to a darker brand colour, supply a custom HTML wrapper rather than the
 
 ## Architecture
 
-`MapScalarUi` lives in [`src/Baldr/OpenApi/MapScalarUi.hpp`](https://github.com/gilmar-sales/Baldr/tree/main/src/Baldr/OpenApi/MapScalarUi.hpp). The unit conversion happens here:
+`MapScalarUi` lives in [`src/Baldr/OpenApi/MapScalarUi.{hpp,cpp}`](https://github.com/gilmar-sales/Baldr/tree/main/src/Baldr/OpenApi/MapScalarUi.hpp). The bytes are pulled in at compile time from the same translation unit that mounts the routes:
 
-```cpp title="src/Baldr/OpenApi/MapScalarUi.hpp"
-inline constexpr const std::byte kScalarReferenceJs[] = {
-#embed "/home/gilmar/dev/Baldr/src/Baldr/OpenApi/Detail/Assets/scalar-reference.js"
+```cpp title="src/Baldr/OpenApi/MapScalarUi.cpp"
+inline constexpr unsigned char kScalarReferenceJs[] = {
+#embed "Assets/scalar-reference.js"
 };
 ```
 
 - **`#embed`** drops the file's bytes inline as a `constexpr` array. gcc-15+ (gcc-16 is the CI compiler) implements the feature, so no CMake generator, no `xxd`, no `objcopy` — just normal C++ you can read in the editor.
-- **`kScalarReferenceJsSize`** is `sizeof(kScalarReferenceJs)`, made available alongside for completeness.
-- **`AsStringView`** wraps the byte array in a non-owning `std::string_view` because `ContentResult` takes a `std::string body`. The view's source is the `#embed` array, which has program lifetime.
+- Each asset has a matching `kScalar*Size` constant (just `sizeof(...)`), made available alongside for completeness.
+- `OpenApi::EmbeddedScalar::AsStringView` wraps each byte array in a non-owning `std::string_view` because `ContentResult` takes a `std::string body`. The view's source is the `#embed` array, which has program lifetime.
 
 ## When not to use it
 
