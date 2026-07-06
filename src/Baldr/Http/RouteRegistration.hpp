@@ -13,6 +13,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <variant>
 
 #include <Skirnir/Skirnir.hpp>
 
@@ -31,6 +32,22 @@ namespace BALDR_NAMESPACE
 {
 
     class WebApplication;
+
+    /// @brief @c true when @c T is a @c std::variant specialisation.
+    template <typename T>
+    struct IsStdVariant : std::false_type
+    {
+    };
+
+    /// @brief @c std::variant specialisation of @ref IsStdVariant.
+    template <typename... Ts>
+    struct IsStdVariant<std::variant<Ts...>> : std::true_type
+    {
+    };
+
+    /// @brief Convenience alias for @ref IsStdVariant.
+    template <typename T>
+    constexpr bool IsStdVariantV = IsStdVariant<std::remove_cvref_t<T>>::value;
 
     /**
      * @brief Builder returned by @c WebApplication::Map* to attach OpenAPI
@@ -269,8 +286,18 @@ namespace BALDR_NAMESPACE
          * @c FromParams<T> parameter and no matching OpenAPI metadata was
          * supplied, the framework derives it automatically from @c T. If
          * the handler's return type is reflectable and no response schema
-         * was supplied, the framework derives one automatically. The route
-         * is inserted into the router and becomes dispatchable
+         * was supplied, the framework derives one automatically.
+         *
+         * @note A handler returning @c std::variant<...> is supported at
+         *       runtime — the active alternative is dispatched through the
+         *       same rules as a non-variant return (IResult, JSON, string,
+         *       etc.). OpenAPI response schema auto-derivation is skipped
+         *       for variant returns because alternatives can describe
+         *       different shapes/statuses; supply a response schema with
+         *       @ref WithResponseSchemaJson or @ref WithResponseType if
+         *       you need one in the spec.
+         *
+         * The route is inserted into the router and becomes dispatchable
          * immediately.
          */
         template <typename Handler>
@@ -295,7 +322,7 @@ namespace BALDR_NAMESPACE
                     std::is_base_of_v<IResult, ResultType> ||
                     std::is_base_of_v<IStreamingResult, ResultType>;
 
-                if constexpr (!isIResult &&
+                if constexpr (!isIResult && !IsStdVariantV<ResultType> &&
                               (IsAutoDerivable<ResultType> ||
                                Detail::IsVectorOfAutoDerivableV<ResultType>) )
                 {

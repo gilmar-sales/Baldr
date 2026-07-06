@@ -24,6 +24,7 @@
 #include <Baldr/Http/Request.hpp>
 #include <Baldr/Http/Response.hpp>
 #include <Baldr/Http/Results/Result.hpp>
+#include <Baldr/Http/Results/ResultDispatch.hpp>
 #include <Baldr/Http/RouteOptions.hpp>
 #include <Baldr/Http/Tuple.hpp>
 
@@ -155,7 +156,7 @@ namespace BALDR_NAMESPACE
                             else
                             {
                                 static_assert(
-                                    sizeof(BareTArg*) == 0,
+                                    false,
                                     "Unsupported handler argument type. "
                                     "Handler parameters must be one of: "
                                     "Baldr::HttpRequest, Baldr::HttpResponse, "
@@ -169,56 +170,7 @@ namespace BALDR_NAMESPACE
                     if constexpr (!std::is_same_v<ResultType, void>)
                     {
                         auto result = std::apply(handler, args);
-
-                        if constexpr (std::is_base_of_v<IStreamingResult,
-                                                        ResultType> &&
-                                      !std::is_base_of_v<IResult, ResultType>)
-                        {
-                            response.streaming =
-                                std::make_shared<ResultType>(std::move(result));
-                        }
-                        else if constexpr (std::is_base_of_v<IResult,
-                                                             ResultType>)
-                        {
-                            result.Apply(response);
-                        }
-                        else if constexpr (std::is_same_v<const char*,
-                                                          ResultType> ||
-                                           std::is_same_v<char*, ResultType>)
-                        {
-                            response.headers["Content-Type"] = "text/plain";
-                            response.body       = std::string(result);
-                            response.statusCode = StatusCode::OK;
-                        }
-                        else if constexpr (std::is_assignable_v<std::string,
-                                                                ResultType>)
-                        {
-                            response.headers["Content-Type"] = "text/plain";
-                            response.body                    = result;
-                            response.statusCode              = StatusCode::OK;
-                        }
-                        else
-                        {
-                            simdjson::simdjson_result<std::string> json =
-                                simdjson::to_json(result);
-                            if (json.has_value())
-                            {
-                                response.body = std::move(json).take_value();
-                                response.headers["Content-Type"] =
-                                    "application/json";
-                                response.statusCode = StatusCode::OK;
-                            }
-                            else
-                            {
-                                response.headers["Content-Type"] = "text/plain";
-                                response.body =
-                                    "Handler returned a value that could not "
-                                    "be "
-                                    "serialized to JSON or std::string.";
-                                response.statusCode =
-                                    StatusCode::InternalServerError;
-                            }
-                        }
+                        detail::ApplyHandlerResult(std::move(result), response);
                     }
                     else
                     {

@@ -67,6 +67,35 @@ class HtmlResult final : public IResult
 };
 ```
 
+## Variant returns
+
+Handlers may return `std::variant<...>` to model responses that take one of several shapes — e.g. a product or a not-found marker. Baldr unwraps the active alternative and dispatches it through the same rules as a non-variant return: `IResult` subclasses go through `Apply`, JSON-serializable values become `application/json`, `std::string`-assignable values become `text/plain`, `std::monostate` becomes an empty `200 OK`, and so on.
+
+```cpp title="src/main.cpp"
+struct Product
+{
+    std::string id;
+    std::string name;
+    int         price;
+};
+
+app->MapGet("/products/:id",
+    [](const FromParams<IdParam>& params,
+       skr::Arc<ProductRepository> repo) -> std::variant<JsonResult,
+                                                          StatusResult> {
+        auto product = repo->Find(params.value.id);
+        if (!product)
+            return Results::Status(StatusCode::NotFound);
+        return Results::Json(*product);
+    });
+```
+
+!!! note "OpenAPI and variant returns"
+    OpenAPI response schema auto-derivation is **skipped** for variant returns because alternatives can describe different shapes and statuses. If you need a schema in the spec, supply it explicitly with `WithResponseType<T>()` or `WithResponseSchemaJson(...)` on the registration.
+
+!!! warning "Streaming results are not allowed inside variants"
+    `IStreamingResult` alternatives inside a variant are rejected at compile time — streaming semantics assume a single owner of the response stream. Return an `IStreamingResult` directly (not wrapped in a variant) instead.
+
 ## Parsing JSON bodies
 
 `HttpRequest::body` is a raw `std::string`. Use the helpers in `<Baldr/Http/Results/JsonBody.hpp>` to parse it:

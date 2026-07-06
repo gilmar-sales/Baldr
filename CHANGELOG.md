@@ -20,6 +20,7 @@ All notable changes to Baldr are documented here. The format is based on [Keep a
 - Cookie parsing tests, content-result test, middleware tests, route-prefix test, real `RateLimiter` tests (capacity, refill, thread safety, LRU eviction).
 - Streamed-buffer integration tests (byte-by-byte feed, pipelining, arbitrary 3-byte chunking).
 - `ScalarUiSpec` covering embedded asset byte counts, placeholders, and `AsStringView` size invariants.
+- Handlers may return `std::variant<...>` to model responses that take one of several shapes (e.g. product-or-NotFound). The active alternative is dispatched through the same rules as a non-variant return (`IResult::Apply`, JSON serialization, string coercion, etc.). `IStreamingResult` alternatives inside a variant are rejected at compile time. OpenAPI response schema auto-derivation is skipped for variant returns — supply one explicitly with `WithResponseType<T>()` or `WithResponseSchemaJson(...)` if needed.
 
 ### Changed
 - `WebApplication::MapStaticFiles` rewritten to support arbitrary depth (`urlPrefix/**`), fall back to `index.html` on directory requests, and reject path-traversal attempts (raw `..`, percent-encoded `..`, backslashes, NUL) before any filesystem call. The canonical-target prefix check now requires the next byte to be a path separator, blocking sibling directories whose names share the root prefix.
