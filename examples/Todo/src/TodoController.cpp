@@ -68,10 +68,10 @@ void TodoController::Register(baldr::WebApplication& app)
                             baldr::JsonResult<ValidationError,
                                               baldr::StatusCode::BadRequest>,
                             baldr::NotFoundResult> {
-                if (body.value.title.empty())
+                if (body.value.title && body.value.title->empty())
                     return baldr::JsonResult<ValidationError,
                                              baldr::StatusCode::BadRequest>(
-                        ValidationError { "title", "title is required" });
+                        ValidationError { "title", "title must not be empty" });
 
                 auto updated = mRepository->Update(
                     params.value.id, std::move(body.value.title),

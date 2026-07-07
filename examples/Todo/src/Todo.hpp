@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 struct Todo
@@ -19,8 +20,8 @@ struct CreateTodoDto
 
 struct UpdateTodoDto
 {
-    std::string title;
-    bool        done;
+    std::optional<std::string> title;
+    std::optional<bool>        done;
 };
 
 struct IdParam

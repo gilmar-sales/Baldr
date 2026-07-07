@@ -13,7 +13,7 @@
 class InMemoryTodoRepository final : public ITodoRepository
 {
   public:
-    InMemoryTodoRepository()          = default;
+    InMemoryTodoRepository()           = default;
     ~InMemoryTodoRepository() override = default;
 
     InMemoryTodoRepository(const InMemoryTodoRepository&)            = delete;
@@ -25,13 +25,14 @@ class InMemoryTodoRepository final : public ITodoRepository
 
     Todo Create(std::string title, bool done) override;
 
-    std::optional<Todo> Update(int64_t id, std::string title,
-                               bool done) override;
+    std::optional<Todo> Update(
+        int64_t id, std::optional<std::string> title, std::optional<bool> done)
+        override;
 
     bool Delete(int64_t id) override;
 
   private:
-    std::mutex                                       mMutex;
-    std::unordered_map<int64_t, Todo>                mTodos;
-    std::atomic<int64_t>                             mNextId { 1 };
+    std::mutex                        mMutex;
+    std::unordered_map<int64_t, Todo> mTodos;
+    std::atomic<int64_t>              mNextId { 1 };
 };

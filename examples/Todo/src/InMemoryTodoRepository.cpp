@@ -49,15 +49,17 @@ Todo InMemoryTodoRepository::Create(std::string title, bool done)
     return todo;
 }
 
-std::optional<Todo> InMemoryTodoRepository::Update(int64_t id, std::string title,
-                                                   bool done)
+std::optional<Todo> InMemoryTodoRepository::Update(
+    int64_t id, std::optional<std::string> title, std::optional<bool> done)
 {
     std::lock_guard<std::mutex> lock(mMutex);
     auto                        it = mTodos.find(id);
     if (it == mTodos.end())
         return std::nullopt;
-    it->second.title = std::move(title);
-    it->second.done  = done;
+    if (title)
+        it->second.title = std::move(*title);
+    if (done)
+        it->second.done = *done;
     return it->second;
 }
 
