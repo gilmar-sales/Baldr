@@ -1,6 +1,6 @@
 # Todo example
 
-[`examples/Todo`](https://github.com/gilmar-sales/Baldr/tree/main/examples/Todo) is a small CRUD service for a `Todo` resource. It pulls together most of the building blocks a real Baldr app uses: a singleton repository registered through DI, a controller that groups its routes under `/api/todos`, bound path and body parameters via `baldr::FromParams` / `baldr::FromBody`, validation errors expressed as typed results, and an OpenAPI 3.0.3 spec plus Scalar UI.
+[`examples/Todo`](https://github.com/gilmar-sales/Baldr/tree/main/examples/Todo) is a small CRUD service for a `Todo` resource. It pulls together most of the building blocks a real Baldr app uses: a singleton repository registered through DI, a controller that groups its routes under `/api/todos`, bound path / body / query parameters via `baldr::FromParams` / `baldr::FromBody` / `baldr::FromQuery`, validation errors expressed as typed results, and an OpenAPI 3.0.3 spec plus Scalar UI.
 
 ## Source
 
@@ -41,7 +41,9 @@ int main()
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <vector>
 
 struct Todo
 {
@@ -59,13 +61,49 @@ struct CreateTodoDto
 
 struct UpdateTodoDto
 {
-    std::string title;
-    bool        done;
+    std::optional<std::string> title;
+    std::optional<bool>        done;
 };
 
 struct IdParam
 {
     int64_t id;
+};
+
+struct PageQuery
+{
+    std::optional<int> pageSize;
+    std::optional<int> page;
+
+    struct Normalized
+    {
+        int pageSize;
+        int page;
+        int offset;
+    };
+
+    Normalized normalized() const noexcept
+    {
+        int ps = pageSize.value_or(500);
+        if (ps < 1)
+            ps = 1;
+        if (ps > 500)
+            ps = 500;
+        int p = page.value_or(1);
+        if (p < 1)
+            p = 1;
+        return Normalized { .pageSize = ps,
+                            .page     = p,
+                            .offset   = (p - 1) * ps };
+    }
+};
+
+struct TodoPage
+{
+    std::vector<Todo> items;
+    int               page;
+    int               pageSize;
+    int64_t           total;
 };
 ```
 
@@ -86,7 +124,8 @@ class ITodoRepository
   public:
     virtual ~ITodoRepository() = default;
 
-    virtual std::vector<Todo>    List()                           = 0;
+    virtual std::vector<Todo>    List(int limit, int offset)       = 0;
+    virtual long long            Count()                          = 0;
     virtual std::optional<Todo>  GetById(int64_t id)              = 0;
     virtual Todo                 Create(std::string title,
                                         bool        done)        = 0;
@@ -121,7 +160,9 @@ class InMemoryTodoRepository final : public ITodoRepository
     InMemoryTodoRepository(const InMemoryTodoRepository&)            = delete;
     InMemoryTodoRepository& operator=(const InMemoryTodoRepository&) = delete;
 
-    std::vector<Todo> List() override;
+    std::vector<Todo> List(int limit, int offset) override;
+
+    long long Count() override;
 
     std::optional<Todo> GetById(int64_t id) override;
 
@@ -169,6 +210,7 @@ class TodoController
 
 #include <Baldr/Http/FromBody.hpp>
 #include <Baldr/Http/FromParams.hpp>
+#include <Baldr/Http/FromQuery.hpp>
 #include <Baldr/Http/Results/Result.hpp>
 #include <Baldr/Http/Results/TypedResults.hpp>
 
@@ -189,7 +231,29 @@ struct ValidationError
 void TodoController::Register(baldr::WebApplication& app)
 {
     app.MapGroup("/api/todos", [this](auto& group) {
-        group.MapGet("/").Handle([this]() { return mRepository->List(); });
+        group.MapGet("/")
+            .WithSummary("List todos (paged)")
+            .Handle([this](baldr::FromQuery<PageQuery> q)
+                        -> std::variant<
+                            baldr::JsonResult<ValidationError,
+                                              baldr::StatusCode::BadRequest>,
+                            baldr::JsonResult<TodoPage,
+                                              baldr::StatusCode::OK>> {
+                if (!q.isOk())
+                    return baldr::Results::Json<ValidationError,
+                                                baldr::StatusCode::BadRequest>(
+                        ValidationError { "query", q.error->message });
+
+                auto n     = q.value.normalized();
+                auto items = mRepository->List(n.pageSize, n.offset);
+                auto total = mRepository->Count();
+                return baldr::Results::Json<TodoPage,
+                                            baldr::StatusCode::OK>(
+                    TodoPage { .items    = std::move(items),
+                               .page     = n.page,
+                               .pageSize = n.pageSize,
+                               .total    = total });
+            });
 
         group.MapGet("/:id")
             .WithSummary("Get a todo by id")
@@ -270,10 +334,11 @@ void TodoController::Register(baldr::WebApplication& app)
 - Registering an interface-to-implementation binding with `AddSingleton<ITodoRepository, InMemoryTodoRepository>()` so the rest of the app can depend on the abstraction.
 - Resolving a singleton from the root service provider in `main` and passing it into a controller manually (instead of taking it as a route-handler parameter).
 - Grouping routes under a common prefix with `app.MapGroup("/api/todos", [](auto& group) { ... })`.
-- Binding typed path and body parameters with `baldr::FromParams<T>` and `baldr::FromBody<T>`, where the wrapped type aggregates the route params or JSON body.
+- Binding typed path, body, and query parameters with `baldr::FromParams<T>`, `baldr::FromBody<T>`, and `baldr::FromQuery<T>`, where the wrapped type aggregates the route params, JSON body, or query string.
 - Modelling multiple success and error outcomes from a single handler with `std::variant` of `JsonResult<T, Status>` and result markers such as `NotFoundResult` / `NoContentResult`.
-- Returning a `ValidationError` DTO under `400 Bad Request` from `POST` and `PUT` when the input is empty — distinct from a bare `BadRequestResult`.
-- Wiring the OpenAPI extension and the Scalar UI so the controller's routes appear in the generated spec at `/openapi.json` and the UI at `/scalar`.
+- Returning a `ValidationError` DTO under `400 Bad Request` from `POST`, `PUT`, and paged `GET` when the input fails to bind — distinct from a bare `BadRequestResult`.
+- Paginating the list endpoint with `FromQuery<PageQuery>` (`pageSize` clamped to `[1, 500]`, `page` clamped to `>= 1`) and returning a `TodoPage` envelope carrying `items`, `page`, `pageSize`, and `total` so clients can detect when more data is available.
+- Wiring the OpenAPI extension and the Scalar UI so the controller's routes appear in the generated spec at `/openapi.json` (query parameters included automatically) and the UI at `/scalar`.
 
 ## Try it
 
@@ -286,7 +351,7 @@ cmake --build build
 In another terminal:
 
 ```bash
-# List (empty at first)
+# List (empty at first; defaults: page=1, pageSize=500)
 curl http://localhost:8080/api/todos/
 
 # Create
@@ -305,10 +370,17 @@ curl -X PUT http://localhost:8080/api/todos/1 \
 # Delete
 curl -i -X DELETE http://localhost:8080/api/todos/1
 
-# Validation error
+# Pagination — page 1 of 10, then page 2
+curl 'http://localhost:8080/api/todos/?page=1&pageSize=10'
+curl 'http://localhost:8080/api/todos/?page=2&pageSize=10'
+
+# Validation error (missing field on POST)
 curl -i -X POST http://localhost:8080/api/todos/ \
      -H 'Content-Type: application/json' \
      -d '{"title":"","done":false}'
+
+# Validation error (malformed query value)
+curl -i 'http://localhost:8080/api/todos/?pageSize=abc'
 
 # Browse the spec and UI
 curl http://localhost:8080/openapi.json | jq '.paths, .components.schemas'

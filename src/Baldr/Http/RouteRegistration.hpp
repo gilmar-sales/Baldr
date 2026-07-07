@@ -835,8 +835,21 @@ namespace BALDR_NAMESPACE
                 out.append(name);
                 out += "\",\"in\":\"";
                 out.append(location);
-                out += "\",\"required\":true,\"schema\":{\"type\":\"";
-                out += Detail::PrimitiveTypeName<FieldT>();
+                out += "\",\"required\":";
+                if constexpr (Detail::IsStdOptional<FieldT>::value)
+                    out += "false";
+                else
+                    out += "true";
+                out += ",\"schema\":{\"type\":\"";
+                if constexpr (Detail::IsStdOptional<FieldT>::value)
+                {
+                    using Inner = typename FieldT::value_type;
+                    out += Detail::PrimitiveTypeName<Inner>();
+                }
+                else
+                {
+                    out += Detail::PrimitiveTypeName<FieldT>();
+                }
                 out += "\"}}";
             }
             out += "]";

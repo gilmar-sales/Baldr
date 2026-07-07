@@ -14,16 +14,34 @@ namespace
     }
 } // namespace
 
-std::vector<Todo> InMemoryTodoRepository::List()
+std::vector<Todo> InMemoryTodoRepository::List(int limit, int offset)
 {
     std::lock_guard<std::mutex> lock(mMutex);
-    std::vector<Todo>           out;
-    out.reserve(mTodos.size());
+    std::vector<Todo>           sorted;
+    sorted.reserve(mTodos.size());
     for (const auto& [id, todo] : mTodos)
-        out.push_back(todo);
-    std::sort(out.begin(), out.end(),
+        sorted.push_back(todo);
+    std::sort(sorted.begin(), sorted.end(),
               [](const Todo& a, const Todo& b) { return a.id < b.id; });
-    return out;
+
+    if (offset < 0)
+        offset = 0;
+    if (limit < 0)
+        limit = 0;
+    if (offset >= static_cast<int>(sorted.size()))
+        return {};
+
+    int end = offset + limit;
+    if (end > static_cast<int>(sorted.size()))
+        end = static_cast<int>(sorted.size());
+
+    return std::vector<Todo>(sorted.begin() + offset, sorted.begin() + end);
+}
+
+long long InMemoryTodoRepository::Count()
+{
+    std::lock_guard<std::mutex> lock(mMutex);
+    return static_cast<long long>(mTodos.size());
 }
 
 std::optional<Todo> InMemoryTodoRepository::GetById(int64_t id)

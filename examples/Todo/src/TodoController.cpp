@@ -2,6 +2,7 @@
 
 #include <Baldr/Http/FromBody.hpp>
 #include <Baldr/Http/FromParams.hpp>
+#include <Baldr/Http/FromQuery.hpp>
 #include <Baldr/Http/Results/Result.hpp>
 #include <Baldr/Http/Results/TypedResults.hpp>
 
@@ -22,7 +23,29 @@ struct ValidationError
 void TodoController::Register(baldr::WebApplication& app)
 {
     app.MapGroup("/api/todos", [this](auto& group) {
-        group.MapGet("/").Handle([this]() { return mRepository->List(); });
+        group.MapGet("/")
+            .WithSummary("List todos (paged)")
+            .Handle(
+                [this](baldr::FromQuery<PageQuery> q)
+                    -> std::variant<
+                        baldr::JsonResult<ValidationError,
+                                          baldr::StatusCode::BadRequest>,
+                        baldr::JsonResult<TodoPage, baldr::StatusCode::OK>> {
+                    if (!q.isOk())
+                        return baldr::Results::Json<
+                            ValidationError, baldr::StatusCode::BadRequest>(
+                            ValidationError { "query", q.error->message });
+
+                    auto n     = q.value.normalized();
+                    auto items = mRepository->List(n.pageSize, n.offset);
+                    auto total = mRepository->Count();
+                    return baldr::Results::Json<TodoPage,
+                                                baldr::StatusCode::OK>(
+                        TodoPage { .items    = std::move(items),
+                                   .page     = n.page,
+                                   .pageSize = n.pageSize,
+                                   .total    = total });
+                });
 
         group.MapGet("/:id")
             .WithSummary("Get a todo by id")

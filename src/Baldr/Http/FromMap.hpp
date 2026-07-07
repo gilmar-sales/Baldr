@@ -26,6 +26,20 @@ namespace BALDR_NAMESPACE
 {
     namespace detail
     {
+        /// @brief Detects @c std::optional<U>.
+        template <typename T>
+        struct is_optional : std::false_type
+        {
+        };
+
+        template <typename U>
+        struct is_optional<std::optional<U>> : std::true_type
+        {
+        };
+
+        /// @brief Convenience alias for @ref is_optional.
+        template <typename T>
+        inline constexpr bool is_optional_v = is_optional<T>::value;
         /**
          * @brief Value source used by @ref bindFromMap. Each
          *        implementation looks up @p key in the relevant
@@ -94,7 +108,16 @@ namespace BALDR_NAMESPACE
         bool parseMapField(std::string_view raw, T& out)
         {
             using FT = std::remove_cvref_t<T>;
-            if constexpr (std::is_same_v<FT, std::string>)
+            if constexpr (is_optional_v<FT>)
+            {
+                using Inner = typename FT::value_type;
+                Inner tmp {};
+                if (!parseMapField<Inner>(raw, tmp))
+                    return false;
+                out = std::move(tmp);
+                return true;
+            }
+            else if constexpr (std::is_same_v<FT, std::string>)
             {
                 out.assign(raw);
                 return true;
@@ -200,6 +223,11 @@ namespace BALDR_NAMESPACE
                 auto raw = Source::lookup(request, name);
                 if (!raw.has_value())
                 {
+                    if constexpr (is_optional_v<FieldT>)
+                    {
+                        f = std::nullopt;
+                        continue;
+                    }
                     firstError =
                         "Field '" + std::string(name) + "' not present in " +
                         std::string(Source::label());
