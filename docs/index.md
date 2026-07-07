@@ -23,6 +23,12 @@ Whether you're creating REST APIs, backend services, or embedded control interfa
 
     [:octicons-arrow-right-24: Get started](get-started.md)
 
+- :material-school: **Tutorial**
+
+    Six progressive pages covering routing, DI, middleware, static files, and testing.
+
+    [:octicons-arrow-right-24: Tutorial](tutorial/index.md)
+
 - :material-book-open-variant: **Usage**
 
     Learn how routing, dependency injection, and middleware fit together.

@@ -1,0 +1,22 @@
+Scalar API Reference
+====================
+
+This directory contains vendored assets from the Scalar project:
+
+  Project: @scalar/api-reference
+  Version: 1.62.4
+  Source : https://github.com/scalar/scalar
+  License: MIT (https://github.com/scalar/scalar/blob/main/LICENSE)
+
+Files:
+  scalar-reference.js  - dist/browser/standalone.min.js (UMD bundle)
+  styles.css           - dist/style.css
+  index.html           - Baldr-authored wrapper; contains the
+                         __TITLE__, __SPEC_URL__, __JS_URL__,
+                         __STYLES_URL__ and __CONFIGURATION__
+                         placeholders rewritten at runtime when the
+                         helper serves the page.
+
+These files are embedded into the OpenApiExample binary at build time
+via the `baldr_embed_scalar_assets` CMake function. They are not loaded
+from a CDN at runtime.

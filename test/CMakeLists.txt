@@ -1,7 +1,7 @@
 FetchContent_Declare(
   gtest
   GIT_REPOSITORY "https://github.com/google/googletest"
-  GIT_TAG        "main"
+  GIT_TAG        "v1.17.0"
 )
 FetchContent_MakeAvailable(gtest)
 
@@ -17,6 +17,12 @@ target_precompile_headers(Tests_run
    PUBLIC
       <Skirnir/Skirnir.hpp>
       <gtest/gtest.h>
+      <Baldr/Baldr.hpp>
+)
+
+set_target_properties(Tests_run PROPERTIES
+    UNITY_BUILD ON
+    UNITY_BUILD_BATCH_SIZE 4
 )
 
 gtest_discover_tests(Tests_run)

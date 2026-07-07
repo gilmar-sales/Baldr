@@ -25,13 +25,13 @@ add_executable(my_app src/main.cpp)
 target_link_libraries(my_app PRIVATE baldr)
 
 set_target_properties(my_app PROPERTIES
-  CXX_STANDARD 20
+  CXX_STANDARD 26
   CXX_STANDARD_REQUIRED ON
   CXX_EXTENSIONS OFF
 )
 ```
 
-1. Pin to a specific tag in production code (for example `v0.15.1`).
+1. Pin to a specific tag in production code (for example `v0.16.0`).
 
 ## Targets exposed
 
@@ -42,14 +42,14 @@ target_link_libraries(my_app PRIVATE baldr)        # works
 target_link_libraries(my_app PRIVATE baldr::baldr)  # also works
 ```
 
-The target sets `CXX_STANDARD 26` internally. When you link against `baldr`, you should set your own consumer target to at least **C++20**.
+The target sets `CXX_STANDARD 26` internally. When you link against `baldr`, you should set your own consumer target to **C++26** as well.
 
 ## Compile features
 
 The following compile features are required:
 
-- **C++20** — for concepts, `<format>`, designated initializers, and `simdjson`.
-- A compiler that supports `<meta>` and `std::meta::info` reflection is **not** required for consumers; it is used internally by `LoggingMiddleware` and is compiled only when Baldr itself is built.
+- **C++26** — for concepts, `<format>`, designated initializers, `simdjson`, and `std::meta::info` reflection (used by the [OpenAPI extension](../extensions/openapi.md) to auto-derive JSON Schemas from return types via `src/Baldr/OpenApi/JsonSchemaEmitter.cpp`).
+- A compiler with **C++26 reflection support** is required to build Baldr from source. CI installs `gcc-16` on Linux; Clang 17+ with libstdc++ 14+ works in principle, but Clang is not part of the matrix (it does not implement P2996 reflection); MSVC 19.40+ works in principle but is also not part of the matrix.
 
 ## Transitive dependencies
 
@@ -60,21 +60,24 @@ The following compile features are required:
 
 You don't need to declare these yourself — Baldr links them in and propagates their include directories to consumers.
 
+In addition, `CompressionMiddleware` requires **zlib**. Baldr calls `find_package(ZLIB QUIET)` and aborts with a `FATAL_ERROR` if it is missing, so install the development package on your platform (see [Get started](../get-started.md#prerequisites)).
+
 ## Platform notes
 
 ### Linux
 
-- GCC 11+ or Clang 14+ recommended.
-- No additional system packages are required beyond a C++ toolchain, CMake, and Git.
+- GCC 16+ recommended (CI uses `gcc-16`; Clang and MSVC are not part of the matrix because they don't yet implement C++26 reflection).
+- Install `zlib1g-dev` (Debian/Ubuntu) or `zlib-devel` (Fedora/RHEL) for the compression middleware.
 
 ### macOS
 
-- Apple Clang 14+ (Xcode 15) or the official LLVM Clang 14+.
-- No additional system packages are required.
+- Apple Clang 17+ (Xcode 16) or the official LLVM Clang 17+.
+- No additional system packages are required (zlib ships with the platform SDK).
 
 ### Windows
 
-- MSVC 19.30+ (Visual Studio 2022 17.0+) or the latest MSVC Build Tools.
+- MSVC 19.40+ (Visual Studio 2022 17.10+) or the latest MSVC Build Tools.
+- zlib is provided by vcpkg or the platform — install `zlib` via vcpkg or use the version that ships with the Windows SDK.
 - Use `cmake -S . -B build` from a **Developer Command Prompt for VS** or a normal shell if `cl.exe` is on `PATH`.
 
 ## Disabling examples and tests

@@ -10,7 +10,8 @@ struct Payload
 class HelloService
 {
   public:
-    HelloService(const skr::Arc<skr::Logger<HelloService>> logger) : mLogger(logger)
+    HelloService(const skr::Arc<skr::Logger<HelloService>> logger) :
+        mLogger(logger)
     {
     }
 

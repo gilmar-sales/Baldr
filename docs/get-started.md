@@ -8,7 +8,7 @@ This page walks you through the prerequisites, a minimal CMake integration, and 
 
 Before installing Baldr, make sure you have:
 
-- A C++ compiler with **C++20** support — GCC 11+, Clang 14+, or MSVC 19.30+.
+- A C++ compiler with **C++26** support — GCC 16+. The CI build matrix pins `gcc-16` on Linux (Clang and MSVC are not part of the matrix because neither implements C++26 reflection); `gcc-15` and older may fail to compile the codebase.
 - **CMake 3.28** or newer.
 - **Git** — required by CMake's `FetchContent`.
 
@@ -40,13 +40,13 @@ add_executable(my_app src/main.cpp)
 target_link_libraries(my_app PRIVATE baldr)
 
 set_target_properties(my_app PROPERTIES
-  CXX_STANDARD 20
+  CXX_STANDARD 26
   CXX_STANDARD_REQUIRED ON
 )
 ```
 
 !!! tip "Pin to a release tag"
-    In production code, replace `GIT_TAG "main"` with a specific tag (for example `v0.15.1`) so your builds are reproducible.
+    In production code, replace `GIT_TAG "main"` with a specific tag (for example `v0.16.0`) so your builds are reproducible.
 
 ## Hello World
 
@@ -86,7 +86,7 @@ cmake --build build --config Release
 Then open another terminal and request the endpoint:
 
 ```bash
-curl http://localhost:8000/json
+curl http://localhost:8080/json
 ```
 
 You should see:
@@ -106,6 +106,7 @@ The four lines that make Baldr a server are:
 
 ## Next steps
 
+- Work through the [Tutorial](tutorial/index.md) — six pages that build on each other.
 - Learn the full application lifecycle in [Usage overview](usage/overview.md).
 - See a list of runnable examples in [Examples](authoring/examples.md).
 - Browse the complete CMake integration in [Build integration](setup/build.md).

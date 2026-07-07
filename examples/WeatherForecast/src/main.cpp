@@ -1,10 +1,10 @@
 #include <Baldr/Baldr.hpp>
-#include <Baldr/RateLimitMiddleware.hpp>
+
 #include <random>
 
 struct WeatherForecast
 {
-    std::string date;
+    std::string      date;
     std::string_view summary;
 
     int temperatureC;
@@ -21,11 +21,13 @@ int random(const int min, const int max)
 
 int main()
 {
-    auto builder = skr::ApplicationBuilder().WithExtension<BaldrExtension>();
+    auto builder = skr::ApplicationBuilder()
+                       .WithExtension<baldr::BaldrExtension>()
+                       .WithExtension<baldr::BaldrOpenApiExtension>();
 
-    auto app = builder.Build<WebApplication>();
+    auto app = builder.Build<baldr::WebApplication>();
 
-    app->MapGet("/", [] {
+    app->MapGet("/").Handle([] {
         auto forecast = std::vector<WeatherForecast>(5);
 
         static auto summaries =
@@ -47,6 +49,9 @@ int main()
 
         return forecast;
     });
+
+    baldr::MapOpenApi(*app);
+    baldr::MapScalarUi(*app);
 
     app->Run();
 
