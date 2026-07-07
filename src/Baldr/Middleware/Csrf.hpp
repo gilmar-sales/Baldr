@@ -104,8 +104,8 @@ namespace BALDR_NAMESPACE
 
             if (unsafe && !exempt)
             {
-                const auto lowered = baldr::toLowerAscii(mOptions.headerName);
-                auto headerIt     = request.headers.find(lowered);
+                const auto lowered  = baldr::toLowerAscii(mOptions.headerName);
+                auto       headerIt = request.headers.find(lowered);
                 if (headerIt == request.headers.end() ||
                     headerIt->second.empty())
                 {
@@ -134,11 +134,11 @@ namespace BALDR_NAMESPACE
                 {
                     std::string   token = generateToken();
                     CookieOptions opts;
-                    opts.value     = token;
-                    opts.httpOnly  = mOptions.cookieHttpOnly;
-                    opts.secure    = mOptions.cookieSecure;
-                    opts.maxAge    = mOptions.cookieMaxAge;
-                    opts.sameSite  = mOptions.cookieSameSite;
+                    opts.value    = token;
+                    opts.httpOnly = mOptions.cookieHttpOnly;
+                    opts.secure   = mOptions.cookieSecure;
+                    opts.maxAge   = mOptions.cookieMaxAge;
+                    opts.sameSite = mOptions.cookieSameSite;
                     response.cookies[mOptions.cookieName] = opts;
                 }
             }
@@ -147,6 +147,12 @@ namespace BALDR_NAMESPACE
         }
 
       private:
+        /**
+         * @brief Constant-time string equality. Length is compared first
+         *        (variable-time), then the byte XOR accumulator is OR-folded
+         *        across every character so the comparison does not leak the
+         *        position of the first mismatch.
+         */
         static bool constantTimeEqual(std::string_view a, std::string_view b)
         {
             if (a.size() != b.size())
@@ -161,6 +167,11 @@ namespace BALDR_NAMESPACE
             return acc == 0;
         }
 
+        /**
+         * @brief @c true when @p path is covered by any prefix in
+         *        @c mOptions.exemptPathPrefixes (e.g. the OpenAPI docs
+         *        endpoints that the CSRF policy always opts out of).
+         */
         bool isExempt(const std::string& path) const
         {
             for (const auto& prefix : mOptions.exemptPathPrefixes)
@@ -174,6 +185,12 @@ namespace BALDR_NAMESPACE
             return false;
         }
 
+        /**
+         * @brief Generate a fresh CSRF token (128 bits of entropy, hex
+         *        encoded). Sufficient for the double-submit pattern when
+         *        the cookie is bound to a session origin via
+         *        @c SameSite / @c Secure.
+         */
         static std::string generateToken()
         {
             // 128 bits of entropy from std::random_device + mt19937_64;
@@ -182,6 +199,10 @@ namespace BALDR_NAMESPACE
             return RandomHex(32);
         }
 
+        /**
+         * @brief Write a 403 Forbidden text response with @p message as the
+         *        body.
+         */
         void reject(HttpResponse& response, const std::string& message)
         {
             response.statusCode              = StatusCode::Forbidden;

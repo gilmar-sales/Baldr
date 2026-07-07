@@ -109,10 +109,12 @@ namespace BALDR_NAMESPACE
         static constexpr StatusCode  StatusCodeV    = Status;
         static constexpr const char* DefaultSchemaV = "{}";
 
+        /// @copydoc IResult::ContentTypeFor
         [[nodiscard]] std::string_view ContentTypeFor() const override
         {
             return {};
         }
+        /// @copydoc IResult::SchemaJsonFor
         [[nodiscard]] std::string_view SchemaJsonFor() const override
         {
             return "{}";
@@ -154,14 +156,17 @@ namespace BALDR_NAMESPACE
             return OkResult(std::move(body));
         }
 
+        /// @copydoc IResult::StatusFor
         [[nodiscard]] StatusCode StatusFor() const override
         {
             return StatusCode::OK;
         }
+        /// @copydoc IResult::ContentTypeFor
         [[nodiscard]] std::string_view ContentTypeFor() const override
         {
             return "text/plain";
         }
+        /// @copydoc TypedResult::BodyFor
         [[nodiscard]] std::string BodyFor() const override { return mBody; }
 
       private:
@@ -178,14 +183,17 @@ namespace BALDR_NAMESPACE
         {
         }
 
+        /// @copydoc IResult::StatusFor
         [[nodiscard]] StatusCode StatusFor() const override
         {
             return StatusCode::Created;
         }
+        /// @copydoc IResult::ContentTypeFor
         [[nodiscard]] std::string_view ContentTypeFor() const override
         {
             return "text/plain";
         }
+        /// @copydoc TypedResult::BodyFor
         [[nodiscard]] std::string BodyFor() const override { return mBody; }
 
       private:
@@ -197,6 +205,7 @@ namespace BALDR_NAMESPACE
         : public EmptyBodyTypedResult<NoContentResult, StatusCode::NoContent>
     {
       public:
+        /// @copydoc IResult::StatusFor
         [[nodiscard]] StatusCode StatusFor() const override
         {
             return StatusCode::NoContent;
@@ -213,14 +222,17 @@ namespace BALDR_NAMESPACE
         {
         }
 
+        /// @copydoc IResult::StatusFor
         [[nodiscard]] StatusCode StatusFor() const override
         {
             return StatusCode::BadRequest;
         }
+        /// @copydoc IResult::ContentTypeFor
         [[nodiscard]] std::string_view ContentTypeFor() const override
         {
             return "text/plain";
         }
+        /// @copydoc TypedResult::BodyFor
         [[nodiscard]] std::string BodyFor() const override { return mBody; }
 
       private:
@@ -238,14 +250,17 @@ namespace BALDR_NAMESPACE
         {
         }
 
+        /// @copydoc IResult::StatusFor
         [[nodiscard]] StatusCode StatusFor() const override
         {
             return StatusCode::Unauthorized;
         }
+        /// @copydoc IResult::ContentTypeFor
         [[nodiscard]] std::string_view ContentTypeFor() const override
         {
             return "text/plain";
         }
+        /// @copydoc TypedResult::BodyFor
         [[nodiscard]] std::string BodyFor() const override { return mBody; }
 
       private:
@@ -262,14 +277,17 @@ namespace BALDR_NAMESPACE
         {
         }
 
+        /// @copydoc IResult::StatusFor
         [[nodiscard]] StatusCode StatusFor() const override
         {
             return StatusCode::Forbidden;
         }
+        /// @copydoc IResult::ContentTypeFor
         [[nodiscard]] std::string_view ContentTypeFor() const override
         {
             return "text/plain";
         }
+        /// @copydoc TypedResult::BodyFor
         [[nodiscard]] std::string BodyFor() const override { return mBody; }
 
       private:
@@ -286,14 +304,17 @@ namespace BALDR_NAMESPACE
         {
         }
 
+        /// @copydoc IResult::StatusFor
         [[nodiscard]] StatusCode StatusFor() const override
         {
             return StatusCode::NotFound;
         }
+        /// @copydoc IResult::ContentTypeFor
         [[nodiscard]] std::string_view ContentTypeFor() const override
         {
             return "text/plain";
         }
+        /// @copydoc TypedResult::BodyFor
         [[nodiscard]] std::string BodyFor() const override { return mBody; }
 
       private:
@@ -310,14 +331,17 @@ namespace BALDR_NAMESPACE
         {
         }
 
+        /// @copydoc IResult::StatusFor
         [[nodiscard]] StatusCode StatusFor() const override
         {
             return StatusCode::Conflict;
         }
+        /// @copydoc IResult::ContentTypeFor
         [[nodiscard]] std::string_view ContentTypeFor() const override
         {
             return "text/plain";
         }
+        /// @copydoc TypedResult::BodyFor
         [[nodiscard]] std::string BodyFor() const override { return mBody; }
 
       private:
@@ -335,14 +359,17 @@ namespace BALDR_NAMESPACE
         {
         }
 
+        /// @copydoc IResult::StatusFor
         [[nodiscard]] StatusCode StatusFor() const override
         {
             return StatusCode::UnprocessableEntity;
         }
+        /// @copydoc IResult::ContentTypeFor
         [[nodiscard]] std::string_view ContentTypeFor() const override
         {
             return "text/plain";
         }
+        /// @copydoc TypedResult::BodyFor
         [[nodiscard]] std::string BodyFor() const override { return mBody; }
 
       private:
@@ -360,14 +387,17 @@ namespace BALDR_NAMESPACE
         {
         }
 
+        /// @copydoc IResult::StatusFor
         [[nodiscard]] StatusCode StatusFor() const override
         {
             return StatusCode::InternalServerError;
         }
+        /// @copydoc IResult::ContentTypeFor
         [[nodiscard]] std::string_view ContentTypeFor() const override
         {
             return "text/plain";
         }
+        /// @copydoc TypedResult::BodyFor
         [[nodiscard]] std::string BodyFor() const override { return mBody; }
 
       private:

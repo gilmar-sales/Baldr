@@ -94,6 +94,11 @@ namespace BALDR_NAMESPACE
         }
 
       private:
+        /**
+         * @brief Append @c trace=<id> (and @c span=<id> when sampled) to
+         *        @p out when @p tc is valid. No-op when the request had no
+         *        @c traceparent.
+         */
         static void appendTraceSuffix(const TraceContext& tc, std::string& out)
         {
             if (!tc.valid)

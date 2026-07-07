@@ -31,6 +31,14 @@
 namespace BALDR_NAMESPACE
 {
 
+    /**
+     * @brief Forward declaration of the JSON-Schema registry held by the
+     *        @ref Router.
+     *
+     * Defined in @ref OpenApi/SpecBuilder.hpp. Holding an
+     * @c skr::Arc<SchemaRegistry> hides the concrete storage from the
+     * router header.
+     */
     class SchemaRegistry;
 
     /**
@@ -54,7 +62,7 @@ namespace BALDR_NAMESPACE
      */
     struct RouteEntry
     {
-        /// Discriminator for entries in @ref paramSegments.
+        /// @brief Discriminator for entries in @ref paramSegments.
         enum class SegmentKind
         {
             Literal, ///< Exact byte-for-byte segment match.
@@ -62,7 +70,7 @@ namespace BALDR_NAMESPACE
             Greedy,  ///< @c **   — captures any trailing path (or empty).
         };
 
-        /// One element of the decomposed route template.
+        /// @brief One element of the decomposed route template.
         struct ParamSegment
         {
             SegmentKind kind = SegmentKind::Literal;

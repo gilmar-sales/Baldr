@@ -29,8 +29,22 @@ namespace BALDR_NAMESPACE
         Connect  ///< @c CONNECT (not routed by default)
     };
 
+    /**
+     * @brief Parse an HTTP method token (case-sensitive, upper-case as on the
+     * wire).
+     *
+     * @param method ASCII method token from the request line.
+     * @return The matching @ref HttpMethod, or @c std::nullopt if @p method
+     *         is not one of the recognised values.
+     */
     std::optional<HttpMethod> parseMethod(std::string_view method);
 
+    /**
+     * @brief Return the canonical wire-form string for a method.
+     *
+     * @param m Method to convert.
+     * @return Pointer to a static, NUL-terminated string such as @c "GET".
+     */
     const char* MethodToString(HttpMethod m);
 
 } // namespace BALDR_NAMESPACE

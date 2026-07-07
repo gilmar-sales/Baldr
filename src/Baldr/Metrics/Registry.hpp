@@ -19,10 +19,22 @@
 namespace BALDR_NAMESPACE
 {
 
+    /**
+     * @brief Process-singleton metrics registry declared above.
+     *
+     * Declared here so the public type can be referenced through a
+     * shared-pointer alias before its full definition appears.
+     */
     class MetricsRegistry;
 
     namespace detail
     {
+        /**
+         * @brief Pimpl body for @ref MetricsRegistry.
+         *
+         * Holds the mutex, counters, and per-route histograms so the
+         * public header stays free of STL container noise.
+         */
         struct MetricsRegistryImpl;
     } // namespace detail
 

@@ -104,6 +104,11 @@ namespace BALDR_NAMESPACE
         }
 
       private:
+        /**
+         * @brief Per-worker entry point: block on @c mCondition, pop the
+         *        next task and run it. Exits when @c mStop is set and the
+         *        queue is drained.
+         */
         void workerLoop()
         {
             while (true)

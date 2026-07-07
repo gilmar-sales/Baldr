@@ -85,6 +85,7 @@ namespace BALDR_NAMESPACE
         {
         }
 
+        /// @copydoc IResult::Apply
         void Apply(HttpResponse& response) const override
         {
             response.body                    = mBody;
@@ -92,7 +93,9 @@ namespace BALDR_NAMESPACE
             response.headers["Content-Type"] = "text/plain";
         }
 
+        /// @copydoc IResult::StatusFor
         [[nodiscard]] StatusCode StatusFor() const override { return mStatus; }
+        /// @copydoc IResult::ContentTypeFor
         [[nodiscard]] std::string_view ContentTypeFor() const override
         {
             return "text/plain";
@@ -118,16 +121,20 @@ namespace BALDR_NAMESPACE
         /// @brief Construct a status-only response.
         explicit StatusResult(StatusCode status) : mStatus(status) {}
 
+        /// @copydoc IResult::Apply
         void Apply(HttpResponse& response) const override
         {
             response.statusCode = mStatus;
         }
 
+        /// @copydoc IResult::StatusFor
         [[nodiscard]] StatusCode StatusFor() const override { return mStatus; }
+        /// @copydoc IResult::ContentTypeFor
         [[nodiscard]] std::string_view ContentTypeFor() const override
         {
             return {};
         }
+        /// @copydoc IResult::SchemaJsonFor
         [[nodiscard]] std::string_view SchemaJsonFor() const override
         {
             return "{}";
@@ -164,6 +171,7 @@ namespace BALDR_NAMESPACE
         {
         }
 
+        /// @copydoc IResult::Apply
         void Apply(HttpResponse& response) const override
         {
             response.body                    = mBody;
@@ -171,7 +179,9 @@ namespace BALDR_NAMESPACE
             response.headers["Content-Type"] = mContentType;
         }
 
+        /// @copydoc IResult::StatusFor
         [[nodiscard]] StatusCode StatusFor() const override { return mStatus; }
+        /// @copydoc IResult::ContentTypeFor
         [[nodiscard]] std::string_view ContentTypeFor() const override
         {
             return mContentType;

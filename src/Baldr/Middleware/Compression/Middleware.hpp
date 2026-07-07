@@ -71,8 +71,16 @@ namespace BALDR_NAMESPACE
                     const NextMiddleware& next) override;
 
       private:
+        /**
+         * @brief ASCII-only @c std::tolower replacement (the locale-independent
+         *        variant required for HTTP header parsing).
+         */
         static std::string toLowerAscii(std::string_view s);
 
+        /**
+         * @brief @c true when @p ctype's @c "/" subtype matches one of the
+         *        @c prefixes (e.g. @c "text/", @c "application/json").
+         */
         static bool mimeAllowed(
             const std::string&                     ctype,
             const std::unordered_set<std::string>& prefixes);

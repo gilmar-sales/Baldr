@@ -134,6 +134,10 @@ namespace BALDR_NAMESPACE
         }
 
       private:
+        /**
+         * @brief Generate a fresh request identifier (16 hex chars =
+         *        64 bits of entropy).
+         */
         static std::string generate() { return RandomHex(16); }
 
         RequestIdOptions mOptions;

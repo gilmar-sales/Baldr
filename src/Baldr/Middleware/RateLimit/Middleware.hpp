@@ -90,6 +90,16 @@ namespace BALDR_NAMESPACE
             return false;
         }
 
+        /**
+         * @brief Resolve the per-client bucket key from
+         *        @ref RateLimitOptions. When @c useForwardedFor is @c true,
+         *        the leftmost non-private entry of @c X-Forwarded-For is
+         *        preferred over @c clientIp; otherwise @c clientIp is used.
+         *
+         * @param request The incoming request.
+         * @return Stable key string identifying the bucket for rate-limit
+         *         accounting.
+         */
         std::string pickKey(const HttpRequest& request) const
         {
             if (!mUseForwardedFor)

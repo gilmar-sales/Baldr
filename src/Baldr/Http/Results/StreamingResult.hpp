@@ -96,6 +96,7 @@ namespace BALDR_NAMESPACE
         {
         }
 
+        /// @copydoc IStreamingResult::nextChunk
         bool nextChunk(std::string& out) const override
         {
             if (!mProducer)

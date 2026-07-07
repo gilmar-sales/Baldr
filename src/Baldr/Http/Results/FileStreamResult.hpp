@@ -57,6 +57,7 @@ namespace BALDR_NAMESPACE
         {
         }
 
+        /// @copydoc IStreamingResult::headers
         void headers(std::vector<std::pair<std::string, std::string>>& out)
             const override
         {
@@ -74,6 +75,7 @@ namespace BALDR_NAMESPACE
                              disposition + "; filename=\"" + safeName + "\"");
         }
 
+        /// @copydoc IStreamingResult::nextChunk
         bool nextChunk(std::string& out) const override
         {
             if (!mFile || mFile.eof())

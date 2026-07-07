@@ -123,6 +123,11 @@ namespace BALDR_NAMESPACE
         }
 
       private:
+        /**
+         * @brief Per-client token-bucket state plus an iterator into the
+         *        LRU list used to evict the oldest client when
+         *        @c mMaxTrackedClients is exceeded.
+         */
         struct ClientData
         {
             size_t                                tokens = 0;

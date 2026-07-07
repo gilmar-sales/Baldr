@@ -15,6 +15,14 @@
 namespace BALDR_NAMESPACE
 {
 
+    /**
+     * @brief Forward declaration of the streaming-result interface stored in
+     *        @ref HttpResponse::streaming.
+     *
+     * The concrete type is declared in
+     * @ref Http/Results/StreamingResult.hpp; only a forward declaration is
+     * needed here to break the include cycle.
+     */
     class IStreamingResult;
 
     /**
