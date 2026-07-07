@@ -172,7 +172,7 @@ namespace BALDR_NAMESPACE
             return out;
         }
 
-        auto decodedPath = decode_path(std::string(pathView));
+        auto decodedPath = decode_path(pathView);
         if (!decodedPath.has_value())
         {
             out.error      = "Invalid URL encoding in path";
@@ -234,38 +234,72 @@ namespace BALDR_NAMESPACE
         auto queryIndex = out.request.path.find('?');
         if (queryIndex != std::string::npos)
         {
-            auto params =
-                std::string_view(out.request.path.begin() + queryIndex + 1,
-                                 out.request.path.end());
-            for (const auto& part : params | std::views::split('&'))
+            std::string_view params(out.request.path.data() + queryIndex + 1,
+                                    out.request.path.size() - queryIndex - 1);
+            std::size_t      pos = 0;
+            auto            failQuery = [&](const char* msg) {
+                out.error      = msg;
+                out.statusCode = StatusCode::BadRequest;
+            };
+            bool failed = false;
+            while (pos < params.size())
             {
-                std::string pair(part.begin(), part.end());
-                auto        equalsIndex = pair.find('=');
-                if (equalsIndex != std::string::npos)
+                std::size_t amp = params.find('&', pos);
+                if (amp == std::string_view::npos)
+                    amp = params.size();
+                std::string_view part = params.substr(pos, amp - pos);
+                pos                  = amp + 1;
+                if (part.empty())
+                    continue;
+                std::size_t eq = part.find('=');
+                std::string_view keySv =
+                    (eq == std::string_view::npos) ? part : part.substr(0, eq);
+                std::string_view valSv =
+                    (eq == std::string_view::npos)
+                        ? std::string_view {}
+                        : part.substr(eq + 1);
+                while (!keySv.empty() && (keySv.front() == ' ' || keySv.front() == '\t'))
+                    keySv.remove_prefix(1);
+                while (!keySv.empty() &&
+                       (keySv.back() == ' ' || keySv.back() == '\t'))
+                    keySv.remove_suffix(1);
+                while (!valSv.empty() && (valSv.front() == ' ' || valSv.front() == '\t'))
+                    valSv.remove_prefix(1);
+                while (!valSv.empty() &&
+                       (valSv.back() == ' ' || valSv.back() == '\t'))
+                    valSv.remove_suffix(1);
+                auto key   = decode_path(keySv);
+                auto value = decode_path(valSv);
+                if (eq == std::string_view::npos)
                 {
-                    auto key = decode_path(trim(pair.substr(0, equalsIndex)));
-                    auto value =
-                        decode_path(trim(pair.substr(equalsIndex + 1)));
-                    if (!key.has_value() || !value.has_value())
+                    if (!key.has_value())
                     {
-                        out.error      = "Invalid URL encoding in query";
-                        out.statusCode = StatusCode::BadRequest;
-                        return out;
+                        failQuery("Invalid URL encoding in query");
+                        failed = true;
+                        break;
                     }
-                    if (containsLiteralPercent00(key.value()) ||
-                        containsLiteralPercent00(value.value()))
-                    {
-                        out.error      = "Invalid URL encoding in query";
-                        out.statusCode = StatusCode::BadRequest;
-                        return out;
-                    }
-                    out.request.query.emplace(key.value(), value.value());
+                    out.request.query.emplace(std::move(*key), std::string {});
                 }
                 else
                 {
-                    out.request.query[pair] = "";
+                    if (!key.has_value() || !value.has_value())
+                    {
+                        failQuery("Invalid URL encoding in query");
+                        failed = true;
+                        break;
+                    }
+                    if (containsLiteralPercent00(*key) ||
+                        containsLiteralPercent00(*value))
+                    {
+                        failQuery("Invalid URL encoding in query");
+                        failed = true;
+                        break;
+                    }
+                    out.request.query.emplace(std::move(*key), std::move(*value));
                 }
             }
+            if (failed)
+                return out;
             out.request.path.resize(queryIndex);
         }
 

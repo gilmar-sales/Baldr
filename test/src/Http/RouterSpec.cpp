@@ -332,6 +332,16 @@ TEST_F(RouterSpec, RouterRejectsGreedyCatchAllNotTerminal)
                  std::invalid_argument);
 }
 
+TEST_F(RouterSpec, RouterMatchesLiteralSegmentsWithoutRegexMetacharExpansion)
+{
+    mRouter->insert(baldr::HttpMethod::Get, "/a.b",
+                    [](baldr::HttpRequest&, baldr::HttpResponse&,
+                       skr::Arc<skr::ServiceProvider>) {});
+
+    EXPECT_TRUE(mRouter->match(baldr::HttpMethod::Get, "/a.b").has_value());
+    EXPECT_FALSE(mRouter->match(baldr::HttpMethod::Get, "/aXb").has_value());
+}
+
 TEST_F(RouterSpec, RouterLiteralSegmentTakesPrecedenceOverGreedyCatchAll)
 {
     mRouter->insert(baldr::HttpMethod::Get, "/static/**",

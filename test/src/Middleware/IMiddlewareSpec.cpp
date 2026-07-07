@@ -34,6 +34,33 @@ TEST_F(MiddlewareSpec, CorsMiddlewareSetsAccessControlHeaders)
               mResponse.headers.end());
 }
 
+TEST_F(MiddlewareSpec,
+       CorsMiddlewareWithCredentialsDoesNotEmitWildcardOrigin)
+{
+    baldr::CorsOptions opts;
+    opts.allowCredentials = true;
+    baldr::CorsMiddleware cors(std::move(opts));
+    mRequest.headers["origin"] = "https://app.example.com";
+    cors.Handle(mRequest, mResponse, [&]() {});
+
+    EXPECT_EQ(mResponse.headers.at("Access-Control-Allow-Origin"),
+              "https://app.example.com");
+    EXPECT_EQ(mResponse.headers.at("Access-Control-Allow-Credentials"),
+              "true");
+    EXPECT_EQ(mResponse.headers.at("Vary"), "Origin");
+}
+
+TEST_F(MiddlewareSpec, CorsMiddlewareDefaultNoOriginHeaderOmitsOriginHeader)
+{
+    baldr::CorsOptions opts;
+    opts.allowCredentials = true;
+    baldr::CorsMiddleware cors(std::move(opts));
+    cors.Handle(mRequest, mResponse, [&]() {});
+
+    EXPECT_FALSE(mResponse.headers.contains("Access-Control-Allow-Origin"));
+    EXPECT_FALSE(mResponse.headers.contains("Access-Control-Allow-Credentials"));
+}
+
 TEST_F(MiddlewareSpec, CorsMiddlewareShortCircuitsOnOptions)
 {
     baldr::CorsMiddleware cors;

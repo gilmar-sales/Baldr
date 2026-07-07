@@ -20,8 +20,12 @@ namespace BALDR_NAMESPACE
      */
     struct CorsOptions
     {
-        /// Value sent in @c Access-Control-Allow-Origin.
-        std::string allowOrigin = "*";
+        /// Value sent in @c Access-Control-Allow-Origin. Default empty —
+        /// the middleware will reflect the request @c Origin header when
+        /// set, falling back to @c "*" only when credentials are off.
+        /// Spec forbids emitting @c Access-Control-Allow-Origin: *
+        /// together with @c Allow-Credentials: true (browsers reject).
+        std::string allowOrigin = "";
         /// Methods advertised in @c Access-Control-Allow-Methods.
         std::unordered_set<std::string> allowMethods = {
             "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
@@ -59,15 +63,41 @@ namespace BALDR_NAMESPACE
                     HttpResponse&         response,
                     const NextMiddleware& next) override
         {
-            response.headers["Access-Control-Allow-Origin"] =
-                mOptions.allowOrigin;
+            // Per the CORS spec (Fetch §3.2.5), wildcard origins are
+            // forbidden alongside credentials. Resolve the effective
+            // origin accordingly: a configured allowOrigin always wins,
+            // otherwise echo the request Origin, otherwise fall back to
+            // "*" — but only when credentials are off.
+            const bool creds = mOptions.allowCredentials;
+            std::string originToEmit;
+            if (!mOptions.allowOrigin.empty())
+            {
+                originToEmit = mOptions.allowOrigin;
+            }
+            else
+            {
+                const auto it = request.headers.find("origin");
+                if (it != request.headers.end() && !it->second.empty())
+                {
+                    originToEmit = it->second;
+                    response.headers["Vary"] = "Origin";
+                }
+                else if (!creds)
+                {
+                    originToEmit = "*";
+                }
+            }
+
+            if (!originToEmit.empty())
+                response.headers["Access-Control-Allow-Origin"] =
+                    originToEmit;
             response.headers["Access-Control-Allow-Methods"] =
                 join(mOptions.allowMethods, ", ");
             response.headers["Access-Control-Allow-Headers"] =
                 join(mOptions.allowHeaders, ", ");
             response.headers["Access-Control-Max-Age"] =
                 std::to_string(mOptions.maxAge);
-            if (mOptions.allowCredentials)
+            if (creds && !originToEmit.empty() && originToEmit != "*")
                 response.headers["Access-Control-Allow-Credentials"] = "true";
 
             if (request.method == HttpMethod::Options)

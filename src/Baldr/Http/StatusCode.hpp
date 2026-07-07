@@ -7,6 +7,7 @@
 #include <Baldr/Detail/Namespace.hpp>
 
 #include <iostream>
+#include <string_view>
 
 namespace BALDR_NAMESPACE
 {
@@ -97,5 +98,17 @@ namespace BALDR_NAMESPACE
 
         return os;
     }
+
+    /**
+     * @brief Look up the canonical IANA reason phrase for @p code.
+     *
+     * Returns an empty view for unrecognised codes so the caller can emit
+     * the status line without a reason phrase (RFC 9110 §15 — the phrase
+     * is optional).
+     *
+     * @param code The status code to translate.
+     * @return Reason phrase text (no trailing CR/LF) or empty view.
+     */
+    std::string_view reasonPhraseFor(StatusCode code) noexcept;
 
 } // namespace BALDR_NAMESPACE

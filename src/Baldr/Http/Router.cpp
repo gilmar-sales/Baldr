@@ -3,7 +3,6 @@
 
 #include <map>
 #include <mutex>
-#include <regex>
 #include <shared_mutex>
 #include <stack>
 #include <stdexcept>
@@ -14,6 +13,32 @@
 
 namespace BALDR_NAMESPACE
 {
+
+    namespace
+    {
+        std::vector<std::string_view> splitPath(std::string_view path)
+        {
+            std::vector<std::string_view> out;
+            std::size_t                   pos = 0;
+            // Skip the leading slash so the first segment isn't empty.
+            if (!path.empty() && path.front() == '/')
+                pos = 1;
+            while (pos <= path.size())
+            {
+                std::size_t slash = path.find('/', pos);
+                if (slash == std::string_view::npos)
+                {
+                    if (pos < path.size())
+                        out.push_back(path.substr(pos));
+                    break;
+                }
+                if (slash > pos)
+                    out.push_back(path.substr(pos, slash - pos));
+                pos = slash + 1;
+            }
+            return out;
+        }
+    } // namespace
 
     struct TrieNode
     {
@@ -34,22 +59,47 @@ namespace BALDR_NAMESPACE
         const std::string& path) const
     {
         std::unordered_map<std::string, std::string> params;
-
-        if (!hasParams)
-        {
+        if (!hasParams || paramSegments.empty())
             return params;
-        }
 
-        std::smatch match;
+        const std::vector<std::string_view> segs = splitPath(path);
+        const std::size_t                   n    = paramSegments.size();
+        std::size_t                         si   = 0;
 
-        if (std::regex_match(path, match, extractParamsRegex))
+        for (std::size_t pi = 0; pi < n; ++pi)
         {
-            for (size_t i = 0; i < paramsNames.size(); ++i)
+            const ParamSegment& seg = paramSegments[pi];
+            if (seg.kind == SegmentKind::Greedy)
             {
-                params[paramsNames[i]] = match[i + 1];
+                params[seg.text] = segs.empty() ? std::string {} : [&]() {
+                    std::string joined;
+                    for (std::size_t i = si; i < segs.size(); ++i)
+                    {
+                        if (i > si)
+                            joined.push_back('/');
+                        joined.append(segs[i]);
+                    }
+                    return joined;
+                }();
+                return params;
             }
+            if (si >= segs.size())
+                return params;
+            if (seg.kind == SegmentKind::Literal)
+            {
+                if (segs[si] != seg.text)
+                    return params;
+            }
+            else
+            {
+                params[seg.text] = std::string(segs[si]);
+            }
+            ++si;
         }
-
+        // Trailing literal segments after a `:name` must consume exactly
+        // the same number of segments — already enforced above.
+        if (si != segs.size())
+            return params;
         return params;
     }
 
@@ -87,9 +137,7 @@ namespace BALDR_NAMESPACE
     {
         auto root = mMethodsMap.at(method).get();
 
-        auto pathSegments =
-            path | std::views::split('/') |
-            std::views::filter([](const auto& s) { return s.size() > 0; });
+        const std::vector<std::string_view> pathSegments = splitPath(path);
 
         auto joinTemplate = [](const std::vector<std::string>& parts) {
             std::string out;
@@ -117,19 +165,28 @@ namespace BALDR_NAMESPACE
 
         struct Frame
         {
-            TrieNode*                      node;
-            decltype(pathSegments.begin()) index;
-            std::vector<std::string>       parts;
+            TrieNode*                node;
+            std::size_t              index;
+            std::vector<std::string> parts;
+            std::size_t              partsSize;
         };
 
-        auto stack = std::stack<Frame>({ { root, pathSegments.begin(), {} } });
+        std::vector<Frame> stack;
+        stack.reserve(8);
+        stack.push_back({ root, 0, {}, 0 });
 
         while (!stack.empty())
         {
-            auto [node, index, parts] = stack.top();
-            stack.pop();
+            Frame frame = std::move(stack.back());
+            stack.pop_back();
 
-            if (index == pathSegments.end())
+            TrieNode*        node      = frame.node;
+            std::size_t      index     = frame.index;
+            std::size_t      partsSize = frame.partsSize;
+            std::vector<std::string> parts = std::move(frame.parts);
+            parts.resize(partsSize);
+
+            if (index == pathSegments.size())
             {
                 if (node->isEndOfPath)
                 {
@@ -138,42 +195,46 @@ namespace BALDR_NAMESPACE
                 }
 
                 if (node->children.contains("**") &&
-                    node->children["**"]->isEndOfPath)
+                    node->children.at("**")->isEndOfPath)
                 {
-                    auto childParts = parts;
-                    childParts.emplace_back("**");
-                    outTemplate = joinTemplate(childParts);
-                    return node->children["**"]->routeEntry;
+                    parts.emplace_back("**");
+                    outTemplate = joinTemplate(parts);
+                    return node->children.at("**")->routeEntry;
                 }
 
                 continue;
             }
 
-            const auto& segment = std::string((*index).begin(), (*index).end());
+            const std::string segment(pathSegments[index]);
+
+            auto pushFrame = [&](TrieNode* nextNode, std::size_t nextIndex,
+                                 std::size_t nextPartsSize, std::string extra) {
+                Frame next { nextNode, nextIndex, {}, nextPartsSize };
+                next.parts.reserve(nextPartsSize);
+                for (std::size_t i = 0; i < partsSize; ++i)
+                    next.parts.push_back(std::move(parts[i]));
+                if (!extra.empty())
+                    next.parts.emplace_back(std::move(extra));
+                stack.push_back(std::move(next));
+            };
 
             if (node->children.contains("**") &&
-                node->children["**"]->isEndOfPath)
+                node->children.at("**")->isEndOfPath)
             {
-                auto childParts = parts;
-                childParts.emplace_back("**");
-                stack.push(Frame { node->children["**"].get(),
-                                   pathSegments.end(), std::move(childParts) });
+                pushFrame(node->children.at("**").get(),
+                          pathSegments.size(), partsSize + 1, "**");
             }
 
             if (node->children.contains(segment))
             {
-                auto childParts = parts;
-                childParts.emplace_back(segment);
-                stack.push(Frame { node->children[segment].get(),
-                                   std::next(index), std::move(childParts) });
+                pushFrame(node->children.at(segment).get(), index + 1,
+                          partsSize + 1, std::string(segment));
             }
 
             if (node->children.contains("*"))
             {
-                auto childParts = parts;
-                childParts.emplace_back("*");
-                stack.push(Frame { node->children["*"].get(), std::next(index),
-                                   std::move(childParts) });
+                pushFrame(node->children.at("*").get(), index + 1,
+                          partsSize + 1, "*");
             }
         }
 
@@ -208,12 +269,11 @@ namespace BALDR_NAMESPACE
     {
         std::unique_lock lock(mImpl->mMutex);
         TrieNode*        current = mImpl->mMethodsMap.at(method).get();
-        RouteEntry routeEntry = makeEntry(method, path, std::move(options),
-                                          std::move(groupPrefix), routeHandler);
+        RouteEntry      routeEntry =
+            makeEntry(method, path, std::move(options),
+                      std::move(groupPrefix), routeHandler);
 
-        auto pathSegments =
-            path | std::views::split('/') |
-            std::views::filter([](const auto& s) { return s.size() > 0; });
+        const std::vector<std::string_view> pathSegments = splitPath(path);
 
         if (pathSegments.empty())
         {
@@ -230,14 +290,12 @@ namespace BALDR_NAMESPACE
             return;
         }
 
-        std::string regexStr      = "^/";
         bool        greedySet     = false;
         std::size_t wildcardCount = 0;
 
-        for (auto segment : pathSegments)
+        for (std::string_view sv : pathSegments)
         {
-            auto sv = std::string(segment.begin(), segment.end());
-
+            std::string trieKey;
             if (sv == "**")
             {
                 if (greedySet)
@@ -250,10 +308,11 @@ namespace BALDR_NAMESPACE
                     throw std::invalid_argument(
                         "Router: route contains too many wildcard segments");
                 routeEntry.paramsNames.emplace_back("filepath");
-                regexStr += "(?:/(.*))?";
-                sv = "**";
+                routeEntry.paramSegments.push_back(
+                    { RouteEntry::SegmentKind::Greedy, "filepath" });
+                trieKey = "**";
             }
-            else if (sv.starts_with(':'))
+            else if (sv.size() > 1 && sv.front() == ':')
             {
                 if (greedySet)
                     throw std::invalid_argument(
@@ -263,31 +322,30 @@ namespace BALDR_NAMESPACE
                 if (wildcardCount > kMaxWildcardSegments)
                     throw std::invalid_argument(
                         "Router: route contains too many wildcard segments");
-                routeEntry.paramsNames.emplace_back(sv.substr(1));
-                regexStr += "([^/]+)/?";
-                sv = "*";
+                const std::string name(sv.substr(1));
+                routeEntry.paramsNames.push_back(name);
+                routeEntry.paramSegments.push_back(
+                    { RouteEntry::SegmentKind::Single, name });
+                trieKey = "*";
             }
             else
             {
                 if (greedySet)
                     throw std::invalid_argument(
                         "Router: '**' must be the final segment");
-
-                regexStr += sv;
-                regexStr += "/?";
+                routeEntry.paramSegments.push_back(
+                    { RouteEntry::SegmentKind::Literal, std::string(sv) });
+                trieKey = std::string(sv);
             }
 
-            if (!current->children.contains(sv))
+            if (!current->children.contains(trieKey))
             {
-                current->children[sv] = std::make_unique<TrieNode>();
+                current->children[trieKey] = std::make_unique<TrieNode>();
             }
-            current = current->children[sv].get();
+            current = current->children[trieKey].get();
         }
 
-        routeEntry.extractParamsRegex =
-            std::regex(regexStr + "$", std::regex::optimize);
-
-        current->routeEntry  = routeEntry;
+        current->routeEntry  = std::move(routeEntry);
         current->isEndOfPath = true;
     }
 
@@ -354,26 +412,32 @@ namespace BALDR_NAMESPACE
             {
                 TrieNode*                node;
                 std::vector<std::string> parts;
+                std::size_t              partsSize;
             };
-            std::stack<Frame> stack;
-            stack.push(Frame { root.get(), {} });
+            std::vector<Frame> stack;
+            stack.push_back(Frame { root.get(), {}, 0 });
 
             while (!stack.empty())
             {
-                auto [node, parts] = stack.top();
-                stack.pop();
+                Frame frame = std::move(stack.back());
+                stack.pop_back();
+
+                TrieNode*                node      = frame.node;
+                std::size_t              partsSize = frame.partsSize;
+                std::vector<std::string> parts     = std::move(frame.parts);
+                parts.resize(partsSize);
 
                 if (node->isEndOfPath && node->routeEntry.has_value())
                 {
                     std::string tmpl;
-                    if (parts.empty())
+                    if (partsSize == 0)
                         tmpl = "/";
                     else
                     {
-                        for (const auto& p : parts)
+                        for (std::size_t i = 0; i < partsSize; ++i)
                         {
                             tmpl.push_back('/');
-                            tmpl.append(p);
+                            tmpl.append(parts[i]);
                         }
                     }
 
@@ -385,9 +449,12 @@ namespace BALDR_NAMESPACE
 
                 for (const auto& [key, child] : node->children)
                 {
-                    auto childParts = parts;
-                    childParts.emplace_back(key);
-                    stack.push(Frame { child.get(), std::move(childParts) });
+                    Frame next { child.get(), {}, partsSize + 1 };
+                    next.parts.reserve(next.partsSize);
+                    for (std::size_t i = 0; i < partsSize; ++i)
+                        next.parts.push_back(std::move(parts[i]));
+                    next.parts.emplace_back(key);
+                    stack.push_back(std::move(next));
                 }
             }
         }

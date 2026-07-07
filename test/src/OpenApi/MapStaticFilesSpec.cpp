@@ -56,6 +56,24 @@ TEST_F(MapStaticFilesSpec, ETagEncodesSizeAndLastWriteTime)
     EXPECT_EQ(et, "\"2a-6553f100\"");
 }
 
+TEST_F(MapStaticFilesSpec, ResolvedFileReportsNonZeroContentLength)
+{
+    const std::string body = "<!doctype html>root";
+    auto r                = resolveStaticFile("index.html", mRoot.string());
+    EXPECT_EQ(r.status, baldr::StatusCode::OK);
+    EXPECT_EQ(r.fileSize, body.size());
+    EXPECT_NE(r.fileSize, 0u);
+    EXPECT_EQ(r.body.size(), body.size());
+}
+
+TEST_F(MapStaticFilesSpec, ResolvedFileEtagMatchesSize)
+{
+    auto r = resolveStaticFile("css/site.css", mRoot.string());
+    EXPECT_EQ(r.status, baldr::StatusCode::OK);
+    EXPECT_NE(r.etag, "\"0-0\"");
+    EXPECT_NE(r.etag.find('"'), std::string::npos);
+}
+
 TEST_F(MapStaticFilesSpec, HttpDateRoundTrip)
 {
     using namespace std::chrono;

@@ -237,25 +237,13 @@ namespace BALDR_NAMESPACE
             if (auto it = httpResponse.headers.find("Connection");
                 it != httpResponse.headers.end())
             {
-                std::string lowered(it->second);
-                for (auto& c : lowered)
-                {
-                    if (c >= 'A' && c <= 'Z')
-                        c = static_cast<char>(c + 32);
-                }
-                if (lowered == "close")
+                if (toLowerAscii(it->second) == "close")
                     closeConnection = true;
             }
             if (auto it = request.headers.find("connection");
                 it != request.headers.end())
             {
-                std::string lowered(it->second);
-                for (auto& c : lowered)
-                {
-                    if (c >= 'A' && c <= 'Z')
-                        c = static_cast<char>(c + 32);
-                }
-                if (lowered == "close")
+                if (toLowerAscii(it->second) == "close")
                     closeConnection = true;
             }
             if (request.version == "HTTP/1.0")
@@ -327,8 +315,12 @@ namespace BALDR_NAMESPACE
         out.reserve(response.body.size() + headersBytes + 128);
         out.append("HTTP/1.1 ");
         out.append(std::to_string(static_cast<int>(response.statusCode)));
-        out.push_back(' ');
-        out.append(reasonPhrase(response.statusCode));
+        const std::string_view phrase = reasonPhrase(response.statusCode);
+        if (!phrase.empty())
+        {
+            out.push_back(' ');
+            out.append(phrase.data(), phrase.size());
+        }
         out.append("\r\n");
 
         bool contentLengthEmitted = false;

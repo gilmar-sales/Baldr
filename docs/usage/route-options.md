@@ -91,6 +91,9 @@ app->MapPost("/api/uploads")
 
 The global parser cap still applies as a hard ceiling for every connection — `WithMaxBodyBytes` can only lower it for the matching route.
 
+!!! warning "Transfer-Encoding is not supported on requests"
+    The parser rejects any request carrying a `Transfer-Encoding` header with `400 Bad Request`. Clients **must** send a `Content-Length` header (the framework uses that value to bound the body). Implementing chunked request bodies is deliberately out of scope — the routing layer expects HTTP/1.1 request framing with a known length up front.
+
 ## Static files
 
 Use `MapStaticFiles(urlPrefix, rootPath)` to serve a directory tree under a URL prefix — see [Static files](static-files.md) for path safety, MIME-type inference, and streaming behaviour.

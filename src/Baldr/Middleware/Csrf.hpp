@@ -15,6 +15,7 @@
 #include <string_view>
 
 #include <Baldr/Hosting/SecureRandom.hpp>
+#include <Baldr/Hosting/StringHelpers.hpp>
 #include <Baldr/Middleware/IMiddleware.hpp>
 
 namespace BALDR_NAMESPACE
@@ -25,6 +26,14 @@ namespace BALDR_NAMESPACE
      *
      * Implements the double-submit pattern: a cookie carries the token and
      * the client must echo it in a request header.
+     *
+     * @note Threat model: the double-submit-cookie pattern is broken if
+     *       a subdomain can set cookies on the target origin
+     *       (@c example.com subdomains may set cookies read by
+     *       @c app.example.com). For defence, restrict the CSRF cookie
+     *       @c domain and prefer a synchronizer-token pattern with a
+     *       server-side session store if your deployment has subdomains
+     *       under partial attacker control.
      */
     struct CsrfOptions
     {
@@ -57,6 +66,11 @@ namespace BALDR_NAMESPACE
             false; ///< Must be readable from JS, so default is @c false.
         bool cookieSecure = false; ///< Set to @c true when serving over HTTPS.
         long cookieMaxAge = 0; ///< @c Max-Age in seconds. 0 = session cookie.
+        /// @c SameSite attribute for the issued cookie. Defaults to
+        /// @c Strict (no cross-site requests carry the token), which is
+        /// the strongest CSRF posture compatible with typical apps. Set
+        /// to @c Lax if the cookie must survive top-level navigations.
+        SameSite cookieSameSite = SameSite::Strict;
     };
 
     /**
@@ -90,8 +104,8 @@ namespace BALDR_NAMESPACE
 
             if (unsafe && !exempt)
             {
-                auto headerIt =
-                    request.headers.find(toLowerAscii(mOptions.headerName));
+                const auto lowered = baldr::toLowerAscii(mOptions.headerName);
+                auto headerIt     = request.headers.find(lowered);
                 if (headerIt == request.headers.end() ||
                     headerIt->second.empty())
                 {
@@ -120,10 +134,11 @@ namespace BALDR_NAMESPACE
                 {
                     std::string   token = generateToken();
                     CookieOptions opts;
-                    opts.value    = token;
-                    opts.httpOnly = mOptions.cookieHttpOnly;
-                    opts.secure   = mOptions.cookieSecure;
-                    opts.maxAge   = mOptions.cookieMaxAge;
+                    opts.value     = token;
+                    opts.httpOnly  = mOptions.cookieHttpOnly;
+                    opts.secure    = mOptions.cookieSecure;
+                    opts.maxAge    = mOptions.cookieMaxAge;
+                    opts.sameSite  = mOptions.cookieSameSite;
                     response.cookies[mOptions.cookieName] = opts;
                 }
             }
@@ -132,20 +147,6 @@ namespace BALDR_NAMESPACE
         }
 
       private:
-        static std::string toLowerAscii(std::string_view s)
-        {
-            std::string out;
-            out.reserve(s.size());
-            for (char c : s)
-            {
-                if (c >= 'A' && c <= 'Z')
-                    out.push_back(static_cast<char>(c + 32));
-                else
-                    out.push_back(c);
-            }
-            return out;
-        }
-
         static bool constantTimeEqual(std::string_view a, std::string_view b)
         {
             if (a.size() != b.size())

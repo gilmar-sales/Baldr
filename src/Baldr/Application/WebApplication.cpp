@@ -20,6 +20,7 @@
 #include <Baldr/Application/HealthChecks.hpp>
 #include <Baldr/Application/IHealthCheck.hpp>
 #include <Baldr/Application/RouteListing.hpp>
+#include <Baldr/Hosting/StringHelpers.hpp>
 #include <Baldr/Http/Results/FileStreamResult.hpp>
 #include <Baldr/Http/Router.hpp>
 #include <Baldr/Http/Server.hpp>
@@ -84,20 +85,6 @@ namespace BALDR_NAMESPACE
         }
         if (!cur.empty())
             out.push_back(cur);
-        return out;
-    }
-
-    std::string toLowerAscii(std::string_view s)
-    {
-        std::string out;
-        out.reserve(s.size());
-        for (char c : s)
-        {
-            if (c >= 'A' && c <= 'Z')
-                out.push_back(static_cast<char>(c + 32));
-            else
-                out.push_back(c);
-        }
         return out;
     }
 
@@ -220,16 +207,18 @@ namespace BALDR_NAMESPACE
 
             std::error_code sizec;
             auto            sz = std::filesystem::file_size(fileToServe, sizec);
-            auto            mte = std::filesystem::last_write_time(fileToServe);
-            auto            mtc = std::chrono::file_clock::to_sys(mte);
+            if (sizec)
+                return { StatusCode::InternalServerError, {}, {}, {} };
+            auto mte = std::filesystem::last_write_time(fileToServe);
+            auto mtc = std::chrono::file_clock::to_sys(mte);
 
             return { StatusCode::OK,
                      fileToServe,
                      detectMimeType(fileToServe),
                      ss.str(),
-                     /*fileSize=*/sizec ? 0 : sz,
+                     /*fileSize=*/sz,
                      /*lastModified=*/mtc,
-                     /*etag=*/Detail::makeEtag(sizec ? 0 : sz, mtc) };
+                     /*etag=*/Detail::makeEtag(sz, mtc) };
         }
 
         StaticResolve resolveStaticFileStreaming(const std::string& filepath,
@@ -291,16 +280,18 @@ namespace BALDR_NAMESPACE
 
             std::error_code sizec;
             auto            sz = std::filesystem::file_size(fileToServe, sizec);
-            auto            mte = std::filesystem::last_write_time(fileToServe);
-            auto            mtc = std::chrono::file_clock::to_sys(mte);
+            if (sizec)
+                return { StatusCode::InternalServerError, {}, {}, {} };
+            auto mte = std::filesystem::last_write_time(fileToServe);
+            auto mtc = std::chrono::file_clock::to_sys(mte);
 
             return { StatusCode::OK,
                      fileToServe,
                      detectMimeType(fileToServe),
                      /*body=*/std::string {},
-                     /*fileSize=*/sizec ? 0 : sz,
+                     /*fileSize=*/sz,
                      /*lastModified=*/mtc,
-                     /*etag=*/Detail::makeEtag(sizec ? 0 : sz, mtc) };
+                     /*etag=*/Detail::makeEtag(sz, mtc) };
         }
     } // namespace Detail
 
@@ -635,6 +626,12 @@ namespace BALDR_NAMESPACE
         catch (const std::exception& e)
         {
             logger->LogError("{}", e.what());
+            throw;
+        }
+        catch (...)
+        {
+            logger->LogError("HttpServer::Run terminated with unknown exception");
+            throw;
         }
     }
 

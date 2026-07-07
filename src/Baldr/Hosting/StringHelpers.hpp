@@ -7,9 +7,7 @@
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
-#include <iomanip>
 #include <optional>
-#include <sstream>
 #include <string>
 #include <string_view>
 
@@ -50,47 +48,42 @@ namespace BALDR_NAMESPACE
      * @param path Encoded path segment.
      * @return Decoded segment, or @c std::nullopt on failure.
      */
-    inline std::optional<std::string> decode_path(const std::string& path)
+    inline std::optional<std::string> decode_path(std::string_view path)
     {
-        std::ostringstream decoded;
+        auto hexNibble = [](char c) -> int {
+            if (c >= '0' && c <= '9')
+                return c - '0';
+            if (c >= 'a' && c <= 'f')
+                return c - 'a' + 10;
+            if (c >= 'A' && c <= 'F')
+                return c - 'A' + 10;
+            return -1;
+        };
+
+        std::string decoded;
+        decoded.reserve(path.size());
         for (size_t i = 0; i < path.size(); ++i)
         {
             if (path[i] == '%')
             {
-                if (i + 2 < path.size())
-                {
-                    std::string hex = path.substr(i + 1, 2);
-                    char        decodedChar;
-                    try
-                    {
-                        decodedChar =
-                            static_cast<char>(std::stoi(hex, nullptr, 16));
-                    }
-                    catch (const std::exception&)
-                    {
-                        return std::nullopt;
-                    }
-
-                    if (decodedChar == '\0')
-                    {
-                        return std::nullopt;
-                    }
-
-                    decoded << decodedChar;
-                    i += 2; // Skip the next two characters
-                }
-                else
-                {
+                if (i + 2 >= path.size())
                     return std::nullopt;
-                }
+                const int hi = hexNibble(path[i + 1]);
+                const int lo = hexNibble(path[i + 2]);
+                if (hi < 0 || lo < 0)
+                    return std::nullopt;
+                const char c = static_cast<char>((hi << 4) | lo);
+                if (c == '\0')
+                    return std::nullopt;
+                decoded.push_back(c);
+                i += 2;
             }
             else
             {
-                decoded << path[i];
+                decoded.push_back(path[i]);
             }
         }
-
-        return decoded.str();
+        return decoded;
     }
 
     /**
@@ -107,6 +100,26 @@ namespace BALDR_NAMESPACE
                 return true;
         }
         return false;
+    }
+
+    /**
+     * @brief Return an ASCII-lowercased copy of @p s.
+     *
+     * Non-ASCII bytes pass through unchanged. Used for case-insensitive
+     * comparison of HTTP header names, ETag values, and connection tokens.
+     */
+    inline std::string toLowerAscii(std::string_view s)
+    {
+        std::string out;
+        out.reserve(s.size());
+        for (char c : s)
+        {
+            if (c >= 'A' && c <= 'Z')
+                out.push_back(static_cast<char>(c + 32));
+            else
+                out.push_back(c);
+        }
+        return out;
     }
 
     /**

@@ -48,15 +48,31 @@ namespace BALDR_NAMESPACE
      * @brief Internal record of a registered route.
      *
      * Produced by the router during @ref Router::insert and consumed by
-     * the matcher and the OpenAPI spec service. The compiled regex
-     * captures named path parameters in declaration order.
+     * the matcher and the OpenAPI spec service. Path-parameter capture is
+     * performed by walking @ref paramSegments rather than compiling a
+     * regex (the matcher is a linear scan, not a backtracking engine).
      */
     struct RouteEntry
     {
-        std::regex
-            extractParamsRegex; ///< Compiled regex for path-parameter capture.
+        /// Discriminator for entries in @ref paramSegments.
+        enum class SegmentKind
+        {
+            Literal, ///< Exact byte-for-byte segment match.
+            Single,  ///< @c :name — captures a single non-empty segment.
+            Greedy,  ///< @c **   — captures any trailing path (or empty).
+        };
+
+        /// One element of the decomposed route template.
+        struct ParamSegment
+        {
+            SegmentKind kind = SegmentKind::Literal;
+            std::string text; ///< Literal text or parameter name.
+        };
+
+        std::vector<ParamSegment>
+            paramSegments; ///< Decomposed template (without the leading slash).
         std::vector<std::string>
-             paramsNames = {};   ///< Ordered names of captured path parameters.
+             paramsNames = {}; ///< Ordered names of captured path parameters.
         bool hasParams   = true; ///< Whether the template contains parameters.
         RouteHandler handler;    ///< Callable to invoke on a match.
         RouteOptions options;    ///< OpenAPI options for the route.
@@ -67,7 +83,7 @@ namespace BALDR_NAMESPACE
         /**
          * @brief Extract named path parameters from a concrete request path.
          *
-         * @param path The request path to match against this entry's regex.
+         * @param path The request path to match against this entry's segments.
          * @return Map of parameter name to decoded value.
          */
         std::unordered_map<std::string, std::string> extractRouteParams(

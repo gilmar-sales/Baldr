@@ -24,7 +24,6 @@ endif ()
 if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
   set(BALDR_BUILD_EXAMPLES ON)
   set(BALDR_BUILD_TESTS ON)
-  set(BALDR_BUILD_FUZZING ON)
 endif ()
 
 include(FetchContent)

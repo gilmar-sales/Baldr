@@ -156,7 +156,7 @@ namespace BALDR_NAMESPACE
         const std::string&                                      version,
         const std::vector<std::pair<std::string, std::string>>& headers,
         const std::vector<std::pair<std::string, std::string>>& cookies,
-        const std::function<const char*(StatusCode)>&           reasonPhrase,
+        const std::function<std::string_view(StatusCode)>&      reasonPhrase,
         bool&                                                   ok)
     {
         ok = true;
@@ -182,8 +182,12 @@ namespace BALDR_NAMESPACE
         out.append(version);
         out.push_back(' ');
         out.append(std::to_string(static_cast<int>(status)));
-        out.push_back(' ');
-        out.append(reasonPhrase(status));
+        const std::string_view phrase = reasonPhrase(status);
+        if (!phrase.empty())
+        {
+            out.push_back(' ');
+            out.append(phrase.data(), phrase.size());
+        }
         out.append("\r\n");
 
         bool hasTransferEncoding = false;

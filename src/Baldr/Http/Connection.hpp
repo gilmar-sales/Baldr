@@ -135,94 +135,114 @@ namespace BALDR_NAMESPACE
         }
 
       private:
+        /**
+         * @brief Process a parsed request: match a route, run middleware,
+         *        serialise the response, and write it to the wire.
+         *
+         * Wraps the entire pipeline in @c try/@c catch so any handler
+         * exception is converted to a 500. Increments @c mRequestCount
+         * and the in-flight tracker.
+         *
+         * @param request The fully-parsed request (headers, body, cookies).
+         */
         void handle(HttpRequest request);
 
+        /**
+         * @brief Build and send a one-shot error response with
+         *        @c Connection: close.
+         *
+         * @param statusCode HTTP status to send.
+         * @param body       Plain-text body sent to the client.
+         */
         void sendErrorResponse(StatusCode statusCode, const std::string& body);
 
+        /**
+         * @brief Serialise a response header block + body and write it to
+         *        the socket. Rejects any header carrying CR/LF (CWE-93).
+         *
+         * @param response        Response to serialise.
+         * @param closeConnection When @c true appends
+         *                        @c "Connection: close" and force-closes
+         *                        the underlying trantor connection.
+         */
         void sendResponse(const HttpResponse& response, bool closeConnection);
 
+        /**
+         * @brief Send an HTTP/1.1 chunked response from an
+         *        @c IStreamingResult producer.
+         *
+         * @param result   The streaming body source.
+         * @param version  Wire version (e.g. @c "HTTP/1.1").
+         * @param cookies  Cookies to attach as @c Set-Cookie headers.
+         */
         void sendStreamingResponse(
             const IStreamingResult&                               result,
             const std::string&                                    version,
             const std::unordered_map<std::string, CookieOptions>& cookies);
 
+        /**
+         * @brief Parse a query string into @c HttpRequest::query.
+         *
+         * Tolerant of stray whitespace around @c = and of missing values
+         * (treated as the empty string). Percent-encoded sequences are
+         * decoded; malformed escapes are silently skipped rather than
+         * rejected — the parser has already enforced overall shape.
+         */
         static void parseQuery(std::string_view query, HttpRequest& request)
         {
-            size_t pos = 0;
+            std::size_t pos = 0;
             while (pos < query.size())
             {
-                size_t amp = query.find('&', pos);
+                std::size_t amp = query.find('&', pos);
                 if (amp == std::string_view::npos)
                     amp = query.size();
                 std::string_view part = query.substr(pos, amp - pos);
-                if (!part.empty())
+                pos                  = amp + 1;
+                if (part.empty())
+                    continue;
+                std::size_t eq = part.find('=');
+                std::string_view keySv =
+                    (eq == std::string_view::npos) ? part : part.substr(0, eq);
+                std::string_view valSv =
+                    (eq == std::string_view::npos)
+                        ? std::string_view {}
+                        : part.substr(eq + 1);
+                while (!keySv.empty() &&
+                       (keySv.front() == ' ' || keySv.front() == '\t'))
+                    keySv.remove_prefix(1);
+                while (!keySv.empty() &&
+                       (keySv.back() == ' ' || keySv.back() == '\t'))
+                    keySv.remove_suffix(1);
+                while (!valSv.empty() &&
+                       (valSv.front() == ' ' || valSv.front() == '\t'))
+                    valSv.remove_prefix(1);
+                while (!valSv.empty() &&
+                       (valSv.back() == ' ' || valSv.back() == '\t'))
+                    valSv.remove_suffix(1);
+                if (eq == std::string_view::npos)
                 {
-                    size_t eq = part.find('=');
-                    if (eq == std::string_view::npos)
-                    {
-                        request.query.emplace(std::string(part), "");
-                    }
-                    else
-                    {
-                        auto k = decode_path(std::string(part.substr(0, eq)));
-                        auto v = decode_path(std::string(part.substr(eq + 1)));
-                        if (k && v)
-                            request.query.emplace(std::move(*k), std::move(*v));
-                    }
+                    auto k = decode_path(keySv);
+                    if (k)
+                        request.query.emplace(std::move(*k), std::string {});
                 }
-                pos = amp + 1;
+                else
+                {
+                    auto k = decode_path(keySv);
+                    auto v = decode_path(valSv);
+                    if (k && v)
+                        request.query.emplace(std::move(*k), std::move(*v));
+                }
             }
         }
 
-        static const char* reasonPhrase(StatusCode status)
+        /**
+         * @brief Bridge for callers that want a free-function-style reason
+         *        phrase lookup. Forwards to @c reasonPhraseFor in
+         *        @c StatusCode.
+         */
+        static std::string_view reasonPhrase(StatusCode status)
         {
-            switch (status)
-            {
-                case StatusCode::OK:
-                    return "OK";
-                case StatusCode::Created:
-                    return "Created";
-                case StatusCode::Accepted:
-                    return "Accepted";
-                case StatusCode::NoContent:
-                    return "No Content";
-                case StatusCode::MovedPermanently:
-                    return "Moved Permanently";
-                case StatusCode::Found:
-                    return "Found";
-                case StatusCode::SeeOther:
-                    return "See Other";
-                case StatusCode::NotModified:
-                    return "Not Modified";
-                case StatusCode::TemporaryRedirect:
-                    return "Temporary Redirect";
-                case StatusCode::BadRequest:
-                    return "Bad Request";
-                case StatusCode::Unauthorized:
-                    return "Unauthorized";
-                case StatusCode::Forbidden:
-                    return "Forbidden";
-                case StatusCode::NotFound:
-                    return "Not Found";
-                case StatusCode::MethodNotAllowed:
-                    return "Method Not Allowed";
-                case StatusCode::Conflict:
-                    return "Conflict";
-                case StatusCode::PayloadTooLarge:
-                    return "Payload Too Large";
-                case StatusCode::TooManyRequests:
-                    return "Too Many Requests";
-                case StatusCode::InternalServerError:
-                    return "Internal Server Error";
-                case StatusCode::NotImplemented:
-                    return "Not Implemented";
-                case StatusCode::BadGateway:
-                    return "Bad Gateway";
-                case StatusCode::ServiceUnavailable:
-                    return "Service Unavailable";
-                default:
-                    return "OK";
-            }
+            return reasonPhraseFor(status);
         }
 
         skr::Arc<skr::ServiceProvider>        mServiceProvider;
