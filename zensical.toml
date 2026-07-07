@@ -65,6 +65,7 @@ Tutorial = [
 Usage = [
     "usage/overview.md",
     "usage/routing.md",
+    "usage/binding.md",
     "usage/route-options.md",
     "usage/results.md",
     "usage/streaming-results.md",

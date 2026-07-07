@@ -145,7 +145,7 @@ The framework reflects on the handler's return type (and on `FromBody<T>` / `Fro
 
 2. **Prefer typed results over raw `IResult`.** `TypedResult` subclasses (`OkResult`, `NotFoundResult`, `JsonResult<T, Status>`, ...) pin the status code and content type at compile time so the generator emits one entry per status without introspecting a sample. When a handler returns `std::variant<JsonResult<Device, OK>, NotFoundResult>`, the OpenAPI operation gets both `200` (with a `$ref` to `Device`) and `404` (with the default text schema) for free.
 
-3. **Let the framework pick up `FromBody<T>` / `FromQuery<T>` / `FromParams<T>`.** Declaring these in the handler signature is enough — `RouteRegistration::Handle` derives the matching OpenAPI metadata automatically. Use the explicit `WithRequestType<T>()` / `WithQueryType<T>()` / `WithPathType<T>()` builders only when the handler argument is a bare `HttpRequest&` or you need to override the inferred schema.
+3. **Let the framework pick up `FromBody<T>` / `FromQuery<T>` / `FromParams<T>`.** Declaring these in the handler signature is enough — `RouteRegistration::Handle` derives the matching OpenAPI metadata automatically. See [Request binding](../usage/binding.md) for the wrapper reference. Use the explicit `WithRequestType<T>()` / `WithQueryType<T>()` / `WithPathType<T>()` builders only when the handler argument is a bare `HttpRequest&` or you need to override the inferred schema.
 
     ```cpp title="src/main.cpp"
     app->MapPost("/devices",

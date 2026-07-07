@@ -13,7 +13,6 @@ TEST(FromBodyTest, ParsesValidJsonObjectIntoShell)
     EXPECT_FALSE(bound.error.has_value());
     EXPECT_EQ(bound.value.name, "Alice");
     EXPECT_EQ(bound.value.age, 30);
-    EXPECT_EQ(bound.Value().name, "Alice");
 }
 
 TEST(FromBodyTest, ReportsFieldMismatch)

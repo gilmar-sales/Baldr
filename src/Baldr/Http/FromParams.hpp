@@ -19,7 +19,7 @@
  *     if (!p.isOk())
  *         return JsonResult(p.error->statusCode,
  *                           JsonBody{ .message = p.error->message });
- *     // use p.Value().id
+ *     // use p.value.id
  * });
  * @endcode
  */
@@ -72,11 +72,6 @@ namespace BALDR_NAMESPACE
 
         /// @return @c true when binding succeeded.
         bool isOk() const { return !error.has_value(); }
-
-        /// @return Read-only access to the parsed value.
-        const T& Value() const { return value; }
-        /// @return Mutable access to the parsed value.
-        T& Value() { return value; }
 
         /// @return The bind error, or @c std::nullopt on success.
         std::optional<BindError> getError() const { return error; }

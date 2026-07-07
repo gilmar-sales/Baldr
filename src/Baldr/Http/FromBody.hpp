@@ -21,7 +21,7 @@
  * @code
  * app->MapPost("/login", [](baldr::FromBody<UserLoginDto> login) -> IResult {
  *     // login.isOk() is guaranteed true when the handler runs.
- *     // use login.Value().username / .password
+ *     // use login.value.username / .password
  * });
  * @endcode
  *
@@ -79,12 +79,6 @@ namespace BALDR_NAMESPACE
 
         /// @return @c true when binding succeeded.
         bool isOk() const { return !error.has_value(); }
-
-        /// @return Read-only access to the parsed value.
-        const T& Value() const { return value; }
-
-        /// @return Mutable access to the parsed value.
-        T& Value() { return value; }
 
         /// @return The bind error, or @c std::nullopt on success.
         std::optional<typename JsonBodyResult<T>::Error> Error() const

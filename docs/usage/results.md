@@ -218,7 +218,7 @@ app->MapPost("/login", [](const HttpRequest& req) -> IResult {
 });
 ```
 
-For the request side, `FromBody<T>` / `FromQuery<T>` / `FromParams<T>` handler arguments derive the matching OpenAPI metadata automatically — see [Route options](route-options.md).
+For the request side, `FromBody<T>` / `FromQuery<T>` / `FromParams<T>` handler arguments derive the matching OpenAPI metadata automatically — see [Request binding](binding.md) for the wrapper reference and [Route options](route-options.md) for the surrounding route metadata.
 
 ## Next steps
 
