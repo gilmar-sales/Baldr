@@ -70,22 +70,12 @@ TEST_F(FromQueryBindingSpec, RouterReportsMissingQueryField)
 {
     auto router = skr::MakeArc<baldr::Router>();
 
-    std::atomic<bool> wasOk { true };
-    std::atomic<bool> hasError { false };
-    std::atomic<int>  errorStatus { 0 };
-    std::string       errorMessage;
+    std::atomic<bool> handlerRan { false };
 
     router->MapRoute(
         baldr::HttpMethod::Get, "/search", std::string {},
-        baldr::RouteOptions {}, [&](baldr::FromQuery<SearchFilters> q) {
-            wasOk = q.isOk();
-            if (q.error)
-            {
-                hasError     = true;
-                errorStatus  = static_cast<int>(q.error->statusCode);
-                errorMessage = q.error->message;
-            }
-        });
+        baldr::RouteOptions {},
+        [&](baldr::FromQuery<SearchFilters> /*q*/) { handlerRan = true; });
 
     auto match = router->match(baldr::HttpMethod::Get, "/search");
     ASSERT_TRUE(match.has_value());
@@ -98,12 +88,12 @@ TEST_F(FromQueryBindingSpec, RouterReportsMissingQueryField)
     baldr::HttpConnection::runMiddlewareChain(
         factories, mEmptyProvider, request, mResponse, match->handler);
 
-    EXPECT_FALSE(wasOk.load());
-    EXPECT_TRUE(hasError.load());
-    EXPECT_EQ(errorStatus.load(),
+    EXPECT_FALSE(handlerRan.load());
+    EXPECT_EQ(static_cast<int>(mResponse.statusCode),
               static_cast<int>(baldr::StatusCode::BadRequest));
-    EXPECT_FALSE(errorMessage.empty());
-    EXPECT_NE(errorMessage.find("query"), std::string::npos);
+    EXPECT_EQ(mResponse.headers.at("Content-Type"), "application/json");
+    EXPECT_NE(mResponse.body.find("\"field\":\"age\""), std::string::npos);
+    EXPECT_NE(mResponse.body.find("query"), std::string::npos);
 }
 
 TEST_F(FromQueryBindingSpec, RouterBindsFromQueryAlongsideHttpRequest)

@@ -28,6 +28,8 @@ TEST(FromBodyTest, ReportsFieldMismatch)
     EXPECT_EQ(static_cast<int>(bound.error->statusCode),
               static_cast<int>(baldr::StatusCode::BadRequest));
     EXPECT_FALSE(bound.error->message.empty());
+    ASSERT_TRUE(bound.error->field.has_value());
+    EXPECT_EQ(*bound.error->field, "age");
 }
 
 TEST(FromBodyTest, RejectsEmptyBody)

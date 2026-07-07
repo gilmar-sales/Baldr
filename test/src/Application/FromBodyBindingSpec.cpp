@@ -72,26 +72,16 @@ TEST_F(FromBodyBindingSpec, RouterBindsValidJsonBodyToFromBodyParameter)
     ASSERT_TRUE(handlerRan.load());
 }
 
-TEST_F(FromBodyBindingSpec, RouterBindsInvalidJsonBodyAndStillRunsHandler)
+TEST_F(FromBodyBindingSpec, RouterBindsInvalidJsonBodyAndSkipsHandler)
 {
     auto router = skr::MakeArc<baldr::Router>();
 
-    std::atomic<bool> wasOk { false };
-    std::atomic<bool> hasError { false };
-    std::atomic<int>  errorStatus { 0 };
-    std::string       errorMessage;
+    std::atomic<bool> handlerRan { false };
 
     router->MapRoute(
         baldr::HttpMethod::Post, "/login", std::string {},
-        baldr::RouteOptions {}, [&](baldr::FromBody<UserDto> body) {
-            wasOk    = body.isOk();
-            hasError = body.error.has_value();
-            if (body.error)
-            {
-                errorStatus  = static_cast<int>(body.error->statusCode);
-                errorMessage = body.error->message;
-            }
-        });
+        baldr::RouteOptions {},
+        [&](baldr::FromBody<UserDto> /*body*/) { handlerRan = true; });
 
     auto match = router->match(baldr::HttpMethod::Post, "/login");
     ASSERT_TRUE(match.has_value());
@@ -104,11 +94,43 @@ TEST_F(FromBodyBindingSpec, RouterBindsInvalidJsonBodyAndStillRunsHandler)
     baldr::HttpConnection::runMiddlewareChain(
         factories, mEmptyProvider, request, mResponse, match->handler);
 
-    EXPECT_FALSE(wasOk.load());
-    EXPECT_TRUE(hasError.load());
-    EXPECT_EQ(errorStatus.load(),
+    EXPECT_FALSE(handlerRan.load());
+    EXPECT_EQ(static_cast<int>(mResponse.statusCode),
               static_cast<int>(baldr::StatusCode::BadRequest));
-    EXPECT_FALSE(errorMessage.empty());
+    ASSERT_EQ(mResponse.headers.count("Content-Type"), 1U);
+    EXPECT_EQ(mResponse.headers.at("Content-Type"), "application/json");
+    EXPECT_NE(mResponse.body.find("\"field\""), std::string::npos);
+    EXPECT_NE(mResponse.body.find("\"message\""), std::string::npos);
+}
+
+TEST_F(FromBodyBindingSpec, RouterBindErrorIncludesFieldNameForMissingMember)
+{
+    auto router = skr::MakeArc<baldr::Router>();
+
+    std::atomic<bool> handlerRan { false };
+
+    router->MapRoute(
+        baldr::HttpMethod::Post, "/login", std::string {},
+        baldr::RouteOptions {},
+        [&](baldr::FromBody<UserDto> /*body*/) { handlerRan = true; });
+
+    auto match = router->match(baldr::HttpMethod::Post, "/login");
+    ASSERT_TRUE(match.has_value());
+
+    baldr::HttpRequest request      = mRequest;
+    request.body                    = R"({"name":"Alice"})";
+    request.headers["content-type"] = "application/json";
+
+    baldr::MiddlewareFactoryList factories;
+    baldr::HttpConnection::runMiddlewareChain(
+        factories, mEmptyProvider, request, mResponse, match->handler);
+
+    EXPECT_FALSE(handlerRan.load());
+    EXPECT_EQ(static_cast<int>(mResponse.statusCode),
+              static_cast<int>(baldr::StatusCode::BadRequest));
+    EXPECT_NE(mResponse.body.find("\"field\":\"age\""), std::string::npos);
+    EXPECT_NE(mResponse.body.find("Field 'age'"), std::string::npos)
+        << "body was: " << mResponse.body;
 }
 
 TEST_F(FromBodyBindingSpec, RouterBindsBodyWhenContentTypeHeaderIsMissing)
@@ -185,16 +207,12 @@ TEST_F(FromBodyBindingSpec, RouterRejectsUnsupportedContentType)
 {
     auto router = skr::MakeArc<baldr::Router>();
 
-    std::atomic<bool> wasOk { true };
-    std::atomic<int>  errorStatus { 0 };
+    std::atomic<bool> handlerRan { false };
 
     router->MapRoute(
         baldr::HttpMethod::Post, "/login", std::string {},
-        baldr::RouteOptions {}, [&](baldr::FromBody<LoginDto> body) {
-            wasOk = body.isOk();
-            if (body.error)
-                errorStatus = static_cast<int>(body.error->statusCode);
-        });
+        baldr::RouteOptions {},
+        [&](baldr::FromBody<LoginDto> /*body*/) { handlerRan = true; });
 
     auto match = router->match(baldr::HttpMethod::Post, "/login");
     ASSERT_TRUE(match.has_value());
@@ -207,7 +225,7 @@ TEST_F(FromBodyBindingSpec, RouterRejectsUnsupportedContentType)
     baldr::HttpConnection::runMiddlewareChain(
         factories, mEmptyProvider, request, mResponse, match->handler);
 
-    EXPECT_FALSE(wasOk.load());
-    EXPECT_EQ(errorStatus.load(),
+    EXPECT_FALSE(handlerRan.load());
+    EXPECT_EQ(static_cast<int>(mResponse.statusCode),
               static_cast<int>(baldr::StatusCode::UnsupportedMediaType));
 }

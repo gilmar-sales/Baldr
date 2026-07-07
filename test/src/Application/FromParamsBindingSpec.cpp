@@ -72,16 +72,12 @@ TEST_F(FromParamsBindingSpec, RouterReportsMissingPathParam)
 {
     auto router = skr::MakeArc<baldr::Router>();
 
-    std::atomic<bool> wasOk { true };
-    std::string       errorMessage;
+    std::atomic<bool> handlerRan { false };
 
     router->MapRoute(
         baldr::HttpMethod::Get, "/users/:id", std::string {},
-        baldr::RouteOptions {}, [&](baldr::FromParams<UserPathArgs> p) {
-            wasOk = p.isOk();
-            if (p.error)
-                errorMessage = p.error->message;
-        });
+        baldr::RouteOptions {},
+        [&](baldr::FromParams<UserPathArgs> /*p*/) { handlerRan = true; });
 
     auto match = router->match(baldr::HttpMethod::Get, "/users/u-42");
     ASSERT_TRUE(match.has_value());
@@ -94,9 +90,12 @@ TEST_F(FromParamsBindingSpec, RouterReportsMissingPathParam)
     baldr::HttpConnection::runMiddlewareChain(
         factories, mEmptyProvider, request, mResponse, match->handler);
 
-    EXPECT_FALSE(wasOk.load());
-    EXPECT_FALSE(errorMessage.empty());
-    EXPECT_NE(errorMessage.find("path template"), std::string::npos);
+    EXPECT_FALSE(handlerRan.load());
+    EXPECT_EQ(static_cast<int>(mResponse.statusCode),
+              static_cast<int>(baldr::StatusCode::BadRequest));
+    EXPECT_EQ(mResponse.headers.at("Content-Type"), "application/json");
+    EXPECT_NE(mResponse.body.find("\"field\":\"id\""), std::string::npos);
+    EXPECT_NE(mResponse.body.find("path template"), std::string::npos);
 }
 
 TEST_F(FromParamsBindingSpec,

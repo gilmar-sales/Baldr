@@ -7,15 +7,20 @@
  * handler runs and hands back a value shell that either holds the parsed
  * @c T or an error describing why the bind failed.
  *
+ * When binding fails the router short-circuits the handler and writes a
+ * structured error response itself (a 400 @c application/json
+ * @c {"field":"<name>","message":"<reason>"} body, or the underlying
+ * status code with a plain-text body for non-400 errors such as
+ * @c 415 UnsupportedMediaType). Handlers therefore only run when the
+ * body is parseable; they can still inspect @c error if they want to
+ * react to a partial parse.
+ *
  * The class does not allocate outside what @c T itself stores. Bind failure
- * is reported in-band (no exceptions) so handlers always run; the handler
- * is responsible for translating @c error into an HTTP response.
+ * is reported in-band (no exceptions).
  *
  * @code
  * app->MapPost("/login", [](baldr::FromBody<UserLoginDto> login) -> IResult {
- *     if (!login.isOk())
- *         return JsonResult(login.error->statusCode,
- *                           JsonBody{ .message = login.error->message });
+ *     // login.isOk() is guaranteed true when the handler runs.
  *     // use login.Value().username / .password
  * });
  * @endcode
@@ -40,6 +45,7 @@
 #include <Baldr/Http/FromParams.hpp>
 #include <Baldr/Http/FromQuery.hpp>
 #include <Baldr/Http/Request.hpp>
+#include <Baldr/Http/Response.hpp>
 #include <Baldr/Http/Results/JsonBody.hpp>
 #include <Baldr/Http/StatusCode.hpp>
 
@@ -267,6 +273,130 @@ namespace BALDR_NAMESPACE
         {
             BindOneBodySlot<I, HandlerArgsTuple, BoundBodiesTuple>(boundBodies,
                                                                    request);
+        }
+
+        /// @brief Render a JSON body of the form
+        ///        @c {"field":"<field>","message":"<message>"} with the
+        ///        obvious characters escaped.
+        inline std::string WriteBindErrorJson(const std::string& field,
+                                              const std::string& message)
+        {
+            std::string out;
+            out.reserve(field.size() + message.size() + 32);
+            out.append(R"({"field":")");
+            for (char c : field)
+            {
+                if (c == '"' || c == '\\')
+                    out.push_back('\\');
+                out.push_back(c);
+            }
+            out.append(R"(","message":")");
+            for (char c : message)
+            {
+                if (c == '"' || c == '\\')
+                    out.push_back('\\');
+                if (c == '\n')
+                {
+                    out.push_back('\\');
+                    out.push_back('n');
+                    continue;
+                }
+                if (c == '\r')
+                {
+                    out.push_back('\\');
+                    out.push_back('r');
+                    continue;
+                }
+                if (c == '\t')
+                {
+                    out.push_back('\\');
+                    out.push_back('t');
+                    continue;
+                }
+                out.push_back(c);
+            }
+            out.append(R"("})");
+            return out;
+        }
+
+        /// @brief Look at @p boundBodies; if any pre-bound slot failed,
+        ///        write a structured error response to @p response and
+        ///        return @c true. Otherwise return @c false.
+        ///
+        /// Used by the router to short-circuit a handler invocation when
+        /// a @ref FromBody, @ref FromQuery, or @ref FromParams parameter
+        /// could not be deserialised. The response body is the JSON
+        /// @c {"field":"<name or empty>","message":"<error message>"}.
+        template <typename BoundBodiesTuple>
+        bool WriteBindErrorResponse(const BoundBodiesTuple& boundBodies,
+                                    HttpResponse&           response)
+        {
+            bool handled = false;
+            std::apply(
+                [&](const auto&... slots) {
+                    auto visit = [&](const auto& slot) {
+                        using SlotT = std::remove_cvref_t<decltype(slot)>;
+                        if constexpr (IsBoundWrapper_v<SlotT>)
+                        {
+                            if (slot.isOk())
+                                return;
+                            if (handled)
+                                return;
+                            handled = true;
+
+                            StatusCode  status = StatusCode::BadRequest;
+                            std::string field;
+                            std::string message = "Request could not be bound";
+
+                            if (slot.error)
+                            {
+                                status  = slot.error->statusCode;
+                                message = slot.error->message;
+                                using ErrorT =
+                                    std::remove_cvref_t<decltype(*slot.error)>;
+                                if constexpr (requires { ErrorT::field; })
+                                {
+                                    if (slot.error->field.has_value())
+                                        field = *slot.error->field;
+                                }
+                            }
+
+                            if (field.empty())
+                            {
+                                std::string prefix = "Field '";
+                                auto        pos    = message.find(prefix);
+                                if (pos == 0)
+                                {
+                                    auto end =
+                                        message.find('\'', prefix.size());
+                                    if (end != std::string::npos)
+                                    {
+                                        field =
+                                            message.substr(prefix.size(),
+                                                           end - prefix.size());
+                                    }
+                                }
+                            }
+
+                            response.statusCode = status;
+                            if (status == StatusCode::BadRequest)
+                            {
+                                response.headers["Content-Type"] =
+                                    "application/json";
+                                response.body =
+                                    WriteBindErrorJson(field, message);
+                            }
+                            else
+                            {
+                                response.headers["Content-Type"] = "text/plain";
+                                response.body = std::move(message);
+                            }
+                        }
+                    };
+                    (visit(slots), ...);
+                },
+                boundBodies);
+            return handled;
         }
 
         /// @brief Compile-time index of the first @c TWrapper in the

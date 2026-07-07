@@ -66,6 +66,99 @@ namespace BALDR_NAMESPACE
         {
             return obj[name].get_bool().get(out);
         }
+
+        /**
+         * @brief Translate a simdjson @c error_code into a custom
+         *        human-readable message.
+         *
+         * Covers every value declared by @c simdjson::error_code so the
+         * library never leaks simdjson's own wording into API responses.
+         *
+         * @param err The simdjson error code to translate.
+         * @param field Optional JSON field name that triggered the error;
+         *              included in the message when the error is field-local
+         *              (e.g. missing/incorrect-type fields).
+         * @return A descriptive, user-facing error string. @c SUCCESS maps
+         *         to an empty string.
+         */
+        inline std::string simdjsonErrorMessage(simdjson::error_code err,
+                                                std::string_view     field = {})
+        {
+            const std::string f =
+                field.empty()
+                    ? std::string {}
+                    : std::string(" (Field '") + std::string(field) + "')";
+
+            switch (err)
+            {
+                case simdjson::SUCCESS:
+                    return {};
+                case simdjson::CAPACITY:
+                    return "JSON document is too large for the parser";
+                case simdjson::MEMALLOC:
+                    return "Out of memory while parsing JSON";
+                case simdjson::TAPE_ERROR:
+                    return "Internal parser error (tape)";
+                case simdjson::DEPTH_ERROR:
+                    return "JSON document exceeds the maximum nesting depth";
+                case simdjson::STRING_ERROR:
+                    return "Malformed string literal in JSON";
+                case simdjson::T_ATOM_ERROR:
+                    return "Malformed 'true' literal in JSON";
+                case simdjson::F_ATOM_ERROR:
+                    return "Malformed 'false' literal in JSON";
+                case simdjson::N_ATOM_ERROR:
+                    return "Malformed 'null' literal in JSON";
+                case simdjson::NUMBER_ERROR:
+                    return "Malformed number in JSON";
+                case simdjson::BIGINT_ERROR:
+                    return "Integer value exceeds 64-bit range" + f;
+                case simdjson::UNINITIALIZED:
+                    return "Uninitialised JSON document";
+                case simdjson::EMPTY:
+                    return "No JSON content was found";
+                case simdjson::UNESCAPED_CHARS:
+                    return "Unescaped characters in JSON string";
+                case simdjson::UNCLOSED_STRING:
+                    return "Unterminated string in JSON";
+                case simdjson::UNSUPPORTED_ARCHITECTURE:
+                    return "JSON parser does not support this CPU architecture";
+                case simdjson::INCORRECT_TYPE:
+                    return "JSON value has an incorrect type" + f;
+                case simdjson::NUMBER_OUT_OF_RANGE:
+                    return "JSON number is out of range" + f;
+                case simdjson::INDEX_OUT_OF_BOUNDS:
+                    return "JSON array index is out of bounds" + f;
+                case simdjson::NO_SUCH_FIELD:
+                    return "Missing required field" + f;
+                case simdjson::IO_ERROR:
+                    return "I/O error while reading JSON";
+                case simdjson::INVALID_JSON_POINTER:
+                    return "Invalid JSON pointer expression";
+                case simdjson::INVALID_URI_FRAGMENT:
+                    return "Invalid URI fragment";
+                case simdjson::UNEXPECTED_ERROR:
+                    return "Unexpected internal parser error";
+                case simdjson::PARSER_IN_USE:
+                    return "JSON parser is already in use";
+                case simdjson::OUT_OF_ORDER_ITERATION:
+                    return "Out-of-order iteration over JSON array or object";
+                case simdjson::INSUFFICIENT_PADDING:
+                    return "Insufficient padding in JSON input";
+                case simdjson::INCOMPLETE_ARRAY_OR_OBJECT:
+                    return "Incomplete JSON array or object";
+                case simdjson::SCALAR_DOCUMENT_AS_VALUE:
+                    return "Scalar JSON document cannot be used as a value";
+                case simdjson::OUT_OF_BOUNDS:
+                    return "Access outside of JSON document bounds";
+                case simdjson::TRAILING_CONTENT:
+                    return "Unexpected trailing content after JSON document";
+                case simdjson::OUT_OF_CAPACITY:
+                    return "JSON parser capacity exceeded";
+                default:
+                    return "Unknown JSON parsing error";
+            }
+        }
     } // namespace detail
 
     /**
@@ -97,6 +190,18 @@ namespace BALDR_NAMESPACE
             return r;
         }
 
+        /// @brief Construct a failure result that also identifies the
+        ///        offending field by name.
+        static JsonBodyResult Fail(StatusCode status, std::string message,
+                                   std::optional<std::string> field)
+        {
+            JsonBodyResult r;
+            r.mError.statusCode = status;
+            r.mError.message    = std::move(message);
+            r.mError.field      = std::move(field);
+            return r;
+        }
+
         /// @brief @c true when the parse succeeded.
         bool isOk() const { return mError.statusCode == StatusCode::OK; }
 
@@ -112,13 +217,15 @@ namespace BALDR_NAMESPACE
         {
             StatusCode  statusCode = StatusCode::OK; ///< Suggested status code.
             std::string message;                     ///< Human-readable error.
+            std::optional<std::string>
+                field; ///< First offending field, when one is known.
         };
         /// @return The error payload.
         const Error& error() const { return mError; }
 
       private:
         T     mValue {};
-        Error mError { StatusCode::OK, {} };
+        Error mError { StatusCode::OK, {}, std::nullopt };
     };
 
     /**
@@ -147,7 +254,7 @@ namespace BALDR_NAMESPACE
         {
             return JsonBodyResult<simdjson::dom::object>::Fail(
                 StatusCode::BadRequest,
-                std::string("Invalid JSON: ") + simdjson::error_message(err));
+                "Invalid JSON: " + detail::simdjsonErrorMessage(err));
         }
 
         simdjson::dom::object obj;
@@ -191,8 +298,9 @@ namespace BALDR_NAMESPACE
         T     instance {};
         auto& o = obj.value();
 
-        bool        anyError = false;
-        std::string firstError;
+        bool                       anyError = false;
+        std::string                firstError;
+        std::optional<std::string> firstField;
 
         template for (constexpr auto member : std::define_static_array(
                           std::meta::nonstatic_data_members_of(
@@ -201,47 +309,49 @@ namespace BALDR_NAMESPACE
         {
             if (anyError)
                 break;
-            constexpr auto name  = std::meta::identifier_of(member);
-            auto&          field = instance.[:member:];
-            using FieldT         = std::remove_cvref_t<decltype(field)>;
+
+            constexpr auto name = std::meta::identifier_of(member);
+
+            auto& field = instance.[:member:];
+
+            using FieldT = std::remove_cvref_t<decltype(field)>;
 
             simdjson::error_code err = simdjson::NO_SUCH_FIELD;
             if constexpr (std::is_same_v<FieldT, std::string>)
             {
                 err = BALDR_NAMESPACE::detail::readJsonField(o, name, field);
             }
-            else if constexpr (std::is_same_v<FieldT, std::string_view>)
-            {
-                std::string_view sv;
-                err = o[name].get_string().get(sv);
-                if (!err)
-                    field = sv;
-            }
             else if constexpr (std::is_same_v<FieldT, int> ||
                                std::is_same_v<FieldT, int64_t> ||
                                std::is_same_v<FieldT, double> ||
                                std::is_same_v<FieldT, bool>)
             {
-                err = BALDR_NAMESPACE::detail::readJsonField(o, name, field);
+                err = detail::readJsonField(o, name, field);
             }
             else
             {
                 firstError = "Unsupported field type for member '" +
                              std::string(name) + "'";
+                firstField = std::string(name);
                 anyError   = true;
+
                 continue;
             }
+
             if (err)
             {
-                firstError = "Field '" + std::string(name) +
-                             "': " + simdjson::error_message(err);
-                anyError   = true;
+                firstError = detail::simdjsonErrorMessage(err, name);
+
+                firstField = std::string(name);
+
+                anyError = true;
             }
         }
 
         if (anyError)
         {
-            return JsonBodyResult<T>::Fail(StatusCode::BadRequest, firstError);
+            return JsonBodyResult<T>::Fail(
+                StatusCode::BadRequest, firstError, std::move(firstField));
         }
         return JsonBodyResult<T>::Ok(std::move(instance));
     }

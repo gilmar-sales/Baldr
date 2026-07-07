@@ -383,6 +383,20 @@ namespace BALDR_NAMESPACE
         std::is_base_of_v<TypedResult, std::remove_cvref_t<T>>;
 
     /**
+     * @brief Built-in structured error payload for bind / validation
+     *        failures. Serialised as @c {"field":"<name>","message":"<msg>"}.
+     *
+     * Used by the router when a pre-bound parameter (@ref FromBody,
+     * @ref FromQuery, @ref FromParams) fails to deserialise. @c field is
+     * empty when the error is not tied to a single field.
+     */
+    struct BindErrorPayload
+    {
+        std::string field;   ///< First offending field, or empty.
+        std::string message; ///< Human-readable description.
+    };
+
+    /**
      * @brief Type-aware JSON result carrying a structured @c T body and
      *        emitting an OpenAPI @c $ref to the registered schema under the
      *        given HTTP @c Status.

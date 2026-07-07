@@ -72,7 +72,7 @@ namespace BALDR_NAMESPACE
         std::vector<ParamSegment>
             paramSegments; ///< Decomposed template (without the leading slash).
         std::vector<std::string>
-             paramsNames = {}; ///< Ordered names of captured path parameters.
+             paramsNames = {};   ///< Ordered names of captured path parameters.
         bool hasParams   = true; ///< Whether the template contains parameters.
         RouteHandler handler;    ///< Callable to invoke on a match.
         RouteOptions options;    ///< OpenAPI options for the route.
@@ -140,6 +140,11 @@ namespace BALDR_NAMESPACE
                              boundBodies, request),
                          ...);
                     }(std::make_index_sequence<N> {});
+
+                    if (detail::WriteBindErrorResponse(boundBodies, response))
+                    {
+                        return;
+                    }
 
                     auto args = detail::BuildArgsTuple<HandlerArgsTuple>(
                         [&](auto tag) -> typename decltype(tag)::type {
