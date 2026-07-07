@@ -99,6 +99,6 @@ namespace BALDR_NAMESPACE
     void MapScalarUi(WebApplication& app,
                      std::string     mountPath = "/scalar",
                      std::string     specUrl   = "/openapi.json",
-                     std::string     pageTitle = "API Reference");
+                     std::string     pageTitle = "Scalar");
 
 } // namespace BALDR_NAMESPACE
