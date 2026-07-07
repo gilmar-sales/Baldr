@@ -49,8 +49,8 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(skirnir)
 
 set(ZLIB_BUILD_TESTING OFF)
-set(ZLIB_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(ZLIB_BUILD_STATIC_LIBS ON CACHE BOOL "" FORCE)
+set(ZLIB_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(ZLIB_BUILD_STATIC ON CACHE BOOL "" FORCE)
 FetchContent_Declare(
   zlib
   GIT_REPOSITORY "https://github.com/madler/zlib.git"
