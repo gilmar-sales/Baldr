@@ -149,12 +149,53 @@ namespace BALDR_NAMESPACE
         };
     } // namespace Detail
 
+    namespace Detail
+    {
+        /**
+         * @brief Emit the JSON Schema fragment for a single field type,
+         *        shared between the required and @c std::optional code
+         *        paths in @ref EmitStructSchema. Container, primitive,
+         *        and class types mirror the non-optional branches.
+         */
+        template <typename FieldT>
+        std::string EmitFieldSchema()
+        {
+            std::string out;
+            if constexpr (IsStdArray<FieldT>::value ||
+                          IsStdVector<FieldT>::value)
+            {
+                out += "{\"type\":\"array\"}";
+            }
+            else if constexpr (std::is_same_v<FieldT, std::string> ||
+                               std::is_same_v<FieldT, std::string_view>)
+            {
+                out += "{\"type\":\"";
+                out += PrimitiveTypeName<FieldT>();
+                out += "\"}";
+            }
+            else if constexpr (std::is_class_v<FieldT>)
+            {
+                out += "{\"type\":\"object\"}";
+            }
+            else
+            {
+                out += "{\"type\":\"";
+                out += PrimitiveTypeName<FieldT>();
+                out += "\"}";
+            }
+            return out;
+        }
+    } // namespace Detail
+
     /**
      * @brief Emit a JSON Schema (draft-07) fragment describing @c T's
      *        non-static data members.
      *
-     * Every member must satisfy @ref Detail::IsSupportedField. The
-     * schema marks every member as @c required.
+     * Every member must satisfy @ref Detail::IsSupportedField. Members
+     * typed as @c std::optional<U> describe @c U as the inner schema
+     * (e.g. @c std::optional<std::string> -> @c {"type":"string"}) and
+     * are excluded from the @c required list so callers can omit them.
+     * All other members are marked @c required.
      *
      * @tparam T A class type with reflectable non-static data members.
      */
@@ -193,34 +234,21 @@ namespace BALDR_NAMESPACE
             out += "\"";
             out += std::string(name);
             out += "\":";
-            if constexpr (Detail::IsStdArray<FieldT>::value ||
-                          Detail::IsStdVector<FieldT>::value)
+
+            if constexpr (Detail::IsStdOptional<FieldT>::value)
             {
-                out += "{\"type\":\"array\"}";
-            }
-            else if constexpr (Detail::IsStdOptional<FieldT>::value)
-            {
-                out += "{\"type\":\"null\"}";
-            }
-            else if constexpr (std::is_same_v<FieldT, std::string> ||
-                               std::is_same_v<FieldT, std::string_view>)
-            {
-                out += "{\"type\":\"";
-                out += Detail::PrimitiveTypeName<FieldT>();
-                out += "\"}";
-            }
-            else if constexpr (std::is_class_v<FieldT>)
-            {
-                out += "{\"type\":\"object\"}";
+                using Inner = typename FieldT::value_type;
+                out += Detail::EmitFieldSchema<Inner>();
             }
             else
             {
-                out += "{\"type\":\"";
-                out += Detail::PrimitiveTypeName<FieldT>();
-                out += "\"}";
+                out += Detail::EmitFieldSchema<FieldT>();
             }
 
-            required.emplace_back(std::string(name));
+            if constexpr (!Detail::IsStdOptional<FieldT>::value)
+            {
+                required.emplace_back(std::string(name));
+            }
         }
 
         out += "},\"required\":[";

@@ -290,6 +290,36 @@ namespace BALDR_NAMESPACE
                     out += "],";
                 }
 
+                if (auto rit =
+                        entry->options.metadata.find("requestSchemaJson");
+                    rit != entry->options.metadata.end() &&
+                    !rit->second.empty())
+                {
+                    std::string requestMime = "application/json";
+                    if (auto cit = entry->options.metadata.find(
+                            "requestBodyContentType");
+                        cit != entry->options.metadata.end() &&
+                        !cit->second.empty())
+                    {
+                        requestMime = cit->second;
+                    }
+                    bool requestRequired = false;
+                    if (auto rit2 =
+                            entry->options.metadata.find("requestBodyRequired");
+                        rit2 != entry->options.metadata.end())
+                    {
+                        requestRequired = (rit2->second == "true");
+                    }
+
+                    out += "\"requestBody\":{\"required\":";
+                    out += requestRequired ? "true" : "false";
+                    out += ",\"content\":{\"";
+                    out += escapeString(requestMime);
+                    out += "\":{\"schema\":";
+                    out += rit->second;
+                    out += "}}},";
+                }
+
                 auto renderResponses =
                     [&](const std::map<std::string, std::string>& statuses,
                         const std::map<std::string, std::string>& ctypes) {

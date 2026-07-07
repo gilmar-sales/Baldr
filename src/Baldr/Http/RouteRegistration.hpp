@@ -191,6 +191,34 @@ namespace BALDR_NAMESPACE
         }
 
         /**
+         * @brief Override the OpenAPI @c requestBody media type.
+         *
+         * Used when the request body is non-JSON (e.g. an XML or
+         * protobuf payload described via @ref WithRequestSchemaJson or
+         * @ref WithRequestType). Defaults to @c application/json when
+         * a request schema is present and this method is not called.
+         */
+        RouteRegistration& WithRequestBodyContentType(std::string mime)
+        {
+            mRequestBodyContentType = std::move(mime);
+            return *this;
+        }
+
+        /**
+         * @brief Mark the OpenAPI @c requestBody as @c required (or not).
+         *
+         * OpenAPI defaults @c requestBody.required to @c false; call this
+         * with @c true to advertise that the endpoint must receive a body.
+         *
+         * @param v Required flag. Defaults to @c true.
+         */
+        RouteRegistration& WithRequestBodyRequired(bool v = true)
+        {
+            mRequestBodyRequired = v;
+            return *this;
+        }
+
+        /**
          * @brief Derive the request schema from a reflectable C++ type @c T.
          *
          * The schema is emitted via @ref JsonSchemaEmitter and stored
@@ -489,6 +517,13 @@ namespace BALDR_NAMESPACE
             if (!mRequestSchemaJson.empty())
             {
                 mOptions.metadata["requestSchemaJson"] = mRequestSchemaJson;
+                if (mRequestBodyContentType != "application/json")
+                {
+                    mOptions.metadata["requestBodyContentType"] =
+                        mRequestBodyContentType;
+                }
+                mOptions.metadata["requestBodyRequired"] =
+                    mRequestBodyRequired ? "true" : "false";
             }
 
             if (!mResponseSchemaJson.empty())
@@ -819,6 +854,8 @@ namespace BALDR_NAMESPACE
         std::string  mResponseStatusSchemasJson;
         std::string  mResponseContentTypesJson;
         std::string  mResponseContentType { "application/json" };
+        std::string  mRequestBodyContentType { "application/json" };
+        bool         mRequestBodyRequired { false };
         std::string  mQueryParametersJson;
         std::string  mPathParametersJson;
         bool         mFinalised { false };

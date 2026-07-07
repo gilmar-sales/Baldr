@@ -76,6 +76,63 @@ TEST(JsonSchemaEmitterSpec, RegistryDeduplicatesByTypeName)
     EXPECT_TRUE(reg.Contains("ReflectableDevice"));
 }
 
+struct ReflectableOptionalDto
+{
+    std::optional<std::string> title;
+    std::optional<bool>        done;
+    std::string                note;
+};
+
+TEST(JsonSchemaEmitterSpec, OptionalFieldsUseInnerTypeAndAreNotRequired)
+{
+    baldr::SchemaRegistry reg;
+    std::string schema = baldr::EmitAndRegister<ReflectableOptionalDto>(reg);
+
+    simdjson::dom::parser  parser;
+    simdjson::dom::element doc;
+    ASSERT_FALSE(parser.parse(schema).get(doc));
+
+    simdjson::dom::object obj;
+    ASSERT_FALSE(doc.get_object().get(obj));
+    simdjson::dom::object props;
+    ASSERT_FALSE(obj["properties"].get_object().get(props));
+
+    std::string_view s;
+
+    simdjson::dom::element titleEl;
+    ASSERT_FALSE(props["title"].get(titleEl));
+    EXPECT_FALSE(titleEl.get_object().value()["type"].get_string().get(s));
+    EXPECT_EQ(s, "string");
+
+    simdjson::dom::element doneEl;
+    ASSERT_FALSE(props["done"].get(doneEl));
+    EXPECT_FALSE(doneEl.get_object().value()["type"].get_string().get(s));
+    EXPECT_EQ(s, "boolean");
+
+    simdjson::dom::element noteEl;
+    ASSERT_FALSE(props["note"].get(noteEl));
+    EXPECT_FALSE(noteEl.get_object().value()["type"].get_string().get(s));
+    EXPECT_EQ(s, "string");
+
+    simdjson::dom::array required;
+    ASSERT_FALSE(obj["required"].get_array().get(required));
+    EXPECT_EQ(required.size(), 1u);
+
+    bool sawNote     = false;
+    bool sawOptional = false;
+    for (auto v : required)
+    {
+        std::string_view name;
+        ASSERT_FALSE(v.get_string().get(name));
+        if (name == "note")
+            sawNote = true;
+        if (name == "title" || name == "done")
+            sawOptional = true;
+    }
+    EXPECT_TRUE(sawNote);
+    EXPECT_FALSE(sawOptional);
+}
+
 TEST(JsonSchemaEmitterSpec, TranslatePathReplacesColonParam)
 {
     EXPECT_EQ(baldr::TranslatePath("/users/:id"), "/users/{id}");
