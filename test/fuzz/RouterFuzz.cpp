@@ -16,20 +16,21 @@
 #include <Baldr/Http/Router.hpp>
 #include <Skirnir/Skirnir.hpp>
 
+#include "FuzzAssert.hpp"
 #include "FuzzedDataProvider.hpp"
 
 namespace
 {
     constexpr std::array<baldr::HttpMethod, 9> kMethods {
-        baldr::HttpMethod::Get,    baldr::HttpMethod::Post,
-        baldr::HttpMethod::Put,    baldr::HttpMethod::Delete,
-        baldr::HttpMethod::Patch,  baldr::HttpMethod::Options,
-        baldr::HttpMethod::Head,   baldr::HttpMethod::Trace,
+        baldr::HttpMethod::Get,     baldr::HttpMethod::Post,
+        baldr::HttpMethod::Put,     baldr::HttpMethod::Delete,
+        baldr::HttpMethod::Patch,   baldr::HttpMethod::Options,
+        baldr::HttpMethod::Head,    baldr::HttpMethod::Trace,
         baldr::HttpMethod::Connect,
     };
 
     constexpr std::array<std::string_view, 6> kRouteTemplates {
-        "/", "/users", "/users/:id", "/files/**", "/api/v1/orders/:id",
+        "/",        "/users", "/users/:id", "/files/**", "/api/v1/orders/:id",
         "/static/*"
     };
 
@@ -40,10 +41,9 @@ namespace
         {
             for (auto tmpl : kRouteTemplates)
             {
-                router->insert(
-                    method, std::string(tmpl),
-                    [](baldr::HttpRequest&, baldr::HttpResponse&,
-                       skr::Arc<skr::ServiceProvider>) {});
+                router->insert(method, std::string(tmpl),
+                               [](baldr::HttpRequest&, baldr::HttpResponse&,
+                                  skr::Arc<skr::ServiceProvider>) {});
             }
         }
         return router;
@@ -52,13 +52,15 @@ namespace
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
 {
+    baldr::fuzz::FuzzRecorder rec({ data, size });
+    baldr::fuzz::g_active_recorder = &rec;
     baldr::fuzz::FuzzedDataProvider fdp(data, size);
 
     auto router = buildRouter();
 
-    auto method = fdp.PickValueInArray(kMethods);
-    std::string path =
-        "/" + fdp.ConsumeRandomLengthString(256);
+    auto        method = fdp.PickValueInArray(kMethods);
+    std::string path   = "/" + fdp.ConsumeRandomLengthString(256);
+    BDR_RECORD(fdp, path, "path");
 
     try
     {
@@ -74,8 +76,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
     {
         // Regex stack overflow or similar is a real bug; surface as crash
         // so the release-gating lane sees it.
-        __builtin_trap();
+        BDR_ASSERT(rec, false, "router.matchWithAllow threw");
     }
 
+    baldr::fuzz::g_active_recorder = nullptr;
     return 0;
 }

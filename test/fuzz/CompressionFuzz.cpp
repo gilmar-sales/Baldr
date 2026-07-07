@@ -14,10 +14,13 @@
 #include <Baldr/Http/Response.hpp>
 #include <Baldr/Middleware/Compression/Middleware.hpp>
 
+#include "FuzzAssert.hpp"
 #include "FuzzedDataProvider.hpp"
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
 {
+    baldr::fuzz::FuzzRecorder rec({ data, size });
+    baldr::fuzz::g_active_recorder = &rec;
     baldr::fuzz::FuzzedDataProvider fdp(data, size);
 
     baldr::HttpRequest  req;
@@ -26,18 +29,21 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
 
     auto accept = fdp.ConsumeBytesAsString(
         fdp.ConsumeIntegralInRange<std::size_t>(0, 64));
+    BDR_RECORD(fdp, accept, "accept_encoding");
     auto body = fdp.ConsumeBytesAsString(
         fdp.ConsumeIntegralInRange<std::size_t>(0, 16384));
+    BDR_RECORD(fdp, body, "body");
     auto ctype = fdp.ConsumeBytesAsString(
         fdp.ConsumeIntegralInRange<std::size_t>(0, 64));
+    BDR_RECORD(fdp, ctype, "content_type");
     if (ctype.empty())
         ctype = "text/plain";
 
     req.headers["accept-encoding"] = accept;
-    req.headers["host"] = "x";
+    req.headers["host"]            = "x";
 
-    resp.statusCode = baldr::StatusCode::OK;
-    resp.body        = body;
+    resp.statusCode              = baldr::StatusCode::OK;
+    resp.body                    = body;
     resp.headers["Content-Type"] = ctype;
 
     baldr::CompressionMiddleware mw;
@@ -45,16 +51,22 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
 
     auto encIt = resp.headers.find("content-encoding");
     if (encIt == resp.headers.end())
+    {
+        baldr::fuzz::g_active_recorder = nullptr;
         return 0;
+    }
 
     // Property: must advertise gzip.
-    if (encIt->second.find("gzip") == std::string::npos)
-        __builtin_trap();
+    BDR_ASSERT(rec, encIt->second.find("gzip") != std::string::npos,
+               "Content-Encoding set without gzip");
 
     // Property: ratio bound.
-    if (resp.body.size() > static_cast<std::size_t>(
-            static_cast<double>(body.size()) * 1.0001 + 64))
-        __builtin_trap();
+    BDR_ASSERT(
+        rec,
+        resp.body.size() <= static_cast<std::size_t>(
+                                static_cast<double>(body.size()) * 1.0001 + 64),
+        "compressed body exceeds ratio bound");
 
+    baldr::fuzz::g_active_recorder = nullptr;
     return 0;
 }

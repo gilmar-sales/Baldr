@@ -16,6 +16,7 @@
 
 #include <Baldr/Http/StaticFilesInternal.hpp>
 
+#include "FuzzAssert.hpp"
 #include "FuzzedDataProvider.hpp"
 
 namespace fs = std::filesystem;
@@ -35,21 +36,24 @@ namespace
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
 {
+    baldr::fuzz::FuzzRecorder rec({ data, size });
+    baldr::fuzz::g_active_recorder = &rec;
     baldr::fuzz::FuzzedDataProvider fdp(data, size);
 
     static const fs::path root = makeTempDir();
 
     auto path = "/" + fdp.ConsumeRandomLengthString(128);
+    BDR_RECORD(fdp, path, "path");
 
     std::ifstream outFile;
-    auto res = baldr::Detail::resolveStaticFileStreaming(path, root.string(),
-                                                         outFile);
+    auto          res =
+        baldr::Detail::resolveStaticFileStreaming(path, root.string(), outFile);
     if (res.status == baldr::StatusCode::OK)
     {
         // Property: must be inside `root`.
         auto canon = fs::weakly_canonical(res.canonical);
-        if (canon.string().find(root.string()) != 0)
-            __builtin_trap();
+        BDR_ASSERT(rec, canon.string().find(root.string()) == 0,
+                   "resolved path escapes root");
     }
 
     // ETag determinism.
@@ -60,16 +64,18 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
 
     // parseHttpDate robustness.
     auto dateStr = fdp.ConsumeRandomLengthString(64);
+    BDR_RECORD(fdp, dateStr, "date_str");
     try
     {
-        auto tp = baldr::Detail::parseHttpDate(dateStr);
+        auto tp        = baldr::Detail::parseHttpDate(dateStr);
         auto formatted = baldr::Detail::formatHttpDate(tp);
         (void) formatted;
     }
     catch (...)
     {
-        __builtin_trap();
+        BDR_ASSERT(rec, false, "parseHttpDate threw");
     }
 
+    baldr::fuzz::g_active_recorder = nullptr;
     return 0;
 }

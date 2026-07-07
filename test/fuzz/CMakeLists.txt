@@ -18,6 +18,9 @@ if(NOT BALDR_BUILD_FUZZING)
 endif()
 
 option(BALDR_FUZZ_USE_AFL "Wrap harness compilation with afl++ (default ON)" ON)
+option(BALDR_FUZZ_VERBOSE
+       "Record FDP-derived inputs and print a failure report on property violation"
+       OFF)
 
 # Default flags for a local dev build. The CI workflows override these via
 # -DBALDR_FUZZ_CXX_FLAGS / -DBALDR_FUZZ_LINK_FLAGS for each sanitizer lane.
@@ -94,9 +97,15 @@ foreach(src ${BALDR_FUZZ_SOURCES})
     # afl++ persistent mode is enabled via a compile definition; the driver
     # uses __AFL_LOOP when this is set.
     target_compile_definitions(${name} PRIVATE BALDR_FUZZ_PERSISTENT=1)
+    if(BALDR_FUZZ_VERBOSE)
+      target_compile_definitions(${name} PRIVATE BALDR_FUZZ_VERBOSE=1)
+    endif()
   else()
     target_compile_options(${name} PRIVATE ${BALDR_FUZZ_CXX_FLAGS})
     target_link_options(${name} PRIVATE ${BALDR_FUZZ_LINK_FLAGS})
+    if(BALDR_FUZZ_VERBOSE)
+      target_compile_definitions(${name} PRIVATE BALDR_FUZZ_VERBOSE=1)
+    endif()
   endif()
 
   # Register a ctest entry. The wrapper script enforces a timeout and parses

@@ -15,15 +15,16 @@
 #include <Baldr/Http/RequestParser.hpp>
 #include <Baldr/Http/StatusCode.hpp>
 
+#include "FuzzAssert.hpp"
 #include "FuzzedDataProvider.hpp"
 
 namespace
 {
     constexpr std::array<baldr::HttpMethod, 9> kMethods {
-        baldr::HttpMethod::Get,    baldr::HttpMethod::Post,
-        baldr::HttpMethod::Put,    baldr::HttpMethod::Delete,
-        baldr::HttpMethod::Patch,  baldr::HttpMethod::Options,
-        baldr::HttpMethod::Head,   baldr::HttpMethod::Trace,
+        baldr::HttpMethod::Get,     baldr::HttpMethod::Post,
+        baldr::HttpMethod::Put,     baldr::HttpMethod::Delete,
+        baldr::HttpMethod::Patch,   baldr::HttpMethod::Options,
+        baldr::HttpMethod::Head,    baldr::HttpMethod::Trace,
         baldr::HttpMethod::Connect,
     };
 
@@ -31,15 +32,24 @@ namespace
     {
         switch (m)
         {
-            case baldr::HttpMethod::Get:     return "GET";
-            case baldr::HttpMethod::Post:    return "POST";
-            case baldr::HttpMethod::Put:     return "PUT";
-            case baldr::HttpMethod::Delete:  return "DELETE";
-            case baldr::HttpMethod::Patch:   return "PATCH";
-            case baldr::HttpMethod::Options: return "OPTIONS";
-            case baldr::HttpMethod::Head:    return "HEAD";
-            case baldr::HttpMethod::Trace:   return "TRACE";
-            case baldr::HttpMethod::Connect: return "CONNECT";
+            case baldr::HttpMethod::Get:
+                return "GET";
+            case baldr::HttpMethod::Post:
+                return "POST";
+            case baldr::HttpMethod::Put:
+                return "PUT";
+            case baldr::HttpMethod::Delete:
+                return "DELETE";
+            case baldr::HttpMethod::Patch:
+                return "PATCH";
+            case baldr::HttpMethod::Options:
+                return "OPTIONS";
+            case baldr::HttpMethod::Head:
+                return "HEAD";
+            case baldr::HttpMethod::Trace:
+                return "TRACE";
+            case baldr::HttpMethod::Connect:
+                return "CONNECT";
         }
         return "GET";
     }
@@ -47,11 +57,11 @@ namespace
     // Build a mostly-well-formed request around the mutated payload so the
     // parser reaches the regions afl++ wants to explore.
     std::string buildScaffold(baldr::fuzz::FuzzedDataProvider& fdp,
-                              std::string_view                body)
+                              std::string_view                 body)
     {
-        auto method = fdp.PickValueInArray(kMethods);
+        auto method  = fdp.PickValueInArray(kMethods);
         auto hasHost = fdp.ConsumeBool();
-        auto host = fdp.ConsumeBytesAsString(
+        auto host    = fdp.ConsumeBytesAsString(
             fdp.ConsumeIntegralInRange<std::size_t>(0, 64));
         auto path = fdp.ConsumeBytesAsString(
             fdp.ConsumeIntegralInRange<std::size_t>(0, 64));
@@ -87,6 +97,8 @@ namespace
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
 {
+    baldr::fuzz::FuzzRecorder rec({ data, size });
+    baldr::fuzz::g_active_recorder = &rec;
     baldr::fuzz::FuzzedDataProvider fdp(data, size);
 
     // Pull a small scaffold, then feed the parser. We pick a tight max
@@ -95,6 +107,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
     parser.maxBodySize = 1024;
 
     std::string body = fdp.ConsumeRandomLengthString(2048);
+    BDR_RECORD(fdp, body, "body");
     std::string request = buildScaffold(fdp, std::string_view(body));
 
     auto status = parser.tryParse(std::string_view(request));
@@ -102,12 +115,20 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
     // Property assertions.
     if (status.kind == baldr::HttpParseStatus::Kind::Complete)
     {
+        std::string_view path = status.request.path;
+        BDR_RECORD(fdp, path, "path");
+        std::string_view host;
+        if (auto it = status.request.headers.find("host");
+            it != status.request.headers.end())
+            host = it->second;
+        BDR_RECORD(fdp, host, "host");
+
         // Body must never exceed maxBodySize.
-        if (status.request.body.size() > parser.maxBodySize)
-            __builtin_trap();
+        BDR_ASSERT(rec, status.request.body.size() <= parser.maxBodySize,
+                   "body size exceeds maxBodySize cap");
         // Path must be non-empty after stripping query.
-        if (status.request.path.empty())
-            __builtin_trap();
+        BDR_ASSERT(rec, !status.request.path.empty(),
+                   "path is empty after query strip");
         // Method must be one of the recognized verbs.
         switch (status.request.method)
         {
@@ -122,9 +143,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
             case baldr::HttpMethod::Connect:
                 break;
             default:
-                __builtin_trap();
+                BDR_ASSERT(rec, false, "parsed method is not in kMethods");
         }
     }
 
+    baldr::fuzz::g_active_recorder = nullptr;
     return 0;
 }
