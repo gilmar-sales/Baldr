@@ -9,14 +9,18 @@
 
 #include <simdjson.h>
 
+#include <array>
 #include <meta>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include <Baldr/Http/Request.hpp>
 #include <Baldr/Http/StatusCode.hpp>
+#include <Baldr/OpenApi/JsonSchemaEmitter.hpp>
 
 namespace BALDR_NAMESPACE
 {
@@ -159,6 +163,298 @@ namespace BALDR_NAMESPACE
                     return "Unknown JSON parsing error";
             }
         }
+
+        /**
+         * @brief Status returned by the recursive JSON field deserialiser.
+         *
+         * Carries a @c simdjson @c error_code and the dotted/array-indexed
+         * path of the offending JSON element. On success both fields are
+         * empty.
+         */
+        struct JsonParseStatus
+        {
+            simdjson::error_code err = simdjson::SUCCESS;
+            std::string          path;
+        };
+
+        /**
+         * @brief Compose a child path by appending a member name to a
+         *        parent path.
+         *
+         * @param parentPath Existing dotted path (empty for the root).
+         * @param memberName Member to append.
+         * @return @p parentPath when empty, otherwise
+         *         @c parentPath + "." + memberName.
+         */
+        inline std::string joinMemberPath(std::string_view parentPath,
+                                          std::string_view memberName)
+        {
+            std::string out;
+            out.reserve(parentPath.size() + 1 + memberName.size());
+            out.append(parentPath);
+            if (!parentPath.empty())
+                out += '.';
+            out.append(memberName);
+            return out;
+        }
+
+        /// @brief Compose a child path by appending an array index.
+        inline std::string joinIndexPath(std::string_view parentPath,
+                                         std::size_t      index)
+        {
+            std::string out;
+            out.reserve(parentPath.size() + 12);
+            out.append(parentPath);
+            out += '[';
+            out += std::to_string(index);
+            out += ']';
+            return out;
+        }
+
+        /// @brief @c true when @c T is a @c std::optional<U>.
+        template <typename T>
+        struct IsStdOptional : std::false_type
+        {
+        };
+
+        template <typename U>
+        struct IsStdOptional<std::optional<U>> : std::true_type
+        {
+        };
+
+        /// @brief Convenience alias for @ref IsStdOptional.
+        template <typename T>
+        constexpr bool is_std_optional_v = IsStdOptional<T>::value;
+
+        /// @brief @c true when @c T is a @c std::vector<U>.
+        template <typename T>
+        struct IsStdVector : std::false_type
+        {
+        };
+
+        template <typename U>
+        struct IsStdVector<std::vector<U>> : std::true_type
+        {
+        };
+
+        /// @brief Convenience alias for @ref IsStdVector.
+        template <typename T>
+        constexpr bool is_std_vector_v = IsStdVector<T>::value;
+
+        /// @brief @c true when @c T is a @c std::array<U, N>.
+        template <typename T>
+        struct IsStdArray : std::false_type
+        {
+        };
+
+        template <typename U, std::size_t N>
+        struct IsStdArray<std::array<U, N>> : std::true_type
+        {
+        };
+
+        /// @brief Convenience alias for @ref IsStdArray.
+        template <typename T>
+        constexpr bool is_std_array_v = IsStdArray<T>::value;
+
+        /**
+         * @brief Recursively deserialise @p elem into @p out.
+         *
+         * Dispatches at compile time on the decayed type of @c FieldT
+         * using @c if @c constexpr, supporting primitives,
+         * @c std::optional, @c std::array, @c std::vector, and nested
+         * reflectable structs (any class type satisfying
+         * @ref BALDR_NAMESPACE::IsReflectableStruct ).
+         *
+         * @tparam FieldT Target C++ type.
+         * @param elem    simdjson element to read.
+         * @param path    Path of @p elem for error reporting.
+         * @param out     Destination; left untouched on failure.
+         * @return Empty status on success; populated status on failure
+         *         (carrying the full dotted path of the failing element).
+         */
+        template <typename FieldT>
+        JsonParseStatus ReadField(const simdjson::dom::element& elem,
+                                  std::string_view              path,
+                                  FieldT&                       out)
+        {
+            if constexpr (std::is_same_v<FieldT, std::string>)
+            {
+                auto err = elem.get_string().get(out);
+                if (err)
+                    return { err, std::string(path) };
+                return {};
+            }
+            else if constexpr (std::is_same_v<FieldT, std::string_view>)
+            {
+                std::string_view sv;
+                auto             err = elem.get_string().get(sv);
+                if (err)
+                    return { err, std::string(path) };
+                out = sv;
+                return {};
+            }
+            else if constexpr (std::is_same_v<FieldT, int>)
+            {
+                int64_t v   = 0;
+                auto    err = elem.get_int64().get(v);
+                if (err)
+                    return { err, std::string(path) };
+                out = static_cast<int>(v);
+                return {};
+            }
+            else if constexpr (std::is_same_v<FieldT, int64_t>)
+            {
+                auto err = elem.get_int64().get(out);
+                if (err)
+                    return { err, std::string(path) };
+                return {};
+            }
+            else if constexpr (std::is_same_v<FieldT, double> ||
+                               std::is_same_v<FieldT, float>)
+            {
+                double v   = 0.0;
+                auto   err = elem.get_double().get(v);
+                if (err)
+                    return { err, std::string(path) };
+                out = static_cast<FieldT>(v);
+                return {};
+            }
+            else if constexpr (std::is_same_v<FieldT, bool>)
+            {
+                auto err = elem.get_bool().get(out);
+                if (err)
+                    return { err, std::string(path) };
+                return {};
+            }
+            else if constexpr (BALDR_NAMESPACE::IsReflectableStruct<FieldT>)
+            {
+                simdjson::dom::object child;
+                auto                  err = elem.get_object().get(child);
+                if (err)
+                    return { err, std::string(path) };
+
+                template for (constexpr auto member : std::define_static_array(
+                                  std::meta::nonstatic_data_members_of(
+                                      ^^FieldT,
+                                      std::meta::access_context::current())))
+                {
+                    constexpr auto memberName =
+                        std::meta::identifier_of(member);
+                    using InnerT =
+                        std::remove_cvref_t<decltype(out.[:member:])>;
+
+                    auto fieldErr = child[memberName].error();
+                    if (fieldErr == simdjson::NO_SUCH_FIELD)
+                    {
+                        if constexpr (detail::is_std_optional_v<InnerT>)
+                        {
+                            out.[:member:] = std::nullopt;
+                            continue;
+                        }
+                        else if constexpr (detail::is_std_vector_v<InnerT>)
+                        {
+                            out.[:member:].clear();
+                            continue;
+                        }
+                        else if constexpr (BALDR_NAMESPACE::IsReflectableStruct<
+                                               InnerT> ||
+                                           detail::is_std_array_v<InnerT>)
+                        {
+                            continue;
+                        }
+                        else
+                        {
+                            return { simdjson::NO_SUCH_FIELD,
+                                     detail::joinMemberPath(path, memberName) };
+                        }
+                    }
+
+                    simdjson::dom::element e;
+                    if (child[memberName].get(e))
+                    {
+                        return { fieldErr,
+                                 detail::joinMemberPath(path, memberName) };
+                    }
+                    auto childPath = detail::joinMemberPath(path, memberName);
+                    auto s =
+                        detail::ReadField<InnerT>(e, childPath, out.[:member:]);
+                    if (s.err)
+                        return s;
+                }
+                return {};
+            }
+            else if constexpr (detail::is_std_optional_v<FieldT>)
+            {
+                using InnerT = typename FieldT::value_type;
+                if (elem.type() == simdjson::dom::element_type::NULL_VALUE)
+                {
+                    out = std::nullopt;
+                    return {};
+                }
+                InnerT inner {};
+                auto   status = ReadField<InnerT>(elem, path, inner);
+                if (status.err)
+                    return status;
+                out = std::move(inner);
+                return {};
+            }
+            else if constexpr (detail::is_std_array_v<FieldT>)
+            {
+                simdjson::dom::array arr;
+                auto                 err = elem.get_array().get(arr);
+                if (err)
+                    return { err, std::string(path) };
+
+                using InnerT            = typename FieldT::value_type;
+                constexpr std::size_t N = std::tuple_size_v<FieldT>;
+
+                std::size_t i = 0;
+                for (auto child : arr)
+                {
+                    if (i >= N)
+                        return { simdjson::INDEX_OUT_OF_BOUNDS,
+                                 detail::joinIndexPath(path, i) };
+                    auto   childPath = detail::joinIndexPath(path, i);
+                    InnerT item {};
+                    auto   status = ReadField<InnerT>(child, childPath, item);
+                    if (status.err)
+                        return status;
+                    out[i] = item;
+                    ++i;
+                }
+                if (i != N)
+                    return { simdjson::INDEX_OUT_OF_BOUNDS,
+                             detail::joinIndexPath(path, i) };
+                return {};
+            }
+            else if constexpr (is_std_vector_v<FieldT>)
+            {
+                simdjson::dom::array arr;
+                auto                 err = elem.get_array().get(arr);
+                if (err)
+                    return { err, std::string(path) };
+
+                using InnerT = typename FieldT::value_type;
+
+                out.clear();
+                std::size_t i = 0;
+                for (auto child : arr)
+                {
+                    auto   childPath = detail::joinIndexPath(path, i);
+                    InnerT inner {};
+                    auto   status = ReadField<InnerT>(child, childPath, inner);
+                    if (status.err)
+                        return status;
+                    out.push_back(std::move(inner));
+                    ++i;
+                }
+                return {};
+            }
+            else
+            {
+                return { simdjson::INCORRECT_TYPE, std::string(path) };
+            }
+        }
     } // namespace detail
 
     /**
@@ -273,16 +569,27 @@ namespace BALDR_NAMESPACE
      *        C++26 reflection.
      *
      * Every non-static data member of @c T is read by name from the
-     * top-level JSON object; missing or type-mismatched fields cause a
-     * 400 response.
+     * top-level JSON object. Missing required fields and type-mismatched
+     * fields produce a 400 response with a dotted path in @c Error::field
+     * (e.g. @c "address.city").
      *
-     * Supported field types: @c std::string, @c std::string_view,
-     * @c int, @c int64_t, @c double, @c bool. For richer types, either
-     * provide specialisations of @c BALDR_NAMESPACE::detail::readJsonField
-     * or fall back to @ref parseJsonObject and inspect the DOM yourself.
+     * Supported field types:
+     * - Primitives: @c std::string, @c std::string_view, any integral
+     *   type, @c double, @c float, @c bool.
+     * - @c std::optional<U> where @c U is itself supported (missing or
+     *   explicit JSON @c null both leave the field as @c std::nullopt).
+     * - @c std::array<U, N> of a supported element type.
+     * - @c std::vector<U> of a supported element type.
+     * - Nested reflectable structs (recursively).
      *
-     * @tparam T A reflectable struct whose members are all in the
-     *           supported primitive set.
+     * @c std::string_view fields bind to the simdjson document's internal
+     * string storage; the parsed @c HttpRequest must outlive the
+     * returned @c JsonBodyResult.
+     *
+     * For richer types, fall back to @ref parseJsonObject and inspect
+     * the DOM yourself.
+     *
+     * @tparam T A reflectable struct whose members are all supported.
      * @param request Incoming request.
      */
     template <typename T>
@@ -298,60 +605,64 @@ namespace BALDR_NAMESPACE
         T     instance {};
         auto& o = obj.value();
 
-        bool                       anyError = false;
-        std::string                firstError;
-        std::optional<std::string> firstField;
+        detail::JsonParseStatus status {};
 
         template for (constexpr auto member : std::define_static_array(
                           std::meta::nonstatic_data_members_of(
                               ^^T,
                               std::meta::access_context::current())))
         {
-            if (anyError)
+            constexpr auto memberName = std::meta::identifier_of(member);
+            using FieldT = std::remove_cvref_t<decltype(instance.[:member:])>;
+
+            if constexpr (detail::is_std_optional_v<FieldT>)
+            {
+                if (o[memberName].error() == simdjson::NO_SUCH_FIELD)
+                {
+                    instance.[:member:] = std::nullopt;
+                    continue;
+                }
+            }
+            else if constexpr (detail::is_std_vector_v<FieldT>)
+            {
+                if (o[memberName].error() == simdjson::NO_SUCH_FIELD)
+                {
+                    instance.[:member:].clear();
+                    continue;
+                }
+            }
+            else if constexpr (BALDR_NAMESPACE::IsReflectableStruct<FieldT> ||
+                               detail::is_std_array_v<FieldT>)
+            {
+                if (o[memberName].error() == simdjson::NO_SUCH_FIELD)
+                {
+                    continue;
+                }
+            }
+
+            auto childPath = detail::joinMemberPath({}, memberName);
+            simdjson::dom::element e;
+            auto                   lookupErr = o[memberName].get(e);
+            if (lookupErr)
+            {
+                status = { lookupErr, childPath };
                 break;
-
-            constexpr auto name = std::meta::identifier_of(member);
-
-            auto& field = instance.[:member:];
-
-            using FieldT = std::remove_cvref_t<decltype(field)>;
-
-            simdjson::error_code err = simdjson::NO_SUCH_FIELD;
-            if constexpr (std::is_same_v<FieldT, std::string>)
-            {
-                err = BALDR_NAMESPACE::detail::readJsonField(o, name, field);
             }
-            else if constexpr (std::is_same_v<FieldT, int> ||
-                               std::is_same_v<FieldT, int64_t> ||
-                               std::is_same_v<FieldT, double> ||
-                               std::is_same_v<FieldT, bool>)
+            auto s =
+                detail::ReadField<FieldT>(e, childPath, instance.[:member:]);
+            if (s.err)
             {
-                err = detail::readJsonField(o, name, field);
-            }
-            else
-            {
-                firstError = "Unsupported field type for member '" +
-                             std::string(name) + "'";
-                firstField = std::string(name);
-                anyError   = true;
-
-                continue;
-            }
-
-            if (err)
-            {
-                firstError = detail::simdjsonErrorMessage(err, name);
-
-                firstField = std::string(name);
-
-                anyError = true;
+                status = s;
+                break;
             }
         }
 
-        if (anyError)
+        if (status.err)
         {
+            std::string msg =
+                detail::simdjsonErrorMessage(status.err, status.path);
             return JsonBodyResult<T>::Fail(
-                StatusCode::BadRequest, firstError, std::move(firstField));
+                StatusCode::BadRequest, msg, status.path);
         }
         return JsonBodyResult<T>::Ok(std::move(instance));
     }

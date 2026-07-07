@@ -7,6 +7,7 @@
 #pragma once
 #include <Baldr/Detail/Namespace.hpp>
 
+#include <array>
 #include <meta>
 #include <optional>
 #include <string>
@@ -62,17 +63,88 @@ namespace BALDR_NAMESPACE
         template <typename T>
         const char* PrimitiveTypeName();
 
+        template <typename T>
+        constexpr bool HasMembersImpl();
+
+        template <typename T>
+        constexpr bool AllMembersSupportedImpl();
+
+        template <typename T>
+        struct IsStdVector;
+
+        template <typename T>
+        struct IsStdArray;
+
+        template <typename T>
+        struct IsStdOptional;
+
         /**
          * @brief Trait that is @c true when @c T can be emitted as a
-         *        JSON Schema primitive field by @ref EmitStructSchema.
+         *        JSON Schema primitive field by @ref EmitStructSchema or
+         *        deserialised by @ref baldr::parseJson.
+         *
+         * Recognised shapes:
+         * - Primitives (@c std::string, @c std::string_view, integrals,
+         *   @c double, @c float, @c bool).
+         * - Containers (@c std::array<U,N>, @c std::vector<U>) whose
+         *   element type is itself supported.
+         * - @c std::optional<U> whose inner type is supported.
+         * - Reflectable class types whose members are all supported
+         *   (recursive, evaluated via @ref HasMembersImpl /
+         *   @ref AllMembersSupportedImpl).
          */
         template <typename T>
-        struct IsSupportedField
-            : std::bool_constant<
-                  std::is_same_v<T, std::string> ||
-                  std::is_same_v<T, std::string_view> ||
-                  std::is_integral_v<T> || std::is_same_v<T, double> ||
-                  std::is_same_v<T, float> || std::is_same_v<T, bool>>
+        struct IsSupportedField : std::false_type
+        {
+        };
+
+        template <>
+        struct IsSupportedField<std::string> : std::true_type
+        {
+        };
+        template <>
+        struct IsSupportedField<std::string_view> : std::true_type
+        {
+        };
+        template <std::integral I>
+        struct IsSupportedField<I> : std::true_type
+        {
+        };
+        template <>
+        struct IsSupportedField<double> : std::true_type
+        {
+        };
+        template <>
+        struct IsSupportedField<float> : std::true_type
+        {
+        };
+        template <>
+        struct IsSupportedField<bool> : std::true_type
+        {
+        };
+
+        template <typename U>
+        struct IsSupportedField<std::optional<U>>
+            : std::bool_constant<IsSupportedField<U>::value>
+        {
+        };
+
+        template <typename U, std::size_t N>
+        struct IsSupportedField<std::array<U, N>>
+            : std::bool_constant<IsSupportedField<U>::value>
+        {
+        };
+
+        template <typename U>
+        struct IsSupportedField<std::vector<U>>
+            : std::bool_constant<IsSupportedField<U>::value>
+        {
+        };
+
+        template <typename U>
+            requires(std::is_class_v<U> && HasMembersImpl<U>() &&
+                     AllMembersSupportedImpl<U>())
+        struct IsSupportedField<U> : std::true_type
         {
         };
     } // namespace Detail
@@ -120,9 +192,33 @@ namespace BALDR_NAMESPACE
 
             out += "\"";
             out += std::string(name);
-            out += "\":{\"type\":\"";
-            out += Detail::PrimitiveTypeName<FieldT>();
-            out += "\"}";
+            out += "\":";
+            if constexpr (Detail::IsStdArray<FieldT>::value ||
+                          Detail::IsStdVector<FieldT>::value)
+            {
+                out += "{\"type\":\"array\"}";
+            }
+            else if constexpr (Detail::IsStdOptional<FieldT>::value)
+            {
+                out += "{\"type\":\"null\"}";
+            }
+            else if constexpr (std::is_same_v<FieldT, std::string> ||
+                               std::is_same_v<FieldT, std::string_view>)
+            {
+                out += "{\"type\":\"";
+                out += Detail::PrimitiveTypeName<FieldT>();
+                out += "\"}";
+            }
+            else if constexpr (std::is_class_v<FieldT>)
+            {
+                out += "{\"type\":\"object\"}";
+            }
+            else
+            {
+                out += "{\"type\":\"";
+                out += Detail::PrimitiveTypeName<FieldT>();
+                out += "\"}";
+            }
 
             required.emplace_back(std::string(name));
         }
@@ -239,6 +335,40 @@ namespace BALDR_NAMESPACE
      */
     namespace Detail
     {
+        /// @brief Trait that is @c true when @c T is a @c std::vector of
+        ///        any type.
+        template <typename T>
+        struct IsStdVector : std::false_type
+        {
+        };
+
+        template <typename U>
+        struct IsStdVector<std::vector<U>> : std::true_type
+        {
+        };
+
+        /// @brief Trait that is @c true when @c T is a @c std::array<U, N>.
+        template <typename T>
+        struct IsStdArray : std::false_type
+        {
+        };
+
+        template <typename U, std::size_t N>
+        struct IsStdArray<std::array<U, N>> : std::true_type
+        {
+        };
+
+        /// @brief Trait that is @c true when @c T is a @c std::optional.
+        template <typename T>
+        struct IsStdOptional : std::false_type
+        {
+        };
+
+        template <typename U>
+        struct IsStdOptional<std::optional<U>> : std::true_type
+        {
+        };
+
         /// @brief Trait that is @c true when @c T is a @c std::vector
         ///        of an auto-derivable element type.
         template <typename T>

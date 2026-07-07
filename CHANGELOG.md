@@ -44,6 +44,9 @@ All notable changes to Baldr are documented here. The format is based on [Keep a
 - `WebApplication` no longer emits the bogus `plain/text` content type; `const char*` returns are handled explicitly; non-serializable returns fall through to a 500 response instead of a silent empty body.
 - `RateLimiter` race that could double-consume tokens or crash on a fresh `clientId`.
 
+### Added
+- `baldr::parseJson<T>` (`FromBody<T>`, `baldr::HttpRequest`) now deserialises beyond the five primitive members — `std::optional<U>`, `std::array<U, N>`, `std::vector<U>`, and nested reflectable structs (`AddressDto { city; street; }`, etc.) are supported recursively, with the same `IsReflectableStruct` / `Detail::IsSupportedField` trait widening applied to `EmitStructSchema<T>()` so the OpenAPI emitter stays aligned. Missing optional/vector/array/struct fields default to `nullopt` / empty / zero-initialised rather than failing the request. Error paths are now dotted/array-indexed (e.g. `address.city`, `tags[2]`, `billing.city`) and surface as `JsonBodyResult::Error::field`.
+
 ### Notes
 - The `WebApplication::MapRoute` template was promoted to a public member so the new `RouteBuilder` can register routes through it. Behaviour is unchanged for existing call sites.
 
